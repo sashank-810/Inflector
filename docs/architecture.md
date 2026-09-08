@@ -47,6 +47,24 @@ Phase 1 should create this physical layout, without creating empty feature
 folders solely for appearance. New domains graduate into packages only once
 they have a real interface or implementation.
 
+### Frontend boundary and state
+
+`apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered
+routes are the default for initial document/data reads; client components are
+small interactive islands for filters, charts, watchlist actions, and later
+cached API state. The FastAPI OpenAPI contract is the API boundary; do not
+duplicate financial/scoring logic in TypeScript. Explore state belongs in URL
+search parameters, local ephemeral UI state remains local, and TanStack Query
+is deferred until Phase 5 requires client-side server-state caching.
+
+The first owned design primitives live in `apps/web/components/ui`, added
+selectively through shadcn/ui and styled to the product design specification.
+Lucide is the Phase 1 icon set. TanStack Table, ECharts, Lightweight Charts,
+command palette support, virtualisation, and resizable panels are Phase 5 or
+measured-need additions; see `docs/product-design.md` for the dependency
+decision record. This avoids a premature shared UI package or dashboard-library
+bundle.
+
 ## Data and time model
 
 PostgreSQL holds canonical identities, raw-to-normalized observations,
