@@ -148,12 +148,14 @@ rate limits, retry classification, and deterministic idempotency keys.
 
 ## Deployment, auth, and observability
 
-Compose services are `postgres`, `api`, `worker`, and `web`; an object-store
-mount is sufficient locally. Development uses hot reload and a local `.env`.
+Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot
+reload, which keeps the development loop fast and failures legible. Future
+production Compose may add API, worker, web, and object-store services only
+when deployment—not local development—requires them. Development uses hot
+reload and a local `.env`.
 Production uses a reverse proxy/TLS outside the app, managed PostgreSQL or
-volume backups, a private network, and a single local-user login seeded from
-environment credentials. The API stores a password hash and secure session or
-short-lived signed token; there are no roles or registration flows.
+volume backups, and a private network. Authentication is explicitly deferred
+from the Phase 1 vertical slice; there are no roles or registration flows.
 
 Every job has correlation ID, provider run, start/finish/status, counters,
 watermarks, exception details, and freshness measurements. JSON structured

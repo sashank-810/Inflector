@@ -10,20 +10,19 @@
 
 ## Phase 1 — foundation
 
-1. Create the physical monorepo layout (`apps/api`, `apps/worker`, `apps/web`,
-   `packages/core`, `packages/database`, `packages/data`, tests, scripts).
+1. Create only used modules: `apps/api`, `apps/web`, `packages/core`,
+   `packages/database`, migrations, tests, and scripts.
 2. Pin Python 3.12/Node toolchains; add `.env.example`, `.gitignore`, Makefile,
-   Compose services (`postgres`, api, worker, web), health checks and volumes.
-3. Implement settings, JSON logging/correlation IDs, simple seeded local-user
-   authentication, error contracts, and API/web shells.
-4. Add SQLAlchemy/Alembic with the initial reference/provenance schema,
-   migration test, core Company/Security/Listing repositories, and DuckDB
-   manifest/export boundary.
+   PostgreSQL-only Compose service, health check, and persistent volume.
+3. Implement settings, error contracts, and API/web shells. Authentication and
+   a worker are explicitly deferred because this slice has no background work.
+4. Add SQLAlchemy/Alembic with the initial Company/Security/Listing schema,
+   migration test, core repositories, and idempotent fictional seed data.
 5. Add Ruff, mypy/pyright choice, pytest, frontend ESLint/typecheck/test setup,
    GitHub Actions CI, and development/deployment/backup documentation.
 
-**Exit gate:** clean Compose boot; migration upgrade/downgrade; API health and
-authenticated smoke test; web shell; lint/type/test commands pass.
+**Exit gate:** clean PostgreSQL Compose boot; migration upgrade/downgrade; API
+health and company-read smoke test; web shell; lint/type/test commands pass.
 
 ## Phase 2 — data layer
 
