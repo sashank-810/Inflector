@@ -25,17 +25,17 @@ dev = [
 ]
 
 [tool.setuptools.packages.find]
-where = ["apps/api", "packages/core", "packages/database"]
-include = ["inflector_api*", "inflector_core*", "inflector_database*"]
+where = ["apps/api", "packages/core", "packages/database", "packages/data"]
+include = ["inflector_api*", "inflector_core*", "inflector_database*", "inflector_data*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
-pythonpath = ["apps/api", "packages/core", "packages/database"]
+pythonpath = ["apps/api", "packages/core", "packages/database", "packages/data"]
 
 [tool.pyright]
-include = ["apps/api", "packages/core", "packages/database", "tests"]
-extraPaths = ["apps/api", "packages/core", "packages/database"]
+include = ["apps/api", "packages/core", "packages/database", "packages/data", "tests"]
+extraPaths = ["apps/api", "packages/core", "packages/database", "packages/data"]
 venvPath = "."
 venv = ".venv"
 typeCheckingMode = "standard"
@@ -45,7 +45,7 @@ reportMissingTypeStubs = false
 [tool.ruff]
 target-version = "py312"
 line-length = 100
-src = ["apps/api", "packages/core", "packages/database", "tests"]
+src = ["apps/api", "packages/core", "packages/database", "packages/data", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "UP"]

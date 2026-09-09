@@ -104,6 +104,11 @@ a company to view its canonical identity, ISIN, securities, and listings.
 
 ## Validation
 
+### Phase 2A synthetic ingestion
+
+See [the ingestion guide](docs/data-ingestion.md) before using development CSV
+fixtures. They require a dedicated synthetic database and raw archive root.
+
 Backend commands, from the repository root after installing Python dev
 dependencies:
 

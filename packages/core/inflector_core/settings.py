@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
     database_url: str = "postgresql+psycopg://inflector:inflector@localhost:5432/inflector"
+    raw_archive_root: str = "var/raw"
     cors_origins: str = "http://localhost:3000"
 
     @property

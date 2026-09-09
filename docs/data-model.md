@@ -90,8 +90,9 @@ largest daily fact tables by calendar year only once real volume warrants it.
 
 `financial_metric_definition.statement_kind` distinguishes income statement,
 balance sheet, and cash flow; this is more durable than three sparse wide
-tables. Phase 1 exposes typed `IncomeStatement`, `BalanceSheet`, and `CashFlow`
-read models. Definitions cover revenue, operating revenue, other income,
+tables. Future financial API projections can expose typed `IncomeStatement`,
+`BalanceSheet`, and `CashFlow` read models; Phase 1 exposes only the canonical
+company identity graph. Definitions cover revenue, operating revenue, other income,
 EBITDA, EBIT, operating profit, PAT, EPS, exceptional items, tax, interest,
 assets, liabilities, equity, debt, cash, inventory, receivables, payables,
 CFO, CFI, CFF, capex, and reported FCF. Reported values are never replaced by

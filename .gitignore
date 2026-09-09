@@ -15,5 +15,6 @@ dist/
 build/
 *.egg-info/
 *.tsbuildinfo
+var/
 *.duckdb
 *.parquet

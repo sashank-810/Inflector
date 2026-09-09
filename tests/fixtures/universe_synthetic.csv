@@ -1,0 +1,4 @@
+external_id,legal_name,display_name,sector,industry,isin,security_type,security_status,exchange,symbol,listing_status,valid_from,valid_to
+SYN-UNI-001,Aurora Fabrication Limited,Aurora Fabrication,Industrials,Engineering,INF0AUR01018,equity,active,NSE,AURORA,active,2025-01-01,
+SYN-UNI-002,Aurora Fabrication Limited,Aurora Fabrication,Industrials,Engineering,INF0AUR01018,equity,active,BSE,590001,active,2025-01-01,
+SYN-UNI-003,Meridian Components Limited,Meridian Components,Industrials,Components,INF0MER01019,equity,active,NSE,MERIDIAN,active,2025-01-01,

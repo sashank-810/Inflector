@@ -47,6 +47,18 @@ Phase 1 should create this physical layout, without creating empty feature
 folders solely for appearance. New domains graduate into packages only once
 they have a real interface or implementation.
 
+### Phase 2A ingestion boundary
+
+Phase 2A makes `packages/data` concrete: `UniverseProvider` and
+`MarketDataProvider` return typed provider-neutral envelopes, never ORM
+objects. The ingestion service archives a whole raw batch by SHA-256 before it
+creates an ingestion run/source record, validates the parsed observation, and
+normalizes accepted observations through database repositories. Local storage
+uses a configurable content-addressed filesystem root; an S3-compatible store
+can later satisfy the same raw-object port. The immutable source identity is
+provider dataset + external record ID + content SHA-256, while corrections with
+changed content append a new source and price bar for future PIT selection.
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

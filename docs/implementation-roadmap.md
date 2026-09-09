@@ -26,6 +26,13 @@ health and company-read smoke test; web shell; lint/type/test commands pass.
 
 ## Phase 2 — data layer
 
+### Phase 2A — ingestion spine
+
+Build provider-neutral universe and daily-market CSV/mock adapters, immutable
+content-addressed raw archival, provenance tables, deterministic quarantine,
+and append-only revised price observations. This subphase deliberately excludes
+real providers, financial statements, provider health UI, and analytical marts.
+
 1. Define provider ports and shared ingestion envelope; build mock, CSV, and
    manual-import adapters first.
 2. Implement raw archival, idempotent ingestion runs, normalization, company
