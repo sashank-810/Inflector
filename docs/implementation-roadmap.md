@@ -59,10 +59,19 @@ explanation; a filing revision and symbol rename survive normalization.
 
 ## Phase 3 — feature engine
 
-1. Implement period selection and PIT repository queries before formulas.
-2. Add financial, margin, capital-efficiency, leverage, working-capital, and
+### Phase 3A — point-in-time financial read layer
+
+Implement explicit-provider, explicit-scope financial PIT selection before any
+formula. Require UTC-aware `as_of`, use `available_at <= as_of`, preserve
+reported fiscal-period semantics, and prove late filings/restatements cannot
+leak future knowledge. No derived feature table, calculation, or provider
+reconciliation belongs here.
+
+### Phase 3B — deterministic feature engine
+
+1. Add financial, margin, capital-efficiency, leverage, working-capital, and
 cash-flow features with source lineage.
-3. Implement trend, robust acceleration, persistence, consistency, and outlier
+2. Implement trend, robust acceleration, persistence, consistency, and outlier
 logic. Publish formula documentation and feature snapshots.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
@@ -132,7 +141,8 @@ backups, review security, complete documentation, and run end-to-end tests.
 
 - Initial active universe is liquid listed common equities; ETFs, REITs, SME,
   preference shares and suspended issues are configured separately.
-- Consolidated financials are preferred; standalone is explicit fallback.
+- Provider and consolidated/standalone preference are later research-policy
+  choices; Phase 3A requires both provider dataset and filing scope explicitly.
 - Daily bars are first; intraday is a later provider and storage extension.
 - No real data is fabricated. Mock/CSV datasets unblock development.
 - Exchange and vendor permissions must be approved before production feeds or

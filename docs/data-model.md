@@ -165,3 +165,13 @@ The repository API for financial/event/market facts requires `as_of` and
 `knowledge_cutoff`; it returns the latest available revision per economic key.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
+
+Phase 3A's financial reader uses the immutable economic identity
+`provider_dataset + company + fiscal_period + filing_scope + metric`. It filters
+accepted source-backed facts using the inclusive predicate
+`financial_fact.available_at <= as_of`, then selects the latest eligible
+revision deterministically. `ingested_at` is only a final tie-breaker and never
+a knowledge-time proxy. No schema migration or composite index is added at the
+current synthetic/personal scale: existing financial-fact foreign-key indexes
+and filing/company/provider filtering support the narrow read path. Reassess a
+composite index only with measured PostgreSQL query volume.

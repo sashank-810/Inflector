@@ -1,0 +1,2 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+FIN-B-001,Aurora Fabrication Limited,SYN-B-FILING-Q2-2025,results,standalone,false,quarter,2025-07-01,2025-09-30,2025,2,false,revenue,126,INR,crore,INR,2025-11-01T12:00:00Z,2025-11-01T12:00:00Z,

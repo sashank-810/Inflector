@@ -77,6 +77,12 @@ scoped, with a cash-dividend `ex_date` then `effective_date` fallback and an
 half-open temporal semantics and succession edges are cycle-checked before
 persistence.
 
+Phase 3A adds a read-only `PointInTimeFinancialReader` in `packages/data`.
+It selects accepted immutable financial facts only after an explicit provider
+dataset, filing scope, and UTC-aware `as_of` cutoff are supplied. The layer
+does not reconcile provider evidence or derive financial features; see
+[`point-in-time.md`](point-in-time.md) for its selection and tie-break rules.
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered
