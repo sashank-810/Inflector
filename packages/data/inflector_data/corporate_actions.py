@@ -40,8 +40,13 @@ def validate_corporate_action(record: CorporateActionRecord) -> list[ValidationI
             issues.append(
                 ValidationIssue("invalid_dividend_unit", "only INR/share dividends are supported")
             )
-        if not record.ex_date:
-            issues.append(ValidationIssue("missing_ex_date", "cash dividend requires ex date"))
+        if not record.ex_date and not record.effective_date:
+            issues.append(
+                ValidationIssue(
+                    "missing_dividend_anchor",
+                    "cash dividend requires an ex date or effective date",
+                )
+            )
     if record.action_type == "rights":
         if record.subscription_price is None or record.subscription_price <= 0:
             issues.append(

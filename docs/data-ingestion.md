@@ -91,8 +91,24 @@ Cash dividends retain Decimal amount, `INR`, and `INR/share`; rights retain the
 same exact ratio plus an INR subscription price. No adjusted price, total-return
 or rights factor is calculated in this phase.
 
+Corporate-action revisions are scoped to one provider dataset and one economic
+event. A cash dividend anchors on `ex_date`, falling back to `effective_date`
+only when its ex-date is unknown; splits, bonuses, rights, symbol changes, and
+replacements anchor on `effective_date`. The same shared rule matches incoming
+and stored observations. Distinct anchors are independent events and may arrive
+in any order. Same-external-ID content with a changed anchor is treated as a
+correction only when its availability/revision ordering is strictly later;
+otherwise it is quarantined. Equivalence compares each action's complete typed
+terms, including exchange, old/new symbol, and successor ISIN. Provider datasets
+remain independent evidence streams.
+
 Listing validity uses half-open intervals `[valid_from, valid_to)`: an old
 symbol ending on a date is inactive from that date and the successor begins on
 it. Security replacement creates a new immutable ISIN/security and an explicit
 predecessor-to-successor relationship; historical prices/facts remain on the
 old security.
+Dates, not `status`, determine point-in-time listing activity; `status` is
+descriptive lifecycle metadata. Universe and symbol-change normalization both
+reject an overlap for the same security and exchange, while adjacent intervals
+are valid. Security succession rejects self edges and any edge that would close
+an existing directed replacement cycle.

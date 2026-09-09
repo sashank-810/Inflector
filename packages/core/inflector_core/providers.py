@@ -108,6 +108,22 @@ class CorporateActionRecord:
     parse_errors: tuple[str, ...] = ()
 
 
+def corporate_action_event_anchor(
+    action_type: str | None, ex_date: date | None, effective_date: date | None
+) -> date | None:
+    """Return the provider-local event anchor used for action identity.
+
+    Cash-dividend events are anchored to their ex-date when supplied, with the
+    effective date as the explicit fallback. Other supported action types use
+    their effective date. This is intentionally shared by ingestion and
+    persistence lookup so both sides apply identical semantics.
+    """
+
+    if action_type == "cash_dividend":
+        return ex_date or effective_date
+    return effective_date
+
+
 @dataclass(frozen=True, slots=True)
 class IngestionEnvelope[TRecord]:
     """Record-level provider observation before storage or normalization."""

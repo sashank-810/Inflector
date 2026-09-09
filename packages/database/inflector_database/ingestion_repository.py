@@ -14,6 +14,7 @@ from inflector_core.providers import (
     FinancialRecord,
     ProviderMetadata,
     UniverseRecord,
+    corporate_action_event_anchor,
 )
 from inflector_database.models import (
     Company,
@@ -284,14 +285,36 @@ class IngestionRepository:
         )
 
     def corporate_actions(
-        self, *, dataset_id: UUID, security_id: UUID, action_type: str
+        self, *, dataset_id: UUID, security_id: UUID, action_type: str, event_anchor: date | None
+    ) -> list[CorporateAction]:
+        """Find immutable revisions for one provider-local corporate-action event."""
+
+        candidates = self.session.scalars(
+            select(CorporateAction).where(
+                CorporateAction.provider_dataset_id == dataset_id,
+                CorporateAction.security_id == security_id,
+                CorporateAction.action_type == action_type,
+            )
+        )
+        return [
+            action
+            for action in candidates
+            if corporate_action_event_anchor(
+                action.action_type, action.ex_date, action.effective_date
+            )
+            == event_anchor
+        ]
+
+    def corporate_actions_by_external_id(
+        self, *, dataset_id: UUID, external_id: str
     ) -> list[CorporateAction]:
         return list(
             self.session.scalars(
-                select(CorporateAction).where(
+                select(CorporateAction)
+                .join(SourceRecord)
+                .where(
                     CorporateAction.provider_dataset_id == dataset_id,
-                    CorporateAction.security_id == security_id,
-                    CorporateAction.action_type == action_type,
+                    SourceRecord.external_record_id == external_id,
                 )
             )
         )
@@ -323,43 +346,123 @@ class IngestionRepository:
                 cash_unit=record.cash_unit,
                 subscription_price=record.subscription_price,
                 subscription_currency=record.subscription_currency,
+                exchange=record.exchange,
+                old_symbol=record.old_symbol,
+                new_symbol=record.new_symbol,
+                successor_isin=record.successor_isin,
                 available_at=available_at,
                 revision_at=revision_at,
             )
         )
+        self.session.flush()
+
+    def _listing_interval_issue(
+        self,
+        *,
+        security_id: UUID,
+        exchange: str,
+        valid_from: date,
+        valid_to: date | None,
+        exclude_listing_id: UUID | None = None,
+    ) -> str | None:
+        """Validate half-open [valid_from, valid_to) exchange-listing intervals."""
+
+        if valid_to is not None and valid_to <= valid_from:
+            return "listing valid_to must be after valid_from"
+        listings = self.session.scalars(
+            select(ExchangeListing).where(
+                ExchangeListing.security_id == security_id,
+                ExchangeListing.exchange == exchange,
+            )
+        )
+        for listing in listings:
+            if exclude_listing_id is not None and listing.id == exclude_listing_id:
+                continue
+            existing_end = listing.valid_to
+            overlaps = (existing_end is None or valid_from < existing_end) and (
+                valid_to is None or listing.valid_from < valid_to
+            )
+            if overlaps:
+                return "listing validity interval overlaps an existing listing"
+        return None
+
+    def universe_listing_issue(self, record: UniverseRecord) -> str | None:
+        """Validate a universe listing before canonical identity is materialized."""
+
+        assert record.valid_from is not None
+        security = self.security_by_isin(record.isin)
+        if security is None:
+            if record.valid_to is not None and record.valid_to <= record.valid_from:
+                return "listing valid_to must be after valid_from"
+            return None
+        identical = self.session.scalar(
+            select(ExchangeListing).where(
+                ExchangeListing.security_id == security.id,
+                ExchangeListing.exchange == record.exchange,
+                ExchangeListing.symbol == record.symbol,
+                ExchangeListing.valid_from == record.valid_from,
+                ExchangeListing.valid_to == record.valid_to,
+            )
+        )
+        if identical is not None:
+            return None
+        return self._listing_interval_issue(
+            security_id=security.id,
+            exchange=record.exchange,
+            valid_from=record.valid_from,
+            valid_to=record.valid_to,
+        )
+
+    def _listing_active_at(
+        self, security_id: UUID, exchange: str, as_of: date
+    ) -> ExchangeListing | None:
+        return self.session.scalar(
+            select(ExchangeListing).where(
+                ExchangeListing.security_id == security_id,
+                ExchangeListing.exchange == exchange,
+                ExchangeListing.valid_from <= as_of,
+                ExchangeListing.valid_to.is_(None) | (ExchangeListing.valid_to > as_of),
+            )
+        )
+
+    def symbol_change_issue(self, security: Security, record: CorporateActionRecord) -> str | None:
+        """Check identity continuity and the new listing interval before mutation."""
+
+        assert record.exchange and record.new_symbol and record.effective_date
+        current = self._listing_active_at(security.id, record.exchange, record.effective_date)
+        if current is None:
+            return "symbol change has no active listing at its effective date"
+        if record.old_symbol is not None and current.symbol != record.old_symbol:
+            return "symbol change old symbol does not match active listing"
+        if record.effective_date <= current.valid_from:
+            return "symbol change cannot create an empty historical listing interval"
+        return self._listing_interval_issue(
+            security_id=security.id,
+            exchange=record.exchange,
+            valid_from=record.effective_date,
+            valid_to=None,
+            exclude_listing_id=current.id,
+        )
 
     def apply_symbol_change(self, security: Security, record: CorporateActionRecord) -> None:
         assert record.exchange and record.new_symbol and record.effective_date
-        current = self.session.scalar(
-            select(ExchangeListing).where(
-                ExchangeListing.security_id == security.id,
-                ExchangeListing.exchange == record.exchange,
-                ExchangeListing.valid_to.is_(None),
+        issue = self.symbol_change_issue(security, record)
+        if issue is not None:
+            raise ValueError(issue)
+        current = self._listing_active_at(security.id, record.exchange, record.effective_date)
+        assert current is not None
+        current.valid_to = record.effective_date
+        self.session.add(
+            ExchangeListing(
+                security_id=security.id,
+                exchange=record.exchange,
+                symbol=record.new_symbol,
+                valid_from=record.effective_date,
+                valid_to=None,
+                status="active",
             )
         )
-        if current is not None:
-            if current.valid_from > record.effective_date:
-                raise ValueError("symbol change precedes active listing")
-            current.valid_to = record.effective_date
-        overlap = self.session.scalar(
-            select(ExchangeListing).where(
-                ExchangeListing.security_id == security.id,
-                ExchangeListing.exchange == record.exchange,
-                ExchangeListing.symbol == record.new_symbol,
-                ExchangeListing.valid_from == record.effective_date,
-            )
-        )
-        if overlap is None:
-            self.session.add(
-                ExchangeListing(
-                    security_id=security.id,
-                    exchange=record.exchange,
-                    symbol=record.new_symbol,
-                    valid_from=record.effective_date,
-                    valid_to=None,
-                    status="active",
-                )
-            )
+        self.session.flush()
 
     def apply_security_replacement(
         self,
@@ -369,6 +472,9 @@ class IngestionRepository:
         available_at: datetime,
     ) -> None:
         assert record.successor_isin and record.effective_date
+        issue = self.security_replacement_issue(security, record)
+        if issue is not None:
+            raise ValueError(issue)
         successor = self.security_by_isin(record.successor_isin)
         if successor is None:
             successor = Security(
@@ -379,16 +485,6 @@ class IngestionRepository:
             )
             self.session.add(successor)
             self.session.flush()
-        if successor.id == security.id:
-            raise ValueError("security successor cannot equal predecessor")
-        reverse = self.session.scalar(
-            select(SecurityRelationship.id).where(
-                SecurityRelationship.predecessor_security_id == successor.id,
-                SecurityRelationship.successor_security_id == security.id,
-            )
-        )
-        if reverse is not None:
-            raise ValueError("security replacement cycle")
         exists = self.session.scalar(
             select(SecurityRelationship.id).where(
                 SecurityRelationship.predecessor_security_id == security.id,
@@ -407,8 +503,49 @@ class IngestionRepository:
                     available_at=available_at,
                 )
             )
+            self.session.flush()
+
+    def security_replacement_issue(
+        self, security: Security, record: CorporateActionRecord
+    ) -> str | None:
+        """Reject self and transitive cycles before recording a succession edge."""
+
+        assert record.successor_isin
+        successor = self.security_by_isin(record.successor_isin)
+        if successor is None:
+            return None
+        if successor.id == security.id:
+            return "security successor cannot equal predecessor"
+        if self._has_security_path(successor.id, security.id):
+            return "security replacement cycle"
+        return None
+
+    def _has_security_path(self, start_id: UUID, target_id: UUID) -> bool:
+        """Traverse the small directed succession graph to prevent cycles."""
+
+        frontier = [start_id]
+        seen: set[UUID] = set()
+        while frontier:
+            current = frontier.pop()
+            if current == target_id:
+                return True
+            if current in seen:
+                continue
+            seen.add(current)
+            frontier.extend(
+                self.session.scalars(
+                    select(SecurityRelationship.successor_security_id).where(
+                        SecurityRelationship.predecessor_security_id == current
+                    )
+                )
+            )
+        return False
 
     def normalize_universe(self, record: UniverseRecord) -> None:
+        assert record.valid_from is not None
+        issue = self.universe_listing_issue(record)
+        if issue is not None:
+            raise ValueError(issue)
         security = self.security_by_isin(record.isin)
         if security is None:
             company = Company(
@@ -433,6 +570,7 @@ class IngestionRepository:
                 ExchangeListing.exchange == record.exchange,
                 ExchangeListing.symbol == record.symbol,
                 ExchangeListing.valid_from == record.valid_from,
+                ExchangeListing.valid_to == record.valid_to,
             )
         )
         if listing is None:
@@ -446,6 +584,7 @@ class IngestionRepository:
                     status=record.listing_status,
                 )
             )
+            self.session.flush()
 
     def add_price(
         self,

@@ -71,7 +71,11 @@ will decide how to select among valid revisions and scopes.
 Phase 2C adds provider-neutral corporate-action observations and explicit
 security succession. Action terms are stored exactly and separately from later
 price-adjustment derivations; exchange symbols are dated listings rather than
-mutable security attributes.
+mutable security attributes. Corporate-action event identity is provider-dataset
+scoped, with a cash-dividend `ex_date` then `effective_date` fallback and an
+`effective_date` anchor for other supported action types. Listing intervals use
+half-open temporal semantics and succession edges are cycle-checked before
+persistence.
 
 ### Frontend boundary and state
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from uuid import UUID
 
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ from inflector_core.providers import (
     ProviderBatch,
     UniverseProvider,
     UniverseRecord,
+    corporate_action_event_anchor,
 )
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
 from inflector_data.corporate_actions import validate_corporate_action
@@ -185,6 +186,12 @@ class IngestionService:
                     continue
                 source = self._source(envelope, dataset.id, run.id, raw, "parsed")
                 issues = validate_universe(envelope.record)
+                if not issues:
+                    listing_issue = self._repository.universe_listing_issue(envelope.record)
+                    if listing_issue is not None:
+                        issues.append(
+                            ValidationIssue("overlapping_listing_interval", listing_issue)
+                        )
                 if issues:
                     self._quarantine(run.id, source.id, issues)
                     counters.quarantined += 1
@@ -446,11 +453,33 @@ class IngestionService:
                     counters.quarantined += 1
                     continue
                 assert security is not None and envelope.available_at is not None
+                anchor = self._action_anchor(envelope.record)
                 existing = self._repository.corporate_actions(
                     dataset_id=dataset.id,
                     security_id=security.id,
                     action_type=envelope.record.action_type or "",
+                    event_anchor=anchor,
                 )
+                external_matches = self._repository.corporate_actions_by_external_id(
+                    dataset_id=dataset.id, external_id=envelope.external_record_id
+                )
+                if existing and external_matches and not {
+                    action.id for action in existing
+                }.intersection(action.id for action in external_matches):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_action_event_identity",
+                                "changed external action conflicts with another event anchor",
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                if not existing and external_matches:
+                    existing = external_matches
                 if self._action_equivalent(existing, envelope.record):
                     source.validation_status = "duplicate_economic"
                     counters.duplicated += 1
@@ -471,6 +500,30 @@ class IngestionService:
                     )
                     counters.quarantined += 1
                     continue
+                if envelope.record.action_type == "symbol_change":
+                    listing_issue = self._repository.symbol_change_issue(
+                        security, envelope.record
+                    )
+                    if listing_issue is not None:
+                        self._quarantine(
+                            run.id,
+                            source.id,
+                            [ValidationIssue("invalid_symbol_change", listing_issue)],
+                        )
+                        counters.quarantined += 1
+                        continue
+                if envelope.record.action_type == "security_replacement":
+                    succession_issue = self._repository.security_replacement_issue(
+                        security, envelope.record
+                    )
+                    if succession_issue is not None:
+                        self._quarantine(
+                            run.id,
+                            source.id,
+                            [ValidationIssue("invalid_security_succession", succession_issue)],
+                        )
+                        counters.quarantined += 1
+                        continue
                 self._repository.add_corporate_action(
                     dataset_id=dataset.id,
                     security_id=security.id,
@@ -496,24 +549,59 @@ class IngestionService:
     def _action_equivalent(
         existing: Sequence[CorporateAction], record: CorporateActionRecord
     ) -> bool:
-        return any(
-            (
-                action.ex_date,
-                action.effective_date,
-                action.ratio_numerator,
-                action.ratio_denominator,
-                action.cash_amount,
-                action.subscription_price,
-            )
-            == (
+        def terms(action: CorporateAction) -> tuple[object, ...]:
+            if record.action_type in {"split", "bonus"}:
+                return action.ratio_numerator, action.ratio_denominator, action.effective_date
+            if record.action_type == "cash_dividend":
+                return (
+                    action.cash_amount,
+                    action.cash_currency,
+                    action.cash_unit,
+                    action.ex_date,
+                    action.effective_date,
+                )
+            if record.action_type == "rights":
+                return (
+                    action.ratio_numerator,
+                    action.ratio_denominator,
+                    action.subscription_price,
+                    action.subscription_currency,
+                    action.effective_date,
+                )
+            if record.action_type == "symbol_change":
+                return action.exchange, action.old_symbol, action.new_symbol, action.effective_date
+            return action.successor_isin, action.effective_date
+
+        desired = {
+            "split": (record.ratio_numerator, record.ratio_denominator, record.effective_date),
+            "bonus": (record.ratio_numerator, record.ratio_denominator, record.effective_date),
+            "cash_dividend": (
+                record.cash_amount,
+                record.cash_currency,
+                record.cash_unit,
                 record.ex_date,
                 record.effective_date,
+            ),
+            "rights": (
                 record.ratio_numerator,
                 record.ratio_denominator,
-                record.cash_amount,
                 record.subscription_price,
-            )
-            for action in existing
+                record.subscription_currency,
+                record.effective_date,
+            ),
+            "symbol_change": (
+                record.exchange,
+                record.old_symbol,
+                record.new_symbol,
+                record.effective_date,
+            ),
+        }.get(record.action_type or "", (record.successor_isin, record.effective_date))
+        return any(terms(action) == desired for action in existing)
+
+    @staticmethod
+    def _action_anchor(record: CorporateActionRecord) -> date | None:
+        return corporate_action_event_anchor(
+            record.action_type, record.ex_date, record.effective_date
         )
 
     @staticmethod
