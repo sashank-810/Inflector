@@ -1,0 +1,3 @@
+external_id,security_isin,action_type,announcement_date,ex_date,record_date,effective_date,ratio_numerator,ratio_denominator,cash_amount,cash_currency,cash_unit,subscription_price,subscription_currency,exchange,old_symbol,new_symbol,successor_isin,available_at,revision_at
+ACT-BAD-RATIO,INF0AUR01018,split,,,,2026-01-10,0,1,,,,,,,,,,2026-01-02T12:00:00Z,
+ACT-UNKNOWN,INF0UNK01010,split,,,,2026-01-10,2,1,,,,,,,,,,2026-01-02T12:00:00Z,

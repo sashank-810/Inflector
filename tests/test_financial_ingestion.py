@@ -133,6 +133,23 @@ def test_ambiguous_financial_revision_is_quarantined(session, tmp_path: Path) ->
     assert result.records_quarantined == 1 and issue is not None
 
 
+def test_financial_provider_datasets_are_independent_evidence_streams(
+    session, tmp_path: Path
+) -> None:
+    service = _service_with_universe(session, tmp_path)
+    provider_a = CSVFinancialsProvider(
+        FIXTURES / "financials_synthetic.csv", FINANCIALS, RETRIEVED_AT
+    )
+    provider_b = CSVFinancialsProvider(
+        FIXTURES / "financials_synthetic.csv",
+        ProviderMetadata("synthetic_csv_b", "csv", "financials", "synthetic-development-only"),
+        RETRIEVED_AT,
+    )
+    assert service.ingest_financials(provider_a).records_accepted == 7
+    assert service.ingest_financials(provider_b).records_accepted == 7
+    assert len(list(session.scalars(select(FinancialFact)))) == 14
+
+
 def test_failed_batch_counters_only_describe_durable_outcomes(
     session, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:

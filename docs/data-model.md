@@ -44,7 +44,8 @@ erDiagram
 | `exchange_listing` | security/exchange, symbol, exchange code, status, valid dates | Dated NSE/BSE identity |
 | `classification` | scheme, code, name, parent | Sector/industry taxonomy |
 | `company_classification` | company/classification, valid dates, source | Historical classification |
-| `corporate_action` | security, type, ex/record date, split ratio/cash, source/time fields | Split, bonus, dividend, merger, delisting |
+| `corporate_action` | security, provider dataset, type, action-specific exact terms, ex/record/effective dates, source/time fields | Append-only split, bonus, dividend, rights, and identity-change evidence |
+| `security_relationship` | predecessor/successor securities, type, effective date, source/time fields | Explicit ISIN/security succession without rewriting history |
 | `company_relationship` | from/to company, relationship, effective date, source | Successor/predecessor lineage |
 
 ### Provenance, providers, and documents

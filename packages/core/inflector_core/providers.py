@@ -85,6 +85,30 @@ class FinancialRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class CorporateActionRecord:
+    """Provider-neutral corporate-action terms with explicit action semantics."""
+
+    security_isin: str | None
+    action_type: str | None
+    announcement_date: date | None
+    ex_date: date | None
+    record_date: date | None
+    effective_date: date | None
+    ratio_numerator: int | None
+    ratio_denominator: int | None
+    cash_amount: Decimal | None
+    cash_currency: str | None
+    cash_unit: str | None
+    subscription_price: Decimal | None
+    subscription_currency: str | None
+    exchange: str | None
+    old_symbol: str | None
+    new_symbol: str | None
+    successor_isin: str | None
+    parse_errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class IngestionEnvelope[TRecord]:
     """Record-level provider observation before storage or normalization."""
 
@@ -152,5 +176,14 @@ class FinancialsProvider(Protocol):
 
     def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
         """Return one provider-neutral financial-reporting batch."""
+
+        ...
+
+
+class CorporateActionProvider(Protocol):
+    """Provider port for security-specific corporate-action observations."""
+
+    def fetch_corporate_actions(self) -> ProviderBatch[CorporateActionRecord]:
+        """Return one provider-neutral corporate-action batch."""
 
         ...

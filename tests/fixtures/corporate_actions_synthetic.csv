@@ -1,0 +1,7 @@
+external_id,security_isin,action_type,announcement_date,ex_date,record_date,effective_date,ratio_numerator,ratio_denominator,cash_amount,cash_currency,cash_unit,subscription_price,subscription_currency,exchange,old_symbol,new_symbol,successor_isin,available_at,revision_at
+ACT-SPLIT,INF0AUR01018,split,2026-01-01,,2026-01-09,2026-01-10,2,1,,,,,,,,,,2026-01-02T12:00:00Z,
+ACT-BONUS,INF0AUR01018,bonus,2026-02-01,,2026-02-09,2026-02-10,1,2,,,,,,,,,,2026-02-02T12:00:00Z,
+ACT-DIV,INF0AUR01018,cash_dividend,2026-03-01,2026-03-10,2026-03-11,2026-03-10,,,5,INR,INR/share,,,,,,,2026-03-02T12:00:00Z,
+ACT-RIGHTS,INF0AUR01018,rights,2026-04-01,,2026-04-09,2026-04-10,1,4,,,,80,INR,,,,,2026-04-02T12:00:00Z,
+ACT-SYMBOL,INF0AUR01018,symbol_change,2026-05-01,,,2026-05-10,,,,,,,,NSE,AURORA,AURORANEW,,2026-05-02T12:00:00Z,
+ACT-REPLACE,INF0AUR01018,security_replacement,2026-06-01,,,2026-06-10,,,,,,,,,,,INF0AUR02017,2026-06-02T12:00:00Z,

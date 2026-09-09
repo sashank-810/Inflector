@@ -40,6 +40,12 @@ periods per filing, controlled reported-metric definitions, exact INR-scale
 normalization, and append-only restatement facts. Keep TTM, ratios, PIT read
 selection, and all feature calculations out of this subphase.
 
+### Phase 2C — corporate actions and historical identity
+
+Add provider-neutral action ingestion, exact split/bonus/rights/dividend terms,
+dated symbol transitions, and explicit security replacement lineage. Do not
+derive adjusted prices, returns, or factors until a later deterministic phase.
+
 1. Define provider ports and shared ingestion envelope; build mock, CSV, and
    manual-import adapters first.
 2. Implement raw archival, idempotent ingestion runs, normalization, company

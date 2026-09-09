@@ -29,6 +29,8 @@ def test_alembic_upgrade_creates_identity_schema(tmp_path: Path) -> None:
             "financial_filings",
             "financial_metric_definitions",
             "financial_facts",
+            "corporate_actions",
+            "security_relationships",
         }.issubset(table_names)
         source_columns = {
             column["name"] for column in inspect(engine).get_columns("source_records")

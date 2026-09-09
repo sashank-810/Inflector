@@ -68,6 +68,11 @@ facts. A filing is a reporting event that may contain many periods and both
 standalone and consolidated scopes; future PIT selection, rather than ingestion,
 will decide how to select among valid revisions and scopes.
 
+Phase 2C adds provider-neutral corporate-action observations and explicit
+security succession. Action terms are stored exactly and separately from later
+price-adjustment derivations; exchange symbols are dated listings rather than
+mutable security attributes.
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

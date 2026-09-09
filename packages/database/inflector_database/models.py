@@ -316,3 +316,64 @@ class FinancialFact(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class CorporateAction(Base):
+    """Append-only security-specific action; no adjustment factors are derived here."""
+
+    __tablename__ = "corporate_actions"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id"), nullable=False, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id"), unique=True, nullable=False
+    )
+    action_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    announcement_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ex_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    record_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    effective_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    ratio_numerator: Mapped[int | None] = mapped_column(nullable=True)
+    ratio_denominator: Mapped[int | None] = mapped_column(nullable=True)
+    cash_amount: Mapped[Decimal | None] = mapped_column(Numeric(28, 8), nullable=True)
+    cash_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    cash_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    subscription_price: Mapped[Decimal | None] = mapped_column(Numeric(28, 8), nullable=True)
+    subscription_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="accepted")
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class SecurityRelationship(Base):
+    """Explicit historical succession between distinct immutable security identities."""
+
+    __tablename__ = "security_relationships"
+    __table_args__ = (
+        UniqueConstraint(
+            "predecessor_security_id",
+            "successor_security_id",
+            "relationship_type",
+            name="uq_security_relationship",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    predecessor_security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id"), nullable=False, index=True
+    )
+    successor_security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id"), nullable=False, index=True
+    )
+    relationship_type: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_date: Mapped[date] = mapped_column(Date, nullable=False)
+    source_record_id: Mapped[UUID] = mapped_column(ForeignKey("source_records.id"), nullable=False)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

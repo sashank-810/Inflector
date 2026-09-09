@@ -9,9 +9,15 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from inflector_core.providers import FinancialRecord, ProviderMetadata, UniverseRecord
+from inflector_core.providers import (
+    CorporateActionRecord,
+    FinancialRecord,
+    ProviderMetadata,
+    UniverseRecord,
+)
 from inflector_database.models import (
     Company,
+    CorporateAction,
     DataProvider,
     DataQualityIssue,
     ExchangeListing,
@@ -23,6 +29,7 @@ from inflector_database.models import (
     PriceBar,
     ProviderDataset,
     Security,
+    SecurityRelationship,
     SourceRecord,
 )
 
@@ -229,13 +236,14 @@ class IngestionRepository:
         return filing
 
     def financial_facts(
-        self, *, company_id: UUID, period_id: UUID, scope: str, metric_id: UUID
+        self, *, dataset_id: UUID, company_id: UUID, period_id: UUID, scope: str, metric_id: UUID
     ) -> list[FinancialFact]:
         return list(
             self.session.scalars(
                 select(FinancialFact)
                 .join(FinancialFiling)
                 .where(
+                    FinancialFiling.provider_dataset_id == dataset_id,
                     FinancialFiling.company_id == company_id,
                     FinancialFact.fiscal_period_id == period_id,
                     FinancialFiling.filing_scope == scope,
@@ -274,6 +282,131 @@ class IngestionRepository:
                 revision_at=revision_at,
             )
         )
+
+    def corporate_actions(
+        self, *, dataset_id: UUID, security_id: UUID, action_type: str
+    ) -> list[CorporateAction]:
+        return list(
+            self.session.scalars(
+                select(CorporateAction).where(
+                    CorporateAction.provider_dataset_id == dataset_id,
+                    CorporateAction.security_id == security_id,
+                    CorporateAction.action_type == action_type,
+                )
+            )
+        )
+
+    def add_corporate_action(
+        self,
+        *,
+        dataset_id: UUID,
+        security_id: UUID,
+        source_id: UUID,
+        record: CorporateActionRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> None:
+        self.session.add(
+            CorporateAction(
+                security_id=security_id,
+                provider_dataset_id=dataset_id,
+                source_record_id=source_id,
+                action_type=record.action_type or "",
+                announcement_date=record.announcement_date,
+                ex_date=record.ex_date,
+                record_date=record.record_date,
+                effective_date=record.effective_date,
+                ratio_numerator=record.ratio_numerator,
+                ratio_denominator=record.ratio_denominator,
+                cash_amount=record.cash_amount,
+                cash_currency=record.cash_currency,
+                cash_unit=record.cash_unit,
+                subscription_price=record.subscription_price,
+                subscription_currency=record.subscription_currency,
+                available_at=available_at,
+                revision_at=revision_at,
+            )
+        )
+
+    def apply_symbol_change(self, security: Security, record: CorporateActionRecord) -> None:
+        assert record.exchange and record.new_symbol and record.effective_date
+        current = self.session.scalar(
+            select(ExchangeListing).where(
+                ExchangeListing.security_id == security.id,
+                ExchangeListing.exchange == record.exchange,
+                ExchangeListing.valid_to.is_(None),
+            )
+        )
+        if current is not None:
+            if current.valid_from > record.effective_date:
+                raise ValueError("symbol change precedes active listing")
+            current.valid_to = record.effective_date
+        overlap = self.session.scalar(
+            select(ExchangeListing).where(
+                ExchangeListing.security_id == security.id,
+                ExchangeListing.exchange == record.exchange,
+                ExchangeListing.symbol == record.new_symbol,
+                ExchangeListing.valid_from == record.effective_date,
+            )
+        )
+        if overlap is None:
+            self.session.add(
+                ExchangeListing(
+                    security_id=security.id,
+                    exchange=record.exchange,
+                    symbol=record.new_symbol,
+                    valid_from=record.effective_date,
+                    valid_to=None,
+                    status="active",
+                )
+            )
+
+    def apply_security_replacement(
+        self,
+        security: Security,
+        source_id: UUID,
+        record: CorporateActionRecord,
+        available_at: datetime,
+    ) -> None:
+        assert record.successor_isin and record.effective_date
+        successor = self.security_by_isin(record.successor_isin)
+        if successor is None:
+            successor = Security(
+                company_id=security.company_id,
+                isin=record.successor_isin,
+                security_type=security.security_type,
+                status=security.status,
+            )
+            self.session.add(successor)
+            self.session.flush()
+        if successor.id == security.id:
+            raise ValueError("security successor cannot equal predecessor")
+        reverse = self.session.scalar(
+            select(SecurityRelationship.id).where(
+                SecurityRelationship.predecessor_security_id == successor.id,
+                SecurityRelationship.successor_security_id == security.id,
+            )
+        )
+        if reverse is not None:
+            raise ValueError("security replacement cycle")
+        exists = self.session.scalar(
+            select(SecurityRelationship.id).where(
+                SecurityRelationship.predecessor_security_id == security.id,
+                SecurityRelationship.successor_security_id == successor.id,
+                SecurityRelationship.relationship_type == "security_replacement",
+            )
+        )
+        if exists is None:
+            self.session.add(
+                SecurityRelationship(
+                    predecessor_security_id=security.id,
+                    successor_security_id=successor.id,
+                    relationship_type="security_replacement",
+                    effective_date=record.effective_date,
+                    source_record_id=source_id,
+                    available_at=available_at,
+                )
+            )
 
     def normalize_universe(self, record: UniverseRecord) -> None:
         security = self.security_by_isin(record.isin)

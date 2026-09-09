@@ -10,6 +10,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    CorporateActionProvider,
+    CorporateActionRecord,
     FinancialRecord,
     FinancialsProvider,
     IngestionEnvelope,
@@ -20,10 +22,12 @@ from inflector_core.providers import (
     UniverseRecord,
 )
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
+from inflector_data.corporate_actions import validate_corporate_action
 from inflector_data.financials import METRICS, normalize_financial, validate_financial
 from inflector_data.validation import ValidationIssue, validate_price, validate_universe
 from inflector_database.ingestion_repository import IngestionRepository
 from inflector_database.models import (
+    CorporateAction,
     FinancialFact,
     IngestionRun,
     PriceBar,
@@ -71,11 +75,15 @@ class IngestionService:
     def ingest_financials(self, provider: FinancialsProvider) -> IngestionResult:
         return self._ingest_financials(provider.fetch_financials())
 
+    def ingest_corporate_actions(self, provider: CorporateActionProvider) -> IngestionResult:
+        return self._ingest_actions(provider.fetch_corporate_actions())
+
     def _start(
         self,
         batch: ProviderBatch[UniverseRecord]
         | ProviderBatch[MarketBarRecord]
-        | ProviderBatch[FinancialRecord],
+        | ProviderBatch[FinancialRecord]
+        | ProviderBatch[CorporateActionRecord],
     ) -> tuple[ProviderDataset, IngestionRun, ArchivedRawObject]:
         """Archive durably before committing the audit run that references its processing."""
 
@@ -141,7 +149,8 @@ class IngestionService:
         self,
         envelope: IngestionEnvelope[UniverseRecord]
         | IngestionEnvelope[MarketBarRecord]
-        | IngestionEnvelope[FinancialRecord],
+        | IngestionEnvelope[FinancialRecord]
+        | IngestionEnvelope[CorporateActionRecord],
         dataset_id: UUID,
         run_id: UUID,
         raw: ArchivedRawObject,
@@ -341,16 +350,9 @@ class IngestionService:
                     company is not None and metric is not None and envelope.available_at is not None
                 )
                 period = self._repository.ensure_period(company.id, record)
-                filing = self._repository.ensure_filing(
-                    company.id,
-                    dataset.id,
-                    record,
-                    envelope.published_at,
-                    envelope.available_at,
-                    envelope.revision_at,
-                )
                 normalized = normalize_financial(record)
                 existing = self._repository.financial_facts(
+                    dataset_id=dataset.id,
                     company_id=company.id,
                     period_id=period.id,
                     scope=record.filing_scope or "",
@@ -376,6 +378,14 @@ class IngestionService:
                     )
                     counters.quarantined += 1
                     continue
+                filing = self._repository.ensure_filing(
+                    company.id,
+                    dataset.id,
+                    record,
+                    envelope.published_at,
+                    envelope.available_at,
+                    envelope.revision_at,
+                )
                 source.validation_status = "accepted"
                 self._repository.add_financial_fact(
                     filing_id=filing.id,
@@ -393,6 +403,133 @@ class IngestionService:
         except Exception as error:
             self._failed(run.id, counters, error)
             raise
+
+    def _ingest_actions(self, batch: ProviderBatch[CorporateActionRecord]) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if envelope.record.parse_errors else "parsed",
+                )
+                issues = validate_corporate_action(envelope.record)
+                security = (
+                    self._repository.security_by_isin(envelope.record.security_isin)
+                    if envelope.record.security_isin
+                    else None
+                )
+                if security is None and not any(
+                    issue.rule_code == "missing_security_identity" for issue in issues
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_security", "security ISIN is not in the canonical universe"
+                        )
+                    )
+                if envelope.available_at is None:
+                    issues.append(
+                        ValidationIssue(
+                            "missing_available_at", "available_at is required for corporate actions"
+                        )
+                    )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                assert security is not None and envelope.available_at is not None
+                existing = self._repository.corporate_actions(
+                    dataset_id=dataset.id,
+                    security_id=security.id,
+                    action_type=envelope.record.action_type or "",
+                )
+                if self._action_equivalent(existing, envelope.record):
+                    source.validation_status = "duplicate_economic"
+                    counters.duplicated += 1
+                    continue
+                if existing and not self._action_later(existing, envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_action_revision",
+                                (
+                                    "changed action lacks a strictly later availability "
+                                    "or revision time"
+                                ),
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                self._repository.add_corporate_action(
+                    dataset_id=dataset.id,
+                    security_id=security.id,
+                    source_id=source.id,
+                    record=envelope.record,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                if envelope.record.action_type == "symbol_change":
+                    self._repository.apply_symbol_change(security, envelope.record)
+                if envelope.record.action_type == "security_replacement":
+                    self._repository.apply_security_replacement(
+                        security, source.id, envelope.record, envelope.available_at
+                    )
+                source.validation_status = "accepted"
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
+    @staticmethod
+    def _action_equivalent(
+        existing: Sequence[CorporateAction], record: CorporateActionRecord
+    ) -> bool:
+        return any(
+            (
+                action.ex_date,
+                action.effective_date,
+                action.ratio_numerator,
+                action.ratio_denominator,
+                action.cash_amount,
+                action.subscription_price,
+            )
+            == (
+                record.ex_date,
+                record.effective_date,
+                record.ratio_numerator,
+                record.ratio_denominator,
+                record.cash_amount,
+                record.subscription_price,
+            )
+            for action in existing
+        )
+
+    @staticmethod
+    def _action_later(
+        existing: Sequence[CorporateAction], envelope: IngestionEnvelope[CorporateActionRecord]
+    ) -> bool:
+        assert envelope.available_at is not None
+        new_order = (envelope.available_at, envelope.revision_at or envelope.available_at)
+        previous_order = max(
+            (
+                IngestionService._utc(action.available_at),
+                IngestionService._utc(action.revision_at or action.available_at),
+            )
+            for action in existing
+        )
+        return new_order > previous_order
 
     @staticmethod
     def _financial_equivalent(

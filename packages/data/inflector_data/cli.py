@@ -14,6 +14,7 @@ from inflector_core.providers import ProviderMetadata
 from inflector_core.settings import get_settings
 from inflector_data.archive import LocalRawObjectStore
 from inflector_data.providers import (
+    CSVCorporateActionProvider,
     CSVFinancialsProvider,
     CSVMarketDataProvider,
     CSVUniverseProvider,
@@ -33,7 +34,15 @@ def _metadata(dataset_code: str) -> ProviderMetadata:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest an Inflector development CSV fixture")
-    parser.add_argument("kind", choices=("ingest-universe", "ingest-market", "ingest-financials"))
+    parser.add_argument(
+        "kind",
+        choices=(
+            "ingest-universe",
+            "ingest-market",
+            "ingest-financials",
+            "ingest-corporate-actions",
+        ),
+    )
     parser.add_argument("csv", type=Path)
     parser.add_argument("--database-url", default=get_settings().database_url)
     parser.add_argument("--raw-root", type=Path, default=Path(get_settings().raw_archive_root))
@@ -52,11 +61,18 @@ def main() -> None:
             result = IngestionService(
                 session, LocalRawObjectStore(args.raw_root)
             ).ingest_market_data(provider)
-        else:
+        elif args.kind == "ingest-financials":
             provider = CSVFinancialsProvider(args.csv, _metadata("financials"), retrieved_at)
             result = IngestionService(
                 session, LocalRawObjectStore(args.raw_root)
             ).ingest_financials(provider)
+        else:
+            provider = CSVCorporateActionProvider(
+                args.csv, _metadata("corporate_actions"), retrieved_at
+            )
+            result = IngestionService(
+                session, LocalRawObjectStore(args.raw_root)
+            ).ingest_corporate_actions(provider)
         print(
             json.dumps(
                 {

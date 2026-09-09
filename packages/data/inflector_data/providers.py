@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 
 from inflector_core.providers import (
+    CorporateActionRecord,
     FinancialRecord,
     IngestionEnvelope,
     MarketBarRecord,
@@ -236,6 +237,75 @@ class CSVFinancialsProvider:
 
 
 @dataclass(frozen=True, slots=True)
+class CSVCorporateActionProvider:
+    """Development-only corporate-action adapter with explicit typed terms."""
+
+    path: Path
+    metadata: ProviderMetadata
+    retrieved_at: datetime
+
+    def fetch_corporate_actions(self) -> ProviderBatch[CorporateActionRecord]:
+        raw_payload = self.path.read_bytes()
+        records: list[IngestionEnvelope[CorporateActionRecord]] = []
+        for index, row in enumerate(
+            csv.DictReader(StringIO(raw_payload.decode("utf-8-sig"))), start=1
+        ):
+            errors: list[str] = []
+            available_at = _optional_datetime(row.get("available_at", ""), errors, "available_at")
+            revision_at = _optional_datetime(row.get("revision_at", ""), errors, "revision_at")
+            record = CorporateActionRecord(
+                security_isin=row.get("security_isin") or None,
+                action_type=row.get("action_type") or None,
+                announcement_date=_optional_date(
+                    row.get("announcement_date", ""), errors, "announcement_date"
+                ),
+                ex_date=_optional_date(row.get("ex_date", ""), errors, "ex_date"),
+                record_date=_optional_date(row.get("record_date", ""), errors, "record_date"),
+                effective_date=_optional_date(
+                    row.get("effective_date", ""), errors, "effective_date"
+                ),
+                ratio_numerator=_optional_int(
+                    row.get("ratio_numerator", ""), errors, "ratio_numerator"
+                ),
+                ratio_denominator=_optional_int(
+                    row.get("ratio_denominator", ""), errors, "ratio_denominator"
+                ),
+                cash_amount=_optional_decimal(row.get("cash_amount", ""), errors, "cash_amount"),
+                cash_currency=row.get("cash_currency") or None,
+                cash_unit=row.get("cash_unit") or None,
+                subscription_price=_optional_decimal(
+                    row.get("subscription_price", ""), errors, "subscription_price"
+                ),
+                subscription_currency=row.get("subscription_currency") or None,
+                exchange=row.get("exchange") or None,
+                old_symbol=row.get("old_symbol") or None,
+                new_symbol=row.get("new_symbol") or None,
+                successor_isin=row.get("successor_isin") or None,
+                parse_errors=tuple(errors),
+            )
+            records.append(
+                IngestionEnvelope(
+                    provider=self.metadata,
+                    external_record_id=row.get("external_id") or f"row-{index}",
+                    source_uri=f"file://{self.path.name}",
+                    raw_payload_reference=f"row-{index}",
+                    content_sha256=_row_hash(row),
+                    retrieved_at=self.retrieved_at,
+                    record=record,
+                    available_at=available_at,
+                    revision_at=revision_at,
+                )
+            )
+        return ProviderBatch(
+            self.metadata,
+            f"file://{self.path.name}",
+            raw_payload,
+            self.retrieved_at,
+            tuple(records),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MockUniverseProvider:
     """In-memory universe provider for orchestration tests."""
 
@@ -262,4 +332,14 @@ class MockFinancialsProvider:
     batch: ProviderBatch[FinancialRecord]
 
     def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
+        return self.batch
+
+
+@dataclass(frozen=True, slots=True)
+class MockCorporateActionProvider:
+    """In-memory action provider for orchestration tests."""
+
+    batch: ProviderBatch[CorporateActionRecord]
+
+    def fetch_corporate_actions(self) -> ProviderBatch[CorporateActionRecord]:
         return self.batch

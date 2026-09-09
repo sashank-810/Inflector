@@ -74,8 +74,25 @@ Only explicit INR scales are normalized: ones ×1, thousand ×1,000, lakh
 percentage, and ratio remain non-monetary/explicit values; foreign-currency
 conversion is unsupported and quarantined.
 
-The financial economic identity is company + fiscal period + filing scope +
+The financial economic identity is provider dataset + company + fiscal period + filing scope +
 metric. Equivalent values with another source ID retain provenance but do not
 create another fact. Changed values append only under a strictly later
 availability/revision ordering; otherwise they quarantine as
-`ambiguous_financial_revision`. No PIT selector is implemented yet.
+`ambiguous_financial_revision`. Different provider datasets are independent
+evidence streams and are never auto-revised against one another. No PIT selector is implemented yet.
+
+## Corporate actions and identity (Phase 2C)
+
+Corporate actions are append-only, provider-dataset-scoped observations on the
+actual security, never merely its company. Splits and bonuses use exact
+`ratio_numerator / ratio_denominator` conventions: 2/1 means two resulting
+shares for one existing share; a bonus 1/2 means one bonus share per two held.
+Cash dividends retain Decimal amount, `INR`, and `INR/share`; rights retain the
+same exact ratio plus an INR subscription price. No adjusted price, total-return
+or rights factor is calculated in this phase.
+
+Listing validity uses half-open intervals `[valid_from, valid_to)`: an old
+symbol ending on a date is inactive from that date and the successor begins on
+it. Security replacement creates a new immutable ISIN/security and an explicit
+predecessor-to-successor relationship; historical prices/facts remain on the
+old security.
