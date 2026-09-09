@@ -1,0 +1,3 @@
+external_id,legal_name,display_name,sector,industry,isin,security_type,security_status,exchange,symbol,listing_status,valid_from,valid_to
+SYN-UNI-BAD-TO,Invalid To Limited,Invalid To,Industrials,Engineering,INF0BAD01011,equity,active,NSE,BADTO,active,2025-01-01,not-a-date
+SYN-UNI-BAD-RANGE,Invalid Range Limited,Invalid Range,Industrials,Engineering,INF0BAD01012,equity,active,NSE,BADRANGE,active,2025-02-01,2025-01-01

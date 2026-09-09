@@ -90,6 +90,7 @@ class IngestionRepository:
         external_id: str,
         source_uri: str,
         raw_object_key: str,
+        raw_payload_reference: str,
         raw_sha256: str,
         content_sha256: str,
         retrieved_at: datetime,
@@ -105,6 +106,7 @@ class IngestionRepository:
             external_record_id=external_id,
             source_uri=source_uri,
             raw_object_key=raw_object_key,
+            raw_payload_reference=raw_payload_reference,
             raw_content_sha256=raw_sha256,
             content_sha256=content_sha256,
             retrieved_at=retrieved_at,
@@ -203,5 +205,24 @@ class IngestionRepository:
                 volume=volume,
                 available_at=available_at,
                 revision_at=revision_at,
+            )
+        )
+
+    def economic_prices(
+        self, *, dataset_id: UUID, security_id: UUID, trading_date: date, interval: str
+    ) -> list[PriceBar]:
+        """Return all immutable revisions of one provider-dataset economic bar."""
+
+        return list(
+            self.session.scalars(
+                select(PriceBar)
+                .join(SourceRecord, PriceBar.source_record_id == SourceRecord.id)
+                .where(
+                    SourceRecord.provider_dataset_id == dataset_id,
+                    PriceBar.security_id == security_id,
+                    PriceBar.trading_date == trading_date,
+                    PriceBar.interval == interval,
+                )
+                .order_by(PriceBar.available_at, PriceBar.revision_at, PriceBar.ingested_at)
             )
         )

@@ -54,7 +54,7 @@ erDiagram
 | `data_provider` | unique code, type, licence name, terms URL, enabled, config ref | Adapter registry; no secrets |
 | `provider_dataset` | provider, dataset code, licence class, retention, redistributable | Feed-level permissions |
 | `ingestion_run` | dataset, status, start/end, cursor/watermark, counters, error | Job audit and idempotency |
-| `source_record` | run, external ID, URL/object key, content hash, raw key, all time fields, parse status | Immutable input provenance |
+| `source_record` | run, external ID, URL/object key, raw record locator, content hash, all time fields, parse status | Immutable input provenance |
 | `data_quality_issue` | source/entity, rule, severity, message, lifecycle | Quarantine and review |
 | `document` | company, type, title, URL, object key, unique SHA-256, language, source/time fields | Filing/announcement metadata |
 | `document_text` | document PK, extracted text/key, extractor version, checksum, page map | Searchable document text |

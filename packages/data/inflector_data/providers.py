@@ -97,6 +97,7 @@ class CSVUniverseProvider:
                 listing_status=row.get("listing_status", "active"),
                 valid_from=valid_from,
                 valid_to=valid_to,
+                parse_errors=tuple(errors),
             )
             records.append(
                 IngestionEnvelope(

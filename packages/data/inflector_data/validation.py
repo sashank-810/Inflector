@@ -20,6 +20,7 @@ class ValidationIssue:
 def validate_universe(record: UniverseRecord) -> list[ValidationIssue]:
     """Validate only identity fields necessary for Phase 2A normalization."""
 
+    issues = [ValidationIssue(error, error.replace("_", " ")) for error in record.parse_errors]
     required = {
         "missing_legal_name": (record.legal_name, "legal_name is required"),
         "missing_display_name": (record.display_name, "display_name is required"),
@@ -28,9 +29,18 @@ def validate_universe(record: UniverseRecord) -> list[ValidationIssue]:
         "missing_symbol": (record.symbol, "symbol is required"),
         "missing_valid_from": (record.valid_from, "valid_from is required"),
     }
-    return [
+    issues.extend(
         ValidationIssue(code, message) for code, (value, message) in required.items() if not value
-    ]
+    )
+    if (
+        record.valid_from is not None
+        and record.valid_to is not None
+        and record.valid_to < record.valid_from
+    ):
+        issues.append(
+            ValidationIssue("valid_to_before_valid_from", "valid_to cannot be before valid_from")
+        )
+    return issues
 
 
 def validate_price(record: MarketBarRecord) -> list[ValidationIssue]:

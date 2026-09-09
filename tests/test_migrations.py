@@ -19,6 +19,10 @@ def test_alembic_upgrade_creates_identity_schema(tmp_path: Path) -> None:
             "companies", "securities", "exchange_listings", "data_providers", "provider_datasets",
             "ingestion_runs", "source_records", "data_quality_issues", "price_bars",
         }.issubset(table_names)
+        source_columns = {
+            column["name"] for column in inspect(engine).get_columns("source_records")
+        }
+        assert "raw_payload_reference" in source_columns
     finally:
         engine.dispose()
 

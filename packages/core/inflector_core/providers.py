@@ -5,13 +5,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
+from re import fullmatch
 from typing import Protocol
 
 
 def _require_utc(value: datetime | None, field_name: str) -> None:
-    if value is not None and (
-        value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value)
-    ):
+    if value is not None and (value.tzinfo is None or value.utcoffset() != UTC.utcoffset(value)):
         raise ValueError(f"{field_name} must be timezone-aware UTC")
 
 
@@ -44,6 +43,7 @@ class UniverseRecord:
     listing_status: str
     valid_from: date | None
     valid_to: date | None
+    parse_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -87,7 +87,7 @@ class IngestionEnvelope[TRecord]:
             "revision_at",
         ):
             _require_utc(getattr(self, field_name), field_name)
-        if len(self.content_sha256) != 64:
+        if fullmatch(r"[0-9a-fA-F]{64}", self.content_sha256) is None:
             raise ValueError("content_sha256 must be a SHA-256 hexadecimal digest")
 
 

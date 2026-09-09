@@ -58,6 +58,9 @@ uses a configurable content-addressed filesystem root; an S3-compatible store
 can later satisfy the same raw-object port. The immutable source identity is
 provider dataset + external record ID + content SHA-256, while corrections with
 changed content append a new source and price bar for future PIT selection.
+Raw archival completes before a run is committed. Any later exception rolls
+back the active normalization transaction and finalizes that run as `failed`,
+with counters and an error message, before the exception is propagated.
 
 ### Frontend boundary and state
 
