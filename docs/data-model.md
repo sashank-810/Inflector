@@ -82,10 +82,10 @@ largest daily fact tables by calendar year only once real volume warrants it.
 
 | Table | Core columns / constraints | Purpose |
 |---|---|---|
-| `fiscal_period` | company, quarter/annual/TTM, start/end, FY, quarter, audit flag | Period identity |
-| `financial_filing` | company, fiscal period, standalone/consolidated, type, restatement flag, source/time fields | Report/filing header |
+| `fiscal_period` | company, quarter/half-year/nine-month/annual, start/end, FY, quarter, YTD flag | Reported period identity; no TTM |
+| `financial_filing` | company, provider filing identity, standalone/consolidated, type, restatement flag, source/time fields | Immutable report header, containing many period facts |
 | `financial_metric_definition` | code PK, statement kind, expected sign, unit category, formula ref | Controlled dictionary |
-| `financial_fact` | filing, metric code, reported value/unit, normalized INR value, scale, currency, source/time fields | All income/BS/CF line items |
+| `financial_fact` | filing, fiscal period, metric code, reported value/unit/scale/currency, normalized value, source/time fields | Append-only reported income/BS/CF line items |
 | `financial_fact_link` | derived fact, input fact, relationship | Deterministic lineage |
 
 `financial_metric_definition.statement_kind` distinguishes income statement,

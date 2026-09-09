@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 
 from inflector_core.providers import (
+    FinancialRecord,
     IngestionEnvelope,
     MarketBarRecord,
     ProviderBatch,
@@ -171,6 +172,70 @@ class CSVMarketDataProvider:
 
 
 @dataclass(frozen=True, slots=True)
+class CSVFinancialsProvider:
+    """Development-only financial-fact adapter retaining parsing failures."""
+
+    path: Path
+    metadata: ProviderMetadata
+    retrieved_at: datetime
+
+    def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
+        raw_payload = self.path.read_bytes()
+        records: list[IngestionEnvelope[FinancialRecord]] = []
+        for index, row in enumerate(
+            csv.DictReader(StringIO(raw_payload.decode("utf-8-sig"))), start=1
+        ):
+            errors: list[str] = []
+            published_at = _optional_datetime(row.get("published_at", ""), errors, "published_at")
+            available_at = _optional_datetime(row.get("available_at", ""), errors, "available_at")
+            revision_at = _optional_datetime(row.get("revision_at", ""), errors, "revision_at")
+            record = FinancialRecord(
+                company_legal_name=row.get("company_legal_name") or None,
+                filing_external_id=row.get("filing_external_id") or None,
+                filing_type=row.get("filing_type") or None,
+                filing_scope=row.get("filing_scope") or None,
+                is_restatement=(row.get("is_restatement", "").lower() == "true"),
+                period_kind=row.get("period_kind") or None,
+                period_start=_optional_date(row.get("period_start", ""), errors, "period_start"),
+                period_end=_optional_date(row.get("period_end", ""), errors, "period_end"),
+                fiscal_year=_optional_int(row.get("fiscal_year", ""), errors, "fiscal_year"),
+                fiscal_quarter=_optional_int(
+                    row.get("fiscal_quarter", ""), errors, "fiscal_quarter"
+                ),
+                is_ytd=(row.get("is_ytd", "").lower() == "true"),
+                metric_code=row.get("metric_code") or None,
+                reported_value=_optional_decimal(
+                    row.get("reported_value", ""), errors, "reported_value"
+                ),
+                reported_unit=row.get("reported_unit") or None,
+                reported_scale=row.get("reported_scale") or None,
+                reported_currency=row.get("reported_currency") or None,
+                parse_errors=tuple(errors),
+            )
+            records.append(
+                IngestionEnvelope(
+                    provider=self.metadata,
+                    external_record_id=row.get("external_id") or f"row-{index}",
+                    source_uri=f"file://{self.path.name}",
+                    raw_payload_reference=f"row-{index}",
+                    content_sha256=_row_hash(row),
+                    retrieved_at=self.retrieved_at,
+                    record=record,
+                    published_at=published_at,
+                    available_at=available_at,
+                    revision_at=revision_at,
+                )
+            )
+        return ProviderBatch(
+            self.metadata,
+            f"file://{self.path.name}",
+            raw_payload,
+            self.retrieved_at,
+            tuple(records),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MockUniverseProvider:
     """In-memory universe provider for orchestration tests."""
 
@@ -187,4 +252,14 @@ class MockMarketDataProvider:
     batch: ProviderBatch[MarketBarRecord]
 
     def fetch_market_data(self) -> ProviderBatch[MarketBarRecord]:
+        return self.batch
+
+
+@dataclass(frozen=True, slots=True)
+class MockFinancialsProvider:
+    """In-memory financial provider for orchestration tests."""
+
+    batch: ProviderBatch[FinancialRecord]
+
+    def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
         return self.batch

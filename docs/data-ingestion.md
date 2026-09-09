@@ -8,6 +8,9 @@ bytes are durably archived before an ingestion run is created. After that run
 is committed, a processing error rolls back its active normalization transaction
 and commits a terminal `failed` run with its finish time, error, and known
 counters before the original error is re-raised.
+For failed runs, `records_accepted` and `records_quarantined` describe only
+durable outcomes and are therefore zero after the rolled-back normalization
+transaction; received and already-known duplicate counts remain auditable.
 
 Raw bytes are stored outside PostgreSQL at `RAW_ARCHIVE_ROOT` under
 `sha256/<prefix>/<digest>`. Repeating identical bytes reuses the same object.
@@ -55,3 +58,24 @@ python -m inflector_data.cli ingest-market tests/fixtures/market_valid_synthetic
 
 Each command reports its run UUID and received, accepted, quarantined, and
 duplicate counts.
+
+## Financial reporting (Phase 2B)
+
+Financial CSV rows carry a filing identity and one reported fact. A single
+immutable `financial_filing` header can contain any number of fiscal-period
+facts; it does not have a one-period relationship. Periods support quarter,
+half-year/YTD, nine-month/YTD, and annual reported windows. A metric's
+controlled `semantic_type` distinguishes duration facts from balance-sheet
+instant facts; TTM is deliberately absent.
+
+Monetary INR values preserve their reported value, unit, scale, and currency.
+Only explicit INR scales are normalized: ones ×1, thousand ×1,000, lakh
+×100,000, million ×1,000,000, and crore ×10,000,000. `INR/share`, shares,
+percentage, and ratio remain non-monetary/explicit values; foreign-currency
+conversion is unsupported and quarantined.
+
+The financial economic identity is company + fiscal period + filing scope +
+metric. Equivalent values with another source ID retain provenance but do not
+create another fact. Changed values append only under a strictly later
+availability/revision ordering; otherwise they quarantine as
+`ambiguous_financial_revision`. No PIT selector is implemented yet.

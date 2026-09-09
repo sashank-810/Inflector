@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from uuid import UUID
@@ -9,6 +10,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    FinancialRecord,
+    FinancialsProvider,
     IngestionEnvelope,
     MarketBarRecord,
     MarketDataProvider,
@@ -17,9 +20,16 @@ from inflector_core.providers import (
     UniverseRecord,
 )
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
+from inflector_data.financials import METRICS, normalize_financial, validate_financial
 from inflector_data.validation import ValidationIssue, validate_price, validate_universe
 from inflector_database.ingestion_repository import IngestionRepository
-from inflector_database.models import IngestionRun, PriceBar, ProviderDataset, SourceRecord
+from inflector_database.models import (
+    FinancialFact,
+    IngestionRun,
+    PriceBar,
+    ProviderDataset,
+    SourceRecord,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,8 +68,14 @@ class IngestionService:
     def ingest_market_data(self, provider: MarketDataProvider) -> IngestionResult:
         return self._ingest_market(provider.fetch_market_data())
 
+    def ingest_financials(self, provider: FinancialsProvider) -> IngestionResult:
+        return self._ingest_financials(provider.fetch_financials())
+
     def _start(
-        self, batch: ProviderBatch[UniverseRecord] | ProviderBatch[MarketBarRecord]
+        self,
+        batch: ProviderBatch[UniverseRecord]
+        | ProviderBatch[MarketBarRecord]
+        | ProviderBatch[FinancialRecord],
     ) -> tuple[ProviderDataset, IngestionRun, ArchivedRawObject]:
         """Archive durably before committing the audit run that references its processing."""
 
@@ -87,7 +103,11 @@ class IngestionService:
         run.status = "failed"
         run.finished_at = datetime.now(UTC)
         run.error_message = f"{type(error).__name__}: {error}"
-        self._apply_counters(run, counters)
+        # The active normalization transaction was rolled back: no accepted or
+        # quarantined outcomes are durable, even if they were observed before
+        # the exception. Received/duplicate counts remain knowable.
+        durable_counters = _Counters(counters.received, duplicated=counters.duplicated)
+        self._apply_counters(run, durable_counters)
         self._session.commit()
 
     @staticmethod
@@ -119,7 +139,9 @@ class IngestionService:
 
     def _source(
         self,
-        envelope: IngestionEnvelope[UniverseRecord] | IngestionEnvelope[MarketBarRecord],
+        envelope: IngestionEnvelope[UniverseRecord]
+        | IngestionEnvelope[MarketBarRecord]
+        | IngestionEnvelope[FinancialRecord],
         dataset_id: UUID,
         run_id: UUID,
         raw: ArchivedRawObject,
@@ -258,6 +280,155 @@ class IngestionService:
         except Exception as error:
             self._failed(run.id, counters, error)
             raise
+
+    def _ingest_financials(self, batch: ProviderBatch[FinancialRecord]) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            self._repository.ensure_metric_definitions(METRICS)
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if envelope.record.parse_errors else "parsed",
+                )
+                issues = validate_financial(envelope.record)
+                company = (
+                    self._repository.company_by_legal_name(envelope.record.company_legal_name)
+                    if envelope.record.company_legal_name
+                    else None
+                )
+                metric = (
+                    self._repository.metric_by_code(envelope.record.metric_code)
+                    if envelope.record.metric_code
+                    else None
+                )
+                if company is None and not any(
+                    issue.rule_code == "missing_company_identity" for issue in issues
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_company", "company is not in the canonical universe"
+                        )
+                    )
+                if metric is None and not any(
+                    issue.rule_code == "missing_metric_code" for issue in issues
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_metric", "metric code is not in the controlled dictionary"
+                        )
+                    )
+                if envelope.available_at is None:
+                    issues.append(
+                        ValidationIssue(
+                            "missing_available_at", "available_at is required for financial facts"
+                        )
+                    )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                record = envelope.record
+                assert (
+                    company is not None and metric is not None and envelope.available_at is not None
+                )
+                period = self._repository.ensure_period(company.id, record)
+                filing = self._repository.ensure_filing(
+                    company.id,
+                    dataset.id,
+                    record,
+                    envelope.published_at,
+                    envelope.available_at,
+                    envelope.revision_at,
+                )
+                normalized = normalize_financial(record)
+                existing = self._repository.financial_facts(
+                    company_id=company.id,
+                    period_id=period.id,
+                    scope=record.filing_scope or "",
+                    metric_id=metric.id,
+                )
+                if self._financial_equivalent(existing, record, normalized.value):
+                    source.validation_status = "duplicate_economic"
+                    counters.duplicated += 1
+                    continue
+                if existing and not self._financial_later(existing, envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_financial_revision",
+                                (
+                                    "changed financial value lacks a strictly later availability "
+                                    "or revision time"
+                                ),
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                source.validation_status = "accepted"
+                self._repository.add_financial_fact(
+                    filing_id=filing.id,
+                    period_id=period.id,
+                    metric_id=metric.id,
+                    source_id=source.id,
+                    record=record,
+                    normalized_value=normalized.value,
+                    normalized_unit=normalized.unit,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
+    @staticmethod
+    def _financial_equivalent(
+        existing: Sequence[FinancialFact], record: FinancialRecord, normalized_value: object
+    ) -> bool:
+        return any(
+            (
+                fact.normalized_value == normalized_value
+                if normalized_value is not None
+                else (
+                    fact.reported_value == record.reported_value
+                    and fact.reported_unit == record.reported_unit
+                    and fact.reported_scale == record.reported_scale
+                    and fact.reported_currency == record.reported_currency
+                )
+            )
+            and fact.reported_unit == record.reported_unit
+            for fact in existing
+        )
+
+    @staticmethod
+    def _financial_later(
+        existing: Sequence[FinancialFact], envelope: IngestionEnvelope[FinancialRecord]
+    ) -> bool:
+        assert envelope.available_at is not None
+        new_order = (envelope.available_at, envelope.revision_at or envelope.available_at)
+        previous_order = max(
+            (
+                IngestionService._utc(getattr(fact, "available_at")),
+                IngestionService._utc(
+                    getattr(fact, "revision_at") or getattr(fact, "available_at")
+                ),
+            )
+            for fact in existing
+        )
+        return new_order > previous_order
 
     @staticmethod
     def _equivalent(existing: list[PriceBar], record: MarketBarRecord) -> bool:

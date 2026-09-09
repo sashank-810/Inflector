@@ -62,6 +62,12 @@ Raw archival completes before a run is committed. Any later exception rolls
 back the active normalization transaction and finalizes that run as `failed`,
 with counters and an error message, before the exception is propagated.
 
+Phase 2B extends the same spine through `FinancialsProvider` to append-only
+fiscal periods, filing headers, controlled metric definitions, and financial
+facts. A filing is a reporting event that may contain many periods and both
+standalone and consolidated scopes; future PIT selection, rather than ingestion,
+will decide how to select among valid revisions and scopes.
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

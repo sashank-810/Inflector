@@ -13,7 +13,11 @@ from sqlalchemy.orm import sessionmaker
 from inflector_core.providers import ProviderMetadata
 from inflector_core.settings import get_settings
 from inflector_data.archive import LocalRawObjectStore
-from inflector_data.providers import CSVMarketDataProvider, CSVUniverseProvider
+from inflector_data.providers import (
+    CSVFinancialsProvider,
+    CSVMarketDataProvider,
+    CSVUniverseProvider,
+)
 from inflector_data.service import IngestionService
 
 
@@ -29,7 +33,7 @@ def _metadata(dataset_code: str) -> ProviderMetadata:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description="Ingest an Inflector development CSV fixture")
-    parser.add_argument("kind", choices=("ingest-universe", "ingest-market"))
+    parser.add_argument("kind", choices=("ingest-universe", "ingest-market", "ingest-financials"))
     parser.add_argument("csv", type=Path)
     parser.add_argument("--database-url", default=get_settings().database_url)
     parser.add_argument("--raw-root", type=Path, default=Path(get_settings().raw_archive_root))
@@ -43,11 +47,16 @@ def main() -> None:
             result = IngestionService(session, LocalRawObjectStore(args.raw_root)).ingest_universe(
                 provider
             )
-        else:
+        elif args.kind == "ingest-market":
             provider = CSVMarketDataProvider(args.csv, _metadata("market_daily"), retrieved_at)
             result = IngestionService(
                 session, LocalRawObjectStore(args.raw_root)
             ).ingest_market_data(provider)
+        else:
+            provider = CSVFinancialsProvider(args.csv, _metadata("financials"), retrieved_at)
+            result = IngestionService(
+                session, LocalRawObjectStore(args.raw_root)
+            ).ingest_financials(provider)
         print(
             json.dumps(
                 {

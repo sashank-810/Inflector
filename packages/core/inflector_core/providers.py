@@ -62,6 +62,29 @@ class MarketBarRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class FinancialRecord:
+    """One provider-neutral reported financial line item from a filing."""
+
+    company_legal_name: str | None
+    filing_external_id: str | None
+    filing_type: str | None
+    filing_scope: str | None
+    is_restatement: bool
+    period_kind: str | None
+    period_start: date | None
+    period_end: date | None
+    fiscal_year: int | None
+    fiscal_quarter: int | None
+    is_ytd: bool
+    metric_code: str | None
+    reported_value: Decimal | None
+    reported_unit: str | None
+    reported_scale: str | None
+    reported_currency: str | None
+    parse_errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class IngestionEnvelope[TRecord]:
     """Record-level provider observation before storage or normalization."""
 
@@ -120,5 +143,14 @@ class MarketDataProvider(Protocol):
 
     def fetch_market_data(self) -> ProviderBatch[MarketBarRecord]:
         """Return one provider-neutral market-data batch."""
+
+        ...
+
+
+class FinancialsProvider(Protocol):
+    """Provider port for filing headers and their reported line items."""
+
+    def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
+        """Return one provider-neutral financial-reporting batch."""
 
         ...

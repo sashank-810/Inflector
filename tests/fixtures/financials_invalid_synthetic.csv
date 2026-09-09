@@ -1,0 +1,5 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+FIN-BAD-SCALE,Aurora Fabrication Limited,BAD-1,results,standalone,false,quarter,2025-07-01,2025-09-30,2025,2,false,revenue,1,INR,unknown,INR,,2025-11-01T12:00:00Z,
+FIN-BAD-CURRENCY,Aurora Fabrication Limited,BAD-2,results,standalone,false,quarter,2025-07-01,2025-09-30,2025,2,false,revenue,1,INR,crore,USD,,2025-11-01T12:00:00Z,
+FIN-BAD-METRIC,Aurora Fabrication Limited,BAD-3,results,standalone,false,quarter,2025-07-01,2025-09-30,2025,2,false,not_a_metric,1,INR,crore,INR,,2025-11-01T12:00:00Z,
+FIN-BAD-PERIOD,Aurora Fabrication Limited,BAD-4,results,standalone,false,quarter,invalid,2025-09-30,2025,9,false,revenue,1,INR,crore,INR,,2025-11-01T12:00:00Z,

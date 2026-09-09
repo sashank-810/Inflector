@@ -226,3 +226,93 @@ class PriceBar(Base):
     ingested_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
+
+
+class FiscalPeriod(Base):
+    """Company-specific reported duration or instant period; never a derived TTM."""
+
+    __tablename__ = "fiscal_periods"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
+    period_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    period_start: Mapped[date] = mapped_column(Date, nullable=False)
+    period_end: Mapped[date] = mapped_column(Date, nullable=False)
+    fiscal_year: Mapped[int] = mapped_column(nullable=False)
+    fiscal_quarter: Mapped[int | None] = mapped_column(nullable=True)
+    is_ytd: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+
+
+class FinancialFiling(Base):
+    """Immutable reporting header that can contain facts for multiple periods."""
+
+    __tablename__ = "financial_filings"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider_dataset_id",
+            "external_filing_id",
+            "filing_scope",
+            "available_at",
+            "revision_at",
+            name="uq_financial_filing_revision",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(ForeignKey("companies.id"), nullable=False, index=True)
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id"), nullable=False
+    )
+    external_filing_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    filing_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    filing_scope: Mapped[str] = mapped_column(String(32), nullable=False)
+    is_restatement: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class FinancialMetricDefinition(Base):
+    """Controlled vocabulary for reported, rather than derived, financial metrics."""
+
+    __tablename__ = "financial_metric_definitions"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    code: Mapped[str] = mapped_column(String(96), unique=True, nullable=False)
+    statement_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    unit_category: Mapped[str] = mapped_column(String(32), nullable=False)
+    semantic_type: Mapped[str] = mapped_column(String(16), nullable=False)
+
+
+class FinancialFact(Base):
+    """Immutable reported financial observation with exact source lineage."""
+
+    __tablename__ = "financial_facts"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    filing_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_filings.id"), nullable=False, index=True
+    )
+    fiscal_period_id: Mapped[UUID] = mapped_column(
+        ForeignKey("fiscal_periods.id"), nullable=False, index=True
+    )
+    metric_definition_id: Mapped[UUID] = mapped_column(
+        ForeignKey("financial_metric_definitions.id"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id"), unique=True, nullable=False
+    )
+    reported_value: Mapped[Decimal] = mapped_column(Numeric(28, 8), nullable=False)
+    reported_unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    reported_scale: Mapped[str] = mapped_column(String(32), nullable=False)
+    reported_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    normalized_value: Mapped[Decimal | None] = mapped_column(Numeric(28, 8), nullable=True)
+    normalized_unit: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )

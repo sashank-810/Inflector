@@ -33,6 +33,13 @@ content-addressed raw archival, provenance tables, deterministic quarantine,
 and append-only revised price observations. This subphase deliberately excludes
 real providers, financial statements, provider health UI, and analytical marts.
 
+### Phase 2B — financial reporting spine
+
+Add provider-neutral CSV/mock financial filings, multiple reported fiscal
+periods per filing, controlled reported-metric definitions, exact INR-scale
+normalization, and append-only restatement facts. Keep TTM, ratios, PIT read
+selection, and all feature calculations out of this subphase.
+
 1. Define provider ports and shared ingestion envelope; build mock, CSV, and
    manual-import adapters first.
 2. Implement raw archival, idempotent ingestion runs, normalization, company
