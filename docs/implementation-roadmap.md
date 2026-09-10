@@ -67,12 +67,27 @@ reported fiscal-period semantics, and prove late filings/restatements cannot
 leak future knowledge. No derived feature table, calculation, or provider
 reconciliation belongs here.
 
-### Phase 3B — deterministic feature engine
+### Phase 3B — period normalization and individual-quarter derivation
 
-1. Add financial, margin, capital-efficiency, leverage, working-capital, and
-cash-flow features with source lineage.
-2. Implement trend, robust acceleration, persistence, consistency, and outlier
-logic. Publish formula documentation and feature snapshots.
+Derive only PIT-visible individual quarters from compatible additive monetary
+duration facts: Q2 from H1/Q1, Q3 from 9M/H1, and Q4 from annual/9M. Preserve
+reported-quarter precedence and complete component lineage. Do not persist
+derived values or compute TTM, growth, or ratios.
+
+### Phase 3C — TTM and base deterministic fundamentals
+
+Add only properly selected TTM/base financial values from normalized quarters;
+retain the same PIT lineage and missing-data safeguards.
+
+### Phase 3D — growth, acceleration, and margin features
+
+Add tested YoY/QoQ growth, persistence, acceleration, and margin calculations
+over PIT-normalized periods.
+
+### Phase 3E — quality, balance-sheet, and cash-flow features
+
+Add deterministic capital-efficiency, leverage, working-capital, and cash-flow
+quality features with source lineage.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

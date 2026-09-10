@@ -1,6 +1,6 @@
 """Phase 3A point-in-time financial-read tests."""
 
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta, timezone
 from decimal import Decimal
 from pathlib import Path
 from uuid import UUID
@@ -128,6 +128,36 @@ def test_facts_respect_inclusive_availability_and_later_comparative_release(
     assert comparative_at is not None and comparative_at.reported_value == Decimal("100")
     assert comparative_at.fiscal_period.period_end.isoformat() == "2024-09-30"
     assert comparative_at.available_at == _at(2025, 11, 1)
+
+
+def test_pit_normalizes_non_utc_cutoffs_and_preserves_raw_source_lineage(
+    session, tmp_path: Path
+) -> None:
+    reader = _reader_with_financials(session, tmp_path)
+    company_id = _company_id(session)
+    dataset_id = _dataset_id(session, "synthetic_csv")
+    period_id = _period_id(session, fiscal_year=2025, period_kind="quarter")
+    utc = reader.financial_fact_as_of(
+        provider_dataset_id=dataset_id,
+        company_id=company_id,
+        fiscal_period_id=period_id,
+        filing_scope="standalone",
+        metric_code="revenue",
+        as_of=_at(2025, 11, 1),
+    )
+    ist = reader.financial_fact_as_of(
+        provider_dataset_id=dataset_id,
+        company_id=company_id,
+        fiscal_period_id=period_id,
+        filing_scope="standalone",
+        metric_code="revenue",
+        as_of=datetime(2025, 11, 1, 17, 30, tzinfo=timezone(timedelta(hours=5, minutes=30))),
+    )
+
+    assert utc is not None and ist is not None and utc.id == ist.id
+    assert ist.source_record.external_record_id == "FIN-001"
+    assert ist.source_record.raw_payload_reference == "row-1"
+    assert ist.source_record.raw_object_key
 
 
 def test_restatement_is_selected_only_after_its_availability(session, tmp_path: Path) -> None:

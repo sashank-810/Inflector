@@ -1,0 +1,2 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+PROVIDER-B-H1,Aurora Fabrication Limited,SYN-PROVIDER-B-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,revenue,900,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,

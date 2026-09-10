@@ -99,6 +99,13 @@ assets, liabilities, equity, debt, cash, inventory, receivables, payables,
 CFO, CFI, CFF, capex, and reported FCF. Reported values are never replaced by
 calculated values.
 
+Phase 3B does not add a derived-quarter table. `FinancialFact` remains the
+immutable reported observation, while the read-only period normalizer returns
+an ephemeral value with selected component facts as lineage. Only metric
+definitions marked `duration` and `monetary` may be cumulatively subtracted;
+instant and per-share values remain non-derivable. Reported quarter facts take
+priority over a possible YTD difference.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |

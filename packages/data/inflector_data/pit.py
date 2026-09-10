@@ -74,6 +74,16 @@ class FinancialFilingView:
 
 
 @dataclass(frozen=True, slots=True)
+class FinancialMetricView:
+    """Controlled semantic metadata needed by deterministic read consumers."""
+
+    code: str
+    statement_kind: str
+    unit_category: str
+    semantic_type: str
+
+
+@dataclass(frozen=True, slots=True)
 class SourceRecordView:
     """Raw-source provenance for a selected canonical financial fact."""
 
@@ -94,6 +104,7 @@ class PointInTimeFinancialFact:
     provider_dataset_id: UUID
     company_id: UUID
     metric_code: str
+    metric: FinancialMetricView
     reported_value: Decimal
     reported_unit: str
     reported_scale: str
@@ -250,6 +261,12 @@ class PointInTimeFinancialReader:
             provider_dataset_id=filing.provider_dataset_id,
             company_id=filing.company_id,
             metric_code=metric.code,
+            metric=FinancialMetricView(
+                code=metric.code,
+                statement_kind=metric.statement_kind,
+                unit_category=metric.unit_category,
+                semantic_type=metric.semantic_type,
+            ),
             reported_value=fact.reported_value,
             reported_unit=fact.reported_unit,
             reported_scale=fact.reported_scale,

@@ -1,0 +1,12 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+QTR-REV-Q1,Aurora Fabrication Limited,SYN-QTR-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,revenue,100,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+QTR-REV-H1,Aurora Fabrication Limited,SYN-QTR-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,revenue,230,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+QTR-REV-9M,Aurora Fabrication Limited,SYN-QTR-9M-2026,results,standalone,false,nine_month,2026-04-01,2026-12-31,2026,3,true,revenue,390,INR,crore,INR,2026-11-15T12:00:00Z,2026-11-15T12:00:00Z,
+QTR-REV-ANNUAL,Aurora Fabrication Limited,SYN-QTR-ANNUAL-2026,results,standalone,false,annual,2026-04-01,2027-03-31,2026,,false,revenue,580,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
+QTR-REV-H1-R,Aurora Fabrication Limited,SYN-QTR-H1-2026-R,results,standalone,true,half_year,2026-04-01,2026-09-30,2026,2,true,revenue,235,INR,crore,INR,2026-12-01T12:00:00Z,2026-12-01T12:00:00Z,2026-12-01T12:00:00Z
+QTR-PAT-Q1,Aurora Fabrication Limited,SYN-QTR-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,pat,100,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+QTR-PAT-H1,Aurora Fabrication Limited,SYN-QTR-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,pat,90,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+QTR-EPS-Q1,Aurora Fabrication Limited,SYN-QTR-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,eps_basic,10,INR/share,ones,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+QTR-EPS-H1,Aurora Fabrication Limited,SYN-QTR-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,eps_basic,22,INR/share,ones,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+QTR-ASSET-Q1,Aurora Fabrication Limited,SYN-QTR-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,total_assets,100,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+QTR-ASSET-H1,Aurora Fabrication Limited,SYN-QTR-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,total_assets,230,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,

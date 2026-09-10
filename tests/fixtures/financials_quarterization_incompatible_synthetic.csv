@@ -1,0 +1,7 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+INCOMPAT-Q1,Aurora Fabrication Limited,SYN-INCOMPAT-Q1-2027,results,standalone,false,quarter,2027-04-01,2027-06-30,2027,1,false,revenue,100,INR,crore,INR,2027-08-01T12:00:00Z,2027-08-01T12:00:00Z,
+INCOMPAT-H1,Aurora Fabrication Limited,SYN-INCOMPAT-H1-2027,results,standalone,false,half_year,2027-05-01,2027-09-30,2027,2,true,revenue,230,INR,crore,INR,2027-11-01T12:00:00Z,2027-11-01T12:00:00Z,
+MISSING-Q1,Aurora Fabrication Limited,SYN-MISSING-Q1-2028,results,standalone,false,quarter,2028-04-01,2028-06-30,2028,1,false,revenue,100,INR,crore,INR,2028-08-01T12:00:00Z,2028-08-01T12:00:00Z,
+MISSING-ANNUAL,Aurora Fabrication Limited,SYN-MISSING-ANNUAL-2028,results,standalone,false,annual,2028-04-01,2029-03-31,2028,,false,revenue,580,INR,crore,INR,2029-05-01T12:00:00Z,2029-05-01T12:00:00Z,
+SCOPE-Q1,Aurora Fabrication Limited,SYN-SCOPE-Q1-2029,results,standalone,false,quarter,2029-04-01,2029-06-30,2029,1,false,revenue,100,INR,crore,INR,2029-08-01T12:00:00Z,2029-08-01T12:00:00Z,
+SCOPE-H1,Aurora Fabrication Limited,SYN-SCOPE-H1-2029,results,consolidated,false,half_year,2029-04-01,2029-09-30,2029,2,true,revenue,230,INR,crore,INR,2029-11-01T12:00:00Z,2029-11-01T12:00:00Z,

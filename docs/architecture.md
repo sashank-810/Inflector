@@ -83,6 +83,12 @@ dataset, filing scope, and UTC-aware `as_of` cutoff are supplied. The layer
 does not reconcile provider evidence or derive financial features; see
 [`point-in-time.md`](point-in-time.md) for its selection and tie-break rules.
 
+Phase 3B adds `FiscalQuarterNormalizer`, another read-only `packages/data`
+service. It derives only compatible additive monetary duration quarters from
+PIT-selected components and retains structured source lineage. It creates no
+derived fact tables or financial features; see
+[`period-normalization.md`](period-normalization.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered
