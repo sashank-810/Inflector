@@ -95,6 +95,11 @@ additive monetary INR quarters, retains nested quarter/fact provenance, and
 does not persist a TTM or use annual/YTD fallback algebra; see
 [`ttm.md`](ttm.md).
 
+Phase 3D adds read-only growth, acceleration, and margin primitives over
+PIT-clean quarterized values. They retain selected-quarter lineage and apply no
+provider preference, feature persistence, or scoring policy; see
+[`financial-inflection-features.md`](financial-inflection-features.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

@@ -112,6 +112,10 @@ four nested quarter lineages and their immutable source facts. It is available
 only when every component is PIT-visible and does not use an annual/YTD
 alternate formula.
 
+Phase 3D adds no feature persistence. Growth, acceleration, margins, and margin
+expansion are ephemeral PIT calculations over Phase 3B quarterized lineage;
+configuration thresholds and scoring are deliberately deferred.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |

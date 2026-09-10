@@ -51,6 +51,10 @@ risk gate can cap or exclude a score independently of the weighted sum.
 The configuration, including thresholds, caps, universes, and weights, lives
 in `scoring_configuration`; weights are never embedded in application code.
 
+Low-level deterministic feature readers never select a preferred provider or
+filing scope. Any future consolidated-first or provider-fallback policy is an
+explicit research/scoring configuration, not an implicit calculation rule.
+
 ## Deterministic feature definitions
 
 All period metrics use normalized INR figures and source lineage. Let `R_t`

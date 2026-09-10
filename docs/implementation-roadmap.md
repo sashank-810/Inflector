@@ -82,8 +82,9 @@ defer all other fundamentals, growth, and margins.
 
 ### Phase 3D — growth, acceleration, and margin features
 
-Add tested YoY/QoQ growth, persistence, acceleration, and margin calculations
-over PIT-normalized periods.
+Add tested PIT-clean YoY/QoQ growth, loss-aware absolute transitions,
+median-based acceleration, and comparable-quarter margins. Persistence and
+scoring semantics remain deferred.
 
 ### Phase 3E — quality, balance-sheet, and cash-flow features
 

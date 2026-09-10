@@ -167,10 +167,11 @@ def test_ttm_rolls_across_fiscal_years_and_returns_an_ordered_series(
     )
     q4 = _value(normalizer, session, fiscal_year=2026, fiscal_quarter=4, as_of=_at(2027, 5, 1))
 
-    assert first_three == []
+    assert len(first_three) == 1
     assert [
         (value.ending_fiscal_year, value.ending_fiscal_quarter, value.value) for value in rolling
     ] == [
+        (2026, 1, Decimal("3700000000")),
         (2026, 2, Decimal("4050000000")),
         (2026, 3, Decimal("4800000000")),
     ]

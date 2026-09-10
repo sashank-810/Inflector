@@ -1,0 +1,6 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+ISO-S-Q4-25,Aurora Fabrication Limited,ISO-S-F-Q4-25,results,standalone,false,quarter,2026-01-01,2026-03-31,2025,4,false,revenue,100,INR,crore,INR,2026-05-01T12:00:00Z,2026-05-01T12:00:00Z,
+ISO-S-Q1-26,Aurora Fabrication Limited,ISO-S-F-Q1-26,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,revenue,110,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+ISO-S-Q2-26,Aurora Fabrication Limited,ISO-S-F-Q2-26,results,standalone,false,quarter,2026-07-01,2026-09-30,2026,2,false,revenue,120,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+ISO-C-Q3-26,Aurora Fabrication Limited,ISO-C-F-Q3-26,results,consolidated,false,quarter,2026-10-01,2026-12-31,2026,3,false,revenue,130,INR,crore,INR,2027-02-01T12:00:00Z,2027-02-01T12:00:00Z,
+ISO-C-Q4-26,Aurora Fabrication Limited,ISO-C-F-Q4-26,results,consolidated,false,quarter,2027-01-01,2027-03-31,2026,4,false,revenue,140,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
