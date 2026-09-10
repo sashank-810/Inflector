@@ -1,0 +1,6 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+TTM-DIRECT-Q3-2025,Aurora Fabrication Limited,SYN-TTM-DIRECT-Q3-2025,results,standalone,false,quarter,2025-10-01,2025-12-31,2025,3,false,revenue,80,INR,crore,INR,2026-02-01T12:00:00Z,2026-02-01T12:00:00Z,
+TTM-DIRECT-Q4-2025,Aurora Fabrication Limited,SYN-TTM-DIRECT-Q4-2025,results,standalone,false,quarter,2026-01-01,2026-03-31,2025,4,false,revenue,90,INR,crore,INR,2026-05-01T12:00:00Z,2026-05-01T12:00:00Z,
+TTM-DIRECT-Q1-2026,Aurora Fabrication Limited,SYN-TTM-DIRECT-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,revenue,100,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+TTM-DIRECT-H1-2026,Aurora Fabrication Limited,SYN-TTM-DIRECT-H1-2026,results,standalone,false,half_year,2026-04-01,2026-09-30,2026,2,true,revenue,230,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+TTM-DIRECT-Q2-2026,Aurora Fabrication Limited,SYN-TTM-DIRECT-Q2-2026,results,standalone,false,quarter,2026-07-01,2026-09-30,2026,2,false,revenue,125,INR,crore,INR,2026-11-20T12:00:00Z,2026-11-20T12:00:00Z,

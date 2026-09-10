@@ -106,6 +106,12 @@ definitions marked `duration` and `monetary` may be cumulatively subtracted;
 instant and per-share values remain non-derivable. Reported quarter facts take
 priority over a possible YTD difference.
 
+Phase 3C likewise adds no TTM table or derived fiscal period. Its read-only
+TTM result is a sum of four contiguous Phase 3B quarter values, retaining the
+four nested quarter lineages and their immutable source facts. It is available
+only when every component is PIT-visible and does not use an annual/YTD
+alternate formula.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |

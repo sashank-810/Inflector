@@ -89,6 +89,12 @@ PIT-selected components and retains structured source lineage. It creates no
 derived fact tables or financial features; see
 [`period-normalization.md`](period-normalization.md).
 
+Phase 3C adds `TrailingTwelveMonthNormalizer`, a read-only aggregation over
+only those PIT-clean quarterized values. It sums exactly four continuous
+additive monetary INR quarters, retains nested quarter/fact provenance, and
+does not persist a TTM or use annual/YTD fallback algebra; see
+[`ttm.md`](ttm.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

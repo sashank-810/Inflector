@@ -74,10 +74,11 @@ duration facts: Q2 from H1/Q1, Q3 from 9M/H1, and Q4 from annual/9M. Preserve
 reported-quarter precedence and complete component lineage. Do not persist
 derived values or compute TTM, growth, or ratios.
 
-### Phase 3C — TTM and base deterministic fundamentals
+### Phase 3C — point-in-time TTM construction
 
-Add only properly selected TTM/base financial values from normalized quarters;
-retain the same PIT lineage and missing-data safeguards.
+Add only TTM as the exact sum of four continuous PIT-normalized additive
+monetary quarters. Retain complete nested lineage and missing-data safeguards;
+defer all other fundamentals, growth, and margins.
 
 ### Phase 3D — growth, acceleration, and margin features
 
