@@ -116,6 +116,14 @@ Phase 3D adds no feature persistence. Growth, acceleration, margins, and margin
 expansion are ephemeral PIT calculations over Phase 3B quarterized lineage;
 configuration thresholds and scoring are deliberately deferred.
 
+Phase 3E-A likewise adds no snapshot table. An ephemeral instant financial
+snapshot contains only PIT-selected `instant` + `monetary` facts normalized to
+INR, and every component shares the exact same stored `FiscalPeriod.id`.
+Latest-common selection orders candidate periods by economic `period_end`; a
+late observation for an older period cannot displace a newer complete period.
+Distinct period IDs tied at the maximum end date are ambiguous and fail closed.
+Every component retains its full `PointInTimeFinancialFact` lineage.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |

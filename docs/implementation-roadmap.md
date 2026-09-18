@@ -86,10 +86,17 @@ Add tested PIT-clean YoY/QoQ growth, loss-aware absolute transitions,
 median-based acceleration, and comparable-quarter margins. Persistence and
 scoring semantics remain deferred.
 
-### Phase 3E — quality, balance-sheet, and cash-flow features
+### Phase 3E-A — PIT instant financial snapshot foundation
 
-Add deterministic capital-efficiency, leverage, working-capital, and cash-flow
-quality features with source lineage.
+Select complete same-`FiscalPeriod.id` sets of PIT-visible instant monetary INR
+facts. Define latest by economic period end, preserve complete fact lineage,
+and fail closed on ambiguous maximum periods. Add no ratios or persistence.
+
+### Phase 3E-B+ — quality, balance-sheet, and cash-flow features
+
+Build deterministic capital-efficiency, leverage, working-capital, and
+cash-flow quality features with source lineage on top of the approved snapshot
+foundation. Exact sub-phase boundaries remain subject to acceptance review.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

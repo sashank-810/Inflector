@@ -100,6 +100,12 @@ PIT-clean quarterized values. They retain selected-quarter lineage and apply no
 provider preference, feature persistence, or scoring policy; see
 [`financial-inflection-features.md`](financial-inflection-features.md).
 
+Phase 3E-A adds `InstantFinancialSnapshotReader`, a read-only same-period
+selection layer over PIT financial facts. It intersects eligible instant
+monetary INR facts by exact stored `FiscalPeriod.id` and defines latest by
+economic `period_end`, never by arrival time. It persists nothing and performs
+no balance-sheet ratios; see [`financial-snapshots.md`](financial-snapshots.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

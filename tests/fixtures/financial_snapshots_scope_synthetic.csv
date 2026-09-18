@@ -1,0 +1,3 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+SNAP-SCOPE-SA-DEBT,Aurora Fabrication Limited,SYN-SNAP-SCOPE-SA-Q2-2027,results,standalone,false,quarter,2027-07-01,2027-09-30,2027,2,false,total_debt,220,INR,crore,INR,2027-11-01T12:00:00Z,2027-11-01T12:00:00Z,
+SNAP-SCOPE-CO-CASH,Aurora Fabrication Limited,SYN-SNAP-SCOPE-CO-Q2-2027,results,consolidated,false,quarter,2027-07-01,2027-09-30,2027,2,false,cash_and_equivalents,60,INR,crore,INR,2027-11-01T12:00:00Z,2027-11-01T12:00:00Z,

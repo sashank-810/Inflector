@@ -1,0 +1,16 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+SNAP-P0-PAYABLES,Aurora Fabrication Limited,SYN-SNAP-Q3-2025,results,standalone,false,quarter,2025-10-01,2025-12-31,2025,3,false,trade_payables,40,INR,crore,INR,2026-02-01T12:00:00Z,2026-02-01T12:00:00Z,
+SNAP-P1-DEBT,Aurora Fabrication Limited,SYN-SNAP-Q4-2025,results,standalone,false,quarter,2026-01-01,2026-03-31,2025,4,false,total_debt,100,INR,crore,INR,2026-05-01T12:00:00Z,2026-05-01T12:00:00Z,
+SNAP-P1-CASH,Aurora Fabrication Limited,SYN-SNAP-Q4-2025,results,standalone,false,quarter,2026-01-01,2026-03-31,2025,4,false,cash_and_equivalents,20,INR,crore,INR,2026-05-02T12:00:00Z,2026-05-02T12:00:00Z,
+SNAP-P2-DEBT,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,total_debt,110,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+SNAP-P2-CASH,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,cash_and_equivalents,25,INR,crore,INR,2026-08-02T12:00:00Z,2026-08-02T12:00:00Z,
+SNAP-P2-INVENTORY,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,inventory,30,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+SNAP-P2-REVENUE,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,revenue,500,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+SNAP-P2-EPS,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,eps_basic,5,INR/share,ones,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+SNAP-P2-ASSET-UNNORMALIZED,Aurora Fabrication Limited,SYN-SNAP-Q1-2026,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,total_assets,700,INR/share,ones,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+SNAP-P1-DEBT-R,Aurora Fabrication Limited,SYN-SNAP-Q4-2025-R,results,standalone,true,quarter,2026-01-01,2026-03-31,2025,4,false,total_debt,95,INR,crore,INR,2026-09-01T12:00:00Z,2026-09-01T12:00:00Z,2026-09-01T12:00:00Z
+SNAP-P3-DEBT,Aurora Fabrication Limited,SYN-SNAP-Q2-2026,results,standalone,false,quarter,2026-07-01,2026-09-30,2026,2,false,total_debt,120,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+SNAP-AMB-Q4-LIABILITIES,Aurora Fabrication Limited,SYN-SNAP-AMB-Q4-2026,results,standalone,false,quarter,2027-01-01,2027-03-31,2026,4,false,total_liabilities,300,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
+SNAP-AMB-Q4-EQUITY,Aurora Fabrication Limited,SYN-SNAP-AMB-Q4-2026,results,standalone,false,quarter,2027-01-01,2027-03-31,2026,4,false,total_equity,200,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
+SNAP-AMB-FY-LIABILITIES,Aurora Fabrication Limited,SYN-SNAP-AMB-FY-2026,results,standalone,false,annual,2026-04-01,2027-03-31,2026,,false,total_liabilities,310,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
+SNAP-AMB-FY-EQUITY,Aurora Fabrication Limited,SYN-SNAP-AMB-FY-2026,results,standalone,false,annual,2026-04-01,2027-03-31,2026,,false,total_equity,210,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
