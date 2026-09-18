@@ -106,6 +106,12 @@ monetary INR facts by exact stored `FiscalPeriod.id` and defines latest by
 economic `period_end`, never by arrival time. It persists nothing and performs
 no balance-sheet ratios; see [`financial-snapshots.md`](financial-snapshots.md).
 
+Phase 3E-B adds `CapitalEfficiencyFeatures`, a read-only calculation layer over
+explicit snapshot and TTM dependencies. Net debt, debt/equity, interest
+coverage, ROE, and ROCE retain their nested source lineage and conservative
+denominator warnings. No feature is persisted or scored; see
+[`capital-efficiency-features.md`](capital-efficiency-features.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

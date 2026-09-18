@@ -388,3 +388,65 @@ def test_latest_snapshot_refuses_ambiguous_same_end_periods(session, tmp_path: P
         )
         is None
     )
+
+
+def test_common_snapshot_for_exact_period_end_succeeds(session, tmp_path: Path) -> None:
+    reader = _main_reader(session, tmp_path)
+    snapshot = reader.common_snapshot_for_period_end_as_of(
+        provider_dataset_id=_dataset_id(session, "snapshot_main"),
+        company_id=_company_id(session),
+        filing_scope="standalone",
+        period_end=date(2026, 6, 30),
+        metric_codes=METRICS,
+        as_of=_at(2026, 8, 3),
+    )
+
+    assert snapshot is not None
+    assert snapshot.fiscal_period.period_end == date(2026, 6, 30)
+    assert {component.fact.fiscal_period.id for component in snapshot.components} == {
+        snapshot.fiscal_period.id
+    }
+
+
+def test_common_snapshot_for_period_end_has_no_date_or_completeness_fallback(
+    session, tmp_path: Path
+) -> None:
+    reader = _main_reader(session, tmp_path)
+    common = {
+        "provider_dataset_id": _dataset_id(session, "snapshot_main"),
+        "company_id": _company_id(session),
+        "filing_scope": "standalone",
+        "metric_codes": METRICS,
+        "as_of": _at(2026, 11, 2),
+    }
+
+    assert (
+        reader.common_snapshot_for_period_end_as_of(
+            period_end=date(2026, 6, 29), **common
+        )
+        is None
+    )
+    assert (
+        reader.common_snapshot_for_period_end_as_of(
+            period_end=date(2026, 9, 30), **common
+        )
+        is None
+    )
+
+
+def test_common_snapshot_for_period_end_refuses_same_end_ambiguity(
+    session, tmp_path: Path
+) -> None:
+    reader = _main_reader(session, tmp_path)
+
+    assert (
+        reader.common_snapshot_for_period_end_as_of(
+            provider_dataset_id=_dataset_id(session, "snapshot_main"),
+            company_id=_company_id(session),
+            filing_scope="standalone",
+            period_end=date(2027, 3, 31),
+            metric_codes=("total_liabilities", "total_equity"),
+            as_of=_at(2027, 5, 2),
+        )
+        is None
+    )

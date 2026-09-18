@@ -37,6 +37,13 @@ snapshot only when every requested metric resolves to an eligible fact for the
 requested period ID and context. Missing or ineligible components make the
 whole request unavailable; values from another period are never substituted.
 
+`common_snapshot_for_period_end_as_of(...)` is the exact economic-date
+primitive used by capital-efficiency calculations. It requires one complete,
+unambiguous common `FiscalPeriod.id` ending on the requested date. It returns
+`None` for a missing date, incomplete period, or multiple complete period IDs
+with that end date; it never substitutes a nearby date or prefers quarter over
+annual semantics.
+
 Metric requests must be non-empty and contain no duplicates. An aware `as_of`
 timestamp is required and normalized to UTC.
 

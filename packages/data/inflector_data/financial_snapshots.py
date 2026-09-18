@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal
 from uuid import UUID
 
@@ -106,33 +106,16 @@ class InstantFinancialSnapshotReader:
 
         requested_metrics = self._validated_metric_codes(metric_codes)
         cutoff = self._knowledge_cutoff(as_of)
-        facts_by_metric: dict[str, dict[UUID, PointInTimeFinancialFact]] = {}
-        for metric_code in requested_metrics:
-            series = self._financial_reader.financial_series_as_of(
-                provider_dataset_id=provider_dataset_id,
-                company_id=company_id,
-                filing_scope=filing_scope,
-                metric_code=metric_code,
-                as_of=cutoff,
-            )
-            eligible = {
-                fact.fiscal_period.id: fact
-                for fact in series
-                if self._eligible(
-                    fact,
-                    provider_dataset_id=provider_dataset_id,
-                    company_id=company_id,
-                    filing_scope=filing_scope,
-                    fiscal_period_id=fact.fiscal_period.id,
-                )
-            }
-            if not eligible:
-                return None
-            facts_by_metric[metric_code] = eligible
-
-        common_period_ids = set.intersection(
-            *(set(facts_by_metric[metric_code]) for metric_code in requested_metrics)
+        facts_by_metric = self._eligible_facts_by_metric(
+            provider_dataset_id=provider_dataset_id,
+            company_id=company_id,
+            filing_scope=filing_scope,
+            metric_codes=requested_metrics,
+            as_of=cutoff,
         )
+        if facts_by_metric is None:
+            return None
+        common_period_ids = self._common_period_ids(facts_by_metric, requested_metrics)
         if not common_period_ids:
             return None
 
@@ -157,6 +140,89 @@ class InstantFinancialSnapshotReader:
             company_id=company_id,
             filing_scope=filing_scope,
             as_of=cutoff,
+        )
+
+    def common_snapshot_for_period_end_as_of(
+        self,
+        *,
+        provider_dataset_id: UUID,
+        company_id: UUID,
+        filing_scope: str,
+        period_end: date,
+        metric_codes: Sequence[str],
+        as_of: datetime,
+    ) -> InstantFinancialSnapshot | None:
+        """Return one unambiguous complete snapshot ending on an exact date."""
+
+        requested_metrics = self._validated_metric_codes(metric_codes)
+        cutoff = self._knowledge_cutoff(as_of)
+        facts_by_metric = self._eligible_facts_by_metric(
+            provider_dataset_id=provider_dataset_id,
+            company_id=company_id,
+            filing_scope=filing_scope,
+            metric_codes=requested_metrics,
+            as_of=cutoff,
+        )
+        if facts_by_metric is None:
+            return None
+        first_metric = requested_metrics[0]
+        matching_period_ids = [
+            period_id
+            for period_id in self._common_period_ids(facts_by_metric, requested_metrics)
+            if facts_by_metric[first_metric][period_id].fiscal_period.period_end == period_end
+        ]
+        if len(matching_period_ids) != 1:
+            return None
+        selected_period_id = matching_period_ids[0]
+        return self._snapshot(
+            [facts_by_metric[metric_code][selected_period_id] for metric_code in requested_metrics],
+            provider_dataset_id=provider_dataset_id,
+            company_id=company_id,
+            filing_scope=filing_scope,
+            as_of=cutoff,
+        )
+
+    def _eligible_facts_by_metric(
+        self,
+        *,
+        provider_dataset_id: UUID,
+        company_id: UUID,
+        filing_scope: str,
+        metric_codes: tuple[str, ...],
+        as_of: datetime,
+    ) -> dict[str, dict[UUID, PointInTimeFinancialFact]] | None:
+        facts_by_metric: dict[str, dict[UUID, PointInTimeFinancialFact]] = {}
+        for metric_code in metric_codes:
+            series = self._financial_reader.financial_series_as_of(
+                provider_dataset_id=provider_dataset_id,
+                company_id=company_id,
+                filing_scope=filing_scope,
+                metric_code=metric_code,
+                as_of=as_of,
+            )
+            eligible = {
+                fact.fiscal_period.id: fact
+                for fact in series
+                if self._eligible(
+                    fact,
+                    provider_dataset_id=provider_dataset_id,
+                    company_id=company_id,
+                    filing_scope=filing_scope,
+                    fiscal_period_id=fact.fiscal_period.id,
+                )
+            }
+            if not eligible:
+                return None
+            facts_by_metric[metric_code] = eligible
+        return facts_by_metric
+
+    @staticmethod
+    def _common_period_ids(
+        facts_by_metric: dict[str, dict[UUID, PointInTimeFinancialFact]],
+        metric_codes: tuple[str, ...],
+    ) -> set[UUID]:
+        return set.intersection(
+            *(set(facts_by_metric[metric_code]) for metric_code in metric_codes)
         )
 
     @staticmethod

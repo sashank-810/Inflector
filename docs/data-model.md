@@ -124,6 +124,13 @@ late observation for an older period cannot displace a newer complete period.
 Distinct period IDs tied at the maximum end date are ambiguous and fail closed.
 Every component retains its full `PointInTimeFinancialFact` lineage.
 
+Phase 3E-B adds no leverage or capital-efficiency tables. Its ephemeral result
+objects retain complete snapshot and TTM inputs. ROE and ROCE require exact
+beginning/end economic dates through unambiguous same-`FiscalPeriod.id`
+snapshots; missing or ambiguous boundaries are not replaced with nearby data.
+Non-positive denominator conditions remain explicit warnings rather than
+repaired or sentinel values.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |

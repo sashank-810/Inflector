@@ -74,7 +74,7 @@ mean revenue for the current quarter and `P_t` PAT.
 | ROIC | NOPAT / average invested capital, only when tax and invested-capital inputs are adequate |
 | Net debt | interest-bearing debt − cash and cash equivalents |
 | Debt/equity | interest-bearing debt / equity; flagged if equity is non-positive |
-| Interest coverage | EBIT / interest expense; undefined values are flagged, not forced high |
+| Interest coverage | TTM EBIT / TTM finance cost; non-positive finance cost is undefined and flagged, never repaired with an absolute value |
 | CFO conversion | TTM CFO / TTM PAT, with loss-aware interpretation |
 | FCF | CFO − capex; capex sign is normalized by metric definition |
 | Receivable days | average receivables / TTM revenue × 365, where inputs permit |
@@ -84,6 +84,10 @@ mean revenue for the current quarter and `P_t` PAT.
 Trailing periods are calculated only from observations available at the cutoff.
 Winsorisation, sector comparisons, minimum denominators, and score breakpoints
 are configuration values and carry their own version.
+
+Phase 3E-B provides only the raw versioned calculations above. It does not
+apply near-zero thresholds, sector normalization, weights, persistence rules,
+or score contributions.
 
 ## Component construction
 

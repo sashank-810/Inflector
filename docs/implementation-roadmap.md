@@ -92,11 +92,16 @@ Select complete same-`FiscalPeriod.id` sets of PIT-visible instant monetary INR
 facts. Define latest by economic period end, preserve complete fact lineage,
 and fail closed on ambiguous maximum periods. Add no ratios or persistence.
 
-### Phase 3E-B+ — quality, balance-sheet, and cash-flow features
+### Phase 3E-B — leverage and capital-efficiency primitives (acceptance pending)
 
-Build deterministic capital-efficiency, leverage, working-capital, and
-cash-flow quality features with source lineage on top of the approved snapshot
-foundation. Exact sub-phase boundaries remain subject to acceptance review.
+Add PIT-clean net debt, debt/equity, TTM interest coverage, ROE, and ROCE over
+the approved snapshot and TTM layers. Require exact ROE/ROCE balance-sheet
+boundaries and retain complete input lineage without persistence or scoring.
+
+### Phase 3E-C+ — remaining quality, balance-sheet, and cash-flow features
+
+Working-capital, liquidity, cash-flow quality, and other deterministic features
+remain deferred. Exact sub-phase boundaries require separate acceptance.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.
