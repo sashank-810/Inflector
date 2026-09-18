@@ -112,6 +112,15 @@ coverage, ROE, and ROCE retain their nested source lineage and conservative
 denominator warnings. No feature is persisted or scored; see
 [`capital-efficiency-features.md`](capital-efficiency-features.md).
 
+Phase 3E-C adds `CashFlowQualityFeatures` over the same explicit snapshot and
+TTM boundaries. It calculates CFO/PAT, CFO/reported-EBITDA, receivable days,
+and trade working-capital change with exact Decimal arithmetic, PIT-visible
+revisions, and full nested lineage. Exact balance-sheet dates are mandatory;
+provider and filing scope never fall back. FCF and cash-conversion-cycle
+formulas remain deferred until capex-sign and denominator semantics are
+controlled. See
+[`cash-flow-quality-features.md`](cash-flow-quality-features.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

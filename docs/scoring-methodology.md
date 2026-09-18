@@ -75,19 +75,23 @@ mean revenue for the current quarter and `P_t` PAT.
 | Net debt | interest-bearing debt − cash and cash equivalents |
 | Debt/equity | interest-bearing debt / equity; flagged if equity is non-positive |
 | Interest coverage | TTM EBIT / TTM finance cost; non-positive finance cost is undefined and flagged, never repaired with an absolute value |
-| CFO conversion | TTM CFO / TTM PAT, with loss-aware interpretation |
-| FCF | CFO − capex; capex sign is normalized by metric definition |
+| CFO conversion | TTM CFO / TTM PAT when PAT is positive; otherwise retain exact CFO − PAT with an undefined-ratio warning |
+| CFO / EBITDA | TTM CFO / TTM reported EBITDA when EBITDA is positive |
+| FCF (planned) | Deferred until controlled metric metadata defines the provider capex sign convention |
 | Receivable days | average receivables / TTM revenue × 365, where inputs permit |
-| Cash conversion cycle | receivable days + inventory days − payable days |
+| Trade working-capital change | ending minus beginning of receivables + inventory − payables, using exact TTM boundaries |
+| Cash conversion cycle (planned) | Deferred until controlled COGS/purchases denominator semantics exist |
 | Enterprise value | market cap + debt + preferred/minority interests where available − cash |
 
 Trailing periods are calculated only from observations available at the cutoff.
 Winsorisation, sector comparisons, minimum denominators, and score breakpoints
 are configuration values and carry their own version.
 
-Phase 3E-B provides only the raw versioned calculations above. It does not
-apply near-zero thresholds, sector normalization, weights, persistence rules,
-or score contributions.
+Phases 3E-B and 3E-C provide only the implemented raw versioned calculations
+described in their focused documents. They do not apply near-zero thresholds,
+sector normalization, weights, persistence rules, or score contributions.
+FCF, inventory days, payable days, and CCC remain planned rather than
+implemented deterministic primitives.
 
 ## Component construction
 
@@ -111,8 +115,10 @@ unreviewed AI extraction cannot be counted twice.
 ### Quality, cash flow, and balance sheet (35 combined)
 
 Business quality evaluates sustainable margins, ROCE/ROE trend, and asset
-turnover. Cash-flow quality evaluates CFO/PAT, CFO/EBITDA, FCF trajectory, and
-accrual/working-capital consistency. Balance sheet evaluates net-debt trend,
+turnover. Cash-flow quality will eventually evaluate CFO/PAT, CFO/EBITDA, FCF
+trajectory, and accrual/working-capital consistency; Phase 3E-C currently
+implements the first two conversions, receivable days, and exact trade
+working-capital change only. Balance sheet evaluates net-debt trend,
 debt/equity, interest coverage, current/quick ratios, and working-capital
 movement. Risk evidence can reduce these components and the final cap applies
 independently.

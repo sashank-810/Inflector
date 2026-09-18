@@ -92,16 +92,25 @@ Select complete same-`FiscalPeriod.id` sets of PIT-visible instant monetary INR
 facts. Define latest by economic period end, preserve complete fact lineage,
 and fail closed on ambiguous maximum periods. Add no ratios or persistence.
 
-### Phase 3E-B — leverage and capital-efficiency primitives (acceptance pending)
+### Phase 3E-B — leverage and capital-efficiency primitives
 
 Add PIT-clean net debt, debt/equity, TTM interest coverage, ROE, and ROCE over
 the approved snapshot and TTM layers. Require exact ROE/ROCE balance-sheet
 boundaries and retain complete input lineage without persistence or scoring.
 
-### Phase 3E-C+ — remaining quality, balance-sheet, and cash-flow features
+### Phase 3E-C — cash-flow quality and trade working-capital primitives (acceptance pending)
 
-Working-capital, liquidity, cash-flow quality, and other deterministic features
-remain deferred. Exact sub-phase boundaries require separate acceptance.
+Add PIT-clean CFO/PAT and CFO/reported-EBITDA conversion, receivable days, and
+trade working-capital change over exact TTM and instant-snapshot boundaries.
+Retain full lineage, explicit denominator warnings, and provider/scope
+isolation without persistence or scoring. FCF, inventory days, payable days,
+and CCC remain deferred until controlled capex-sign, COGS, and purchases
+semantics exist.
+
+### Phase 3E-D+ — remaining quality and balance-sheet features
+
+Liquidity and other deterministic quality features remain deferred. Exact
+sub-phase boundaries require separate acceptance.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

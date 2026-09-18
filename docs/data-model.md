@@ -96,8 +96,9 @@ tables. Future financial API projections can expose typed `IncomeStatement`,
 company identity graph. Definitions cover revenue, operating revenue, other income,
 EBITDA, EBIT, operating profit, PAT, EPS, exceptional items, tax, interest,
 assets, liabilities, equity, debt, cash, inventory, receivables, payables,
-CFO, CFI, CFF, capex, and reported FCF. Reported values are never replaced by
-calculated values.
+CFO, CFI, CFF, and reported capex. Reported values are never replaced by
+calculated values; no FCF metric is derived until capex sign semantics are
+controlled.
 
 Phase 3B does not add a derived-quarter table. `FinancialFact` remains the
 immutable reported observation, while the read-only period normalizer returns
@@ -130,6 +131,15 @@ beginning/end economic dates through unambiguous same-`FiscalPeriod.id`
 snapshots; missing or ambiguous boundaries are not replaced with nearby data.
 Non-positive denominator conditions remain explicit warnings rather than
 repaired or sentinel values.
+
+Phase 3E-C adds no cash-flow-quality or working-capital tables. Its ephemeral
+results retain complete TTM and instant-snapshot lineage. CFO conversion and
+CFO/EBITDA require identical TTM contexts and windows. Receivable days and
+trade working-capital change use exact, unambiguous beginning and ending
+balance-sheet period IDs anchored by a PIT-clean TTM revenue window. Reported
+capex remains source data only: no FCF is derived until its sign convention is
+encoded in controlled metric metadata. COGS and purchases are not fabricated,
+so inventory days, payable days, and CCC remain unimplemented.
 
 ### Events, interpretation, and risk
 

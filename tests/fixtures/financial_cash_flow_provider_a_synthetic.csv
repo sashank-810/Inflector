@@ -1,0 +1,10 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+CF-PA-BEG-REC,Aurora Fabrication Limited,SYN-CF-PA-FY2025,results,standalone,false,annual,2025-04-01,2026-03-31,2025,,false,trade_receivables,40,INR,crore,INR,2026-05-01T12:00:00Z,2026-05-01T12:00:00Z,
+CF-PA-CFO-Q1,Aurora Fabrication Limited,SYN-CF-PA-Q1,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,cash_flow_from_operations,10,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+CF-PA-REV-Q1,Aurora Fabrication Limited,SYN-CF-PA-Q1,results,standalone,false,quarter,2026-04-01,2026-06-30,2026,1,false,revenue,100,INR,crore,INR,2026-08-01T12:00:00Z,2026-08-01T12:00:00Z,
+CF-PA-CFO-Q2,Aurora Fabrication Limited,SYN-CF-PA-Q2,results,standalone,false,quarter,2026-07-01,2026-09-30,2026,2,false,cash_flow_from_operations,10,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+CF-PA-REV-Q2,Aurora Fabrication Limited,SYN-CF-PA-Q2,results,standalone,false,quarter,2026-07-01,2026-09-30,2026,2,false,revenue,100,INR,crore,INR,2026-11-01T12:00:00Z,2026-11-01T12:00:00Z,
+CF-PA-CFO-Q3,Aurora Fabrication Limited,SYN-CF-PA-Q3,results,standalone,false,quarter,2026-10-01,2026-12-31,2026,3,false,cash_flow_from_operations,10,INR,crore,INR,2027-02-01T12:00:00Z,2027-02-01T12:00:00Z,
+CF-PA-REV-Q3,Aurora Fabrication Limited,SYN-CF-PA-Q3,results,standalone,false,quarter,2026-10-01,2026-12-31,2026,3,false,revenue,100,INR,crore,INR,2027-02-01T12:00:00Z,2027-02-01T12:00:00Z,
+CF-PA-CFO-Q4,Aurora Fabrication Limited,SYN-CF-PA-Q4,results,standalone,false,quarter,2027-01-01,2027-03-31,2026,4,false,cash_flow_from_operations,10,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
+CF-PA-REV-Q4,Aurora Fabrication Limited,SYN-CF-PA-Q4,results,standalone,false,quarter,2027-01-01,2027-03-31,2026,4,false,revenue,100,INR,crore,INR,2027-05-01T12:00:00Z,2027-05-01T12:00:00Z,
