@@ -7,10 +7,16 @@ active persisted policy, evaluates eligibility and confidence, selects one
 coherent financial context, calculates the approved Financial Inflection
 component, and stores structured component and subfactor records.
 
-Only one of eight proposed top-level components exists. Consequently every
-Phase 4C `final_score` is SQL `NULL`. The Financial Inflection score is not
+Only one of eight proposed top-level components is supported by Phase 4C
+orchestration and persistence. Consequently every Phase 4C `final_score` is SQL
+`NULL`. The Financial Inflection score is not
 multiplied by its 25% top-level weight, divided by that weight, renormalized to
 stand in for missing components, or adjusted by confidence.
+
+Phase 4D-A provides a pure Business Quality scorer, but deliberately does not
+connect it to this orchestration or persistence contract. Phase 4C snapshots
+therefore still persist at most Financial Inflection and retain a null final
+score; no Business Quality component row is written yet.
 
 ## Statuses
 
@@ -104,4 +110,3 @@ component, curve, and Phase 3 algorithm versions.
 Restatements affect snapshots only at their PIT availability boundary. Earlier
 snapshots remain unchanged, and a historical rerun reproduces the earlier
 fingerprint when its cutoff and evidence remain identical.
-

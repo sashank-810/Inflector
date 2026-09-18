@@ -221,12 +221,45 @@ class FinancialInflectionPolicy(_PolicyModel):
         return self
 
 
+class BusinessQualitySubfactorWeights(_PolicyModel):
+    roce_level: Decimal
+    roe_level: Decimal
+    margin_level: Decimal
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> BusinessQualitySubfactorWeights:
+        weights = tuple(self.__dict__.values())
+        if any(weight < 0 for weight in weights):
+            raise ValueError("business-quality subfactor weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("business-quality subfactor weights must sum exactly to 1")
+        return self
+
+
+class BusinessQualityScoringPolicy(_PolicyModel):
+    subfactor_weights: BusinessQualitySubfactorWeights
+    minimum_weight_coverage: Decimal
+    margin_code: str
+    roce_level_curve: PiecewiseLinearScoringCurve
+    roe_level_curve: PiecewiseLinearScoringCurve
+    margin_level_curve: PiecewiseLinearScoringCurve
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> BusinessQualityScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        if self.margin_code not in {"operating_margin", "ebitda_margin"}:
+            raise ValueError("margin_code must be operating_margin or ebitda_margin")
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
     confidence: ConfidencePolicy
     component_weights: ComponentWeights
     financial_inflection: FinancialInflectionPolicy
+    business_quality: BusinessQualityScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -253,6 +286,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
     assert isinstance(financial_inflection, dict)
     if financial_inflection.get("scoring") is None:
         financial_inflection.pop("scoring", None)
+    if policy_value.get("business_quality") is None:
+        policy_value.pop("business_quality", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

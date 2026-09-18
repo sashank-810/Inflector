@@ -152,6 +152,12 @@ one selected Financial Inflection component, and structured subfactor
 explanations. The final score remains null because seven top-level components
 are not implemented. See [`score-snapshots.md`](score-snapshots.md).
 
+Phase 4D-A adds a second pure `packages/core` scorer for Business Quality. It
+scores current ROCE, ROE, and an explicitly configured quarter-margin level
+using the existing Phase 4B Decimal curve implementation. It preserves strict
+context/cutoff/endpoint coherence and does not change Phase 4C orchestration or
+persistence. See [`business-quality-scoring.md`](business-quality-scoring.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

@@ -14,6 +14,13 @@ coverage threshold, explicit margin/history metrics, and six normalization
 curves. See
 [`financial-inflection-scoring.md`](financial-inflection-scoring.md).
 
+Phase 4D-A adds an optional top-level `business_quality` scoring section.
+Historical policies remain valid, and canonical serialization omits that key
+only when absent so Phase 4A/4B JSON and checksums remain unchanged. The new
+section configures current ROCE, ROE, and margin-level weights, minimum
+coverage, margin identity, and reusable piecewise-linear curves. See
+[`business-quality-scoring.md`](business-quality-scoring.md).
+
 ## Model version and scoring configuration
 
 `model_versions` identifies code/model semantics by unique
@@ -131,6 +138,11 @@ The separate Phase 4B development fixture adds scoring mechanics without
 rewriting this historical fixture. Its 30/25/20/15/5/5 subfactor split and
 piecewise breakpoints are placeholder policy for deterministic validation, not
 empirically calibrated or production-ready parameters.
+
+The separate Phase 4D-A fixture retains all prior sections and adds development
+Business Quality weights of 0.50/0.30/0.20 plus placeholder ROCE, ROE, and
+margin-level curves. These values validate mechanics and are not production
+calibration or empirical claims.
 
 Phase 4C accepts no arbitrary policy object. Its orchestrator resolves the
 persisted active configuration at the knowledge cutoff and preserves model ID,

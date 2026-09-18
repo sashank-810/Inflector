@@ -138,18 +138,25 @@ curves with exact interpolation, clamping, coherent context/cutoff/endpoint
 validation, a minimum coverage gate, and available-weight renormalization. No
 other component, final score, or persistence is included.
 
-### Phase 4C — partial score persistence and orchestration (acceptance pending)
+### Phase 4C — partial score persistence and orchestration (complete)
 
 Add immutable fingerprinted snapshots, the selected Financial Inflection
 component audit, structured explanations, PIT lineage, and idempotent history.
 Eligibility and confidence are retained independently; the final score remains
 null.
 
-### Phase 4D — remaining top-level component scorers
+### Phase 4D-A — Business Quality component scoring (acceptance pending)
 
-Implement only separately approved Business Catalyst, Business Quality,
-Cash-flow Quality, Balance Sheet, Valuation, Market Structure, and Low Attention
-component policies. Phase 4C does not fabricate them.
+Score current ROCE, ROE, and configured margin levels through versioned
+development curves with exact Decimal arithmetic, minimum coverage, and
+available-weight renormalization. No persistence, orchestration, confidence
+adjustment, top-level weighting, or final score is included.
+
+### Phase 4D-B and later — remaining top-level component scorers
+
+Implement only separately approved Business Catalyst, Cash-flow Quality,
+Balance Sheet, Valuation, Market Structure, and Low Attention component
+policies. Phase 4C does not fabricate them.
 
 ### Phase 4E — final Opportunity Score activation
 

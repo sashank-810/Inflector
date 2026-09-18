@@ -129,6 +129,14 @@ is the configured Financial Inflection weight, and missing future components
 are neither zero-filled nor renormalized. Confidence remains a separate audit
 value rather than a score multiplier.
 
+Phase 4D-A implements a pure Business Quality level score from current ROCE,
+current ROE, and an explicitly configured current-quarter operating or EBITDA
+margin. Versioned piecewise-linear development curves normalize these ratios;
+missing factors are unavailable rather than zero and available weights are
+renormalized only after a minimum-coverage gate. Valid negative profitability
+is scored unchanged. Confidence and the top-level 15% weight are not applied,
+and the result is not yet persisted by Phase 4C.
+
 ## Component construction
 
 ### Financial inflection (25)
@@ -151,8 +159,10 @@ unreviewed AI extraction cannot be counted twice.
 
 ### Quality, cash flow, and balance sheet (35 combined)
 
-Business quality evaluates sustainable margins, ROCE/ROE trend, and asset
-turnover. Cash-flow quality will eventually evaluate CFO/PAT, CFO/EBITDA, FCF
+Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE
+level, and configured margin level. Multi-period ROCE/ROE or margin trends,
+asset turnover, ROIC, sector-relative quality, and peer percentiles remain
+deferred. Cash-flow quality will eventually evaluate CFO/PAT, CFO/EBITDA, FCF
 trajectory, and accrual/working-capital consistency; Phase 3E-C currently
 implements the first two conversions, receivable days, and exact trade
 working-capital change only. Balance sheet evaluates net-debt trend,

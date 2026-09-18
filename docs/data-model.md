@@ -198,6 +198,12 @@ use wide PostgreSQL numeric storage and exact SQLite text adaptation. All Phase
 4C final-score and final-contribution values remain null. `feature_snapshot`
 and `feature_value` are still future design.
 
+Phase 4D-A adds no schema. Its optional typed Business Quality policy remains
+inside immutable `scoring_configurations.configuration_json`, and its pure
+component/subfactor results retain Phase 3 evidence only in memory. Phase 4C
+continues to persist Financial Inflection alone; Business Quality persistence
+requires a later, separately reviewed orchestration design.
+
 ### Personal workflow, alerts, and operations
 
 | Table | Core columns / constraints | Purpose |
