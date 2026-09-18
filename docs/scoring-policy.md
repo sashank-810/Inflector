@@ -1,10 +1,18 @@
-# Phase 4A scoring policy and control contracts
+# Phase 4 scoring policy and control contracts
 
 ## Scope
 
 Phase 4A establishes immutable model/configuration identity and pure policy
 contracts. It does not calculate component points, a final opportunity score,
 rankings, explanations, or score snapshots.
+
+Phase 4B extends only the Financial Inflection policy with an optional scoring
+subsection. Absence is valid for historical Phase 4A configurations and the
+canonical serializer omits that key only when absent, preserving their exact
+JSON and checksum. New configurations can carry subfactor weights, a minimum
+coverage threshold, explicit margin/history metrics, and six normalization
+curves. See
+[`financial-inflection-scoring.md`](financial-inflection-scoring.md).
 
 ## Model version and scoring configuration
 
@@ -118,3 +126,8 @@ explicit four-observation consistency/persistence windows. Its provider UUIDs,
 liquidity floor, coverage/history requirements, confidence weights, and 10%
 persistence threshold are synthetic development values, not universal or
 finalized production policy.
+
+The separate Phase 4B development fixture adds scoring mechanics without
+rewriting this historical fixture. Its 30/25/20/15/5/5 subfactor split and
+piecewise breakpoints are placeholder policy for deterministic validation, not
+empirically calibrated or production-ready parameters.

@@ -124,17 +124,19 @@ prove no future facts appear at a historical cutoff.
 
 ## Phase 4 — scoring
 
-### Phase 4A — policy and control contracts (acceptance pending)
+### Phase 4A — policy and control contracts (complete)
 
 Persist immutable model versions and typed scoring configurations with
 canonical checksums. Add provider-first financial-context selection, hard
 eligibility rules, and independent exact-Decimal confidence. Do not calculate
 component or final scores.
 
-### Phase 4B — component scoring primitives
+### Phase 4B — Financial Inflection component scoring (acceptance pending)
 
-Map approved deterministic features to versioned component points with explicit
-normalization and missing-data policy. This remains deferred.
+Map the six approved Financial Inflection subfactors to versioned development
+curves with exact interpolation, clamping, coherent context/cutoff/endpoint
+validation, a minimum coverage gate, and available-weight renormalization. No
+other component, final score, or persistence is included.
 
 ### Phase 4C — score persistence and orchestration
 

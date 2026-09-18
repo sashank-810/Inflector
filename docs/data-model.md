@@ -185,6 +185,12 @@ unique `(model_version_id, configuration_name, configuration_version)`
 identity. Feature and score tables in this catalogue remain future design and
 are not created by the Phase 4A migration.
 
+Phase 4B adds no schema. Its optional typed Financial Inflection scoring policy
+is carried in the existing immutable configuration JSON. In-memory component
+and subfactor results retain Phase 3 evidence references but are not
+`score_component` or `score_snapshot` records. Those persistence models remain
+Phase 4C work.
+
 ### Personal workflow, alerts, and operations
 
 | Table | Core columns / constraints | Purpose |

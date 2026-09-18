@@ -111,17 +111,27 @@ evidence confidence. Missing recency/evidence lowers confidence to the extent
 of its configured weight but does not itself make a company ineligible. No
 feature value is multiplied by confidence in Phase 4A.
 
+Phase 4B implements only the Financial Inflection component. Versioned
+piecewise-linear development curves normalize revenue/PAT acceleration, the
+configured margin expansion, same-quarter prior-year ROCE improvement, growth
+consistency, and the persistence streak/window ratio. Endpoint clamping limits
+extreme values. Missing evidence is disclosed and available weights are
+renormalized only after a configured minimum-coverage gate. Confidence and the
+top-level 25% component weight are deliberately not applied. The development
+breakpoints validate mechanics and require calibration/backtesting before any
+activation; they are not asserted to be correct or predictive.
+
 ## Component construction
 
 ### Financial inflection (25)
 
 Sub-factors are revenue acceleration (30%), profit acceleration (25%), margin
 expansion (20%), return-on-capital improvement (15%), and persistence/
-consistency (10%). The proposed score may combine magnitude, trend slope,
-acceleration, and persistence over configured windows. Raw Phase 3F consistency
-is not adjusted for data quality; that adjustment belongs to Phase 4. A future
-Phase 4 model may downweight a single extreme period through robust median/MAD
-outlier detection and cap its configured contribution.
+consistency (10%). The Phase 4B development policy splits the last 10% equally
+between consistency and persistence. It uses configurable normalization curves
+and no confidence adjustment. The split and breakpoints are uncalibrated
+development placeholders. Robust median/MAD outlier treatment remains future
+work rather than hidden scoring behavior.
 
 ### Business catalyst (20)
 

@@ -136,6 +136,14 @@ eligibility, and confidence evaluators consume supplied evidence without
 querying financial facts or producing score points. Overlapping active policy
 intervals fail closed. See [`scoring-policy.md`](scoring-policy.md).
 
+Phase 4B adds a pure `packages/core` Financial Inflection component scorer. It
+normalizes six coherent Phase 3 evidence objects through versioned Decimal
+piecewise-linear curves, applies a configured coverage gate, and renormalizes
+only available subfactor weights. It does not query providers or persistence,
+apply confidence or the top-level component weight, calculate a final score, or
+write score tables. See
+[`financial-inflection-scoring.md`](financial-inflection-scoring.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

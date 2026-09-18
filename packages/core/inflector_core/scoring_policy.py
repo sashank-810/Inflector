@@ -131,10 +131,86 @@ class ComponentWeights(_PolicyModel):
         return self
 
 
+class ScoreBreakpoint(_PolicyModel):
+    raw_value: Decimal
+    score: Decimal
+
+    @field_validator("raw_value", "score", mode="before")
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("scoring curve values must not use binary floats")
+        return value
+
+    @field_validator("score")
+    @classmethod
+    def validate_score(cls, value: Decimal) -> Decimal:
+        if not Decimal("0") <= value <= Decimal("100"):
+            raise ValueError("breakpoint score must be in [0, 100]")
+        return value
+
+
+class PiecewiseLinearScoringCurve(_PolicyModel):
+    breakpoints: tuple[ScoreBreakpoint, ...]
+
+    @model_validator(mode="after")
+    def validate_breakpoints(self) -> PiecewiseLinearScoringCurve:
+        if len(self.breakpoints) < 2:
+            raise ValueError("a scoring curve requires at least two breakpoints")
+        for previous, current in zip(self.breakpoints, self.breakpoints[1:], strict=False):
+            if current.raw_value <= previous.raw_value:
+                raise ValueError("breakpoint raw values must be strictly increasing")
+            if current.score < previous.score:
+                raise ValueError("breakpoint scores must be non-decreasing")
+        return self
+
+
+class FinancialInflectionSubfactorWeights(_PolicyModel):
+    revenue_acceleration: Decimal
+    pat_acceleration: Decimal
+    margin_expansion: Decimal
+    roce_improvement: Decimal
+    growth_consistency: Decimal
+    growth_persistence: Decimal
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> FinancialInflectionSubfactorWeights:
+        weights = tuple(self.__dict__.values())
+        if any(weight < 0 for weight in weights):
+            raise ValueError("financial-inflection subfactor weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("financial-inflection subfactor weights must sum exactly to 1")
+        return self
+
+
+class FinancialInflectionScoringPolicy(_PolicyModel):
+    subfactor_weights: FinancialInflectionSubfactorWeights
+    minimum_weight_coverage: Decimal
+    margin_code: str
+    growth_history_metric_code: str
+    revenue_acceleration_curve: PiecewiseLinearScoringCurve
+    pat_acceleration_curve: PiecewiseLinearScoringCurve
+    margin_expansion_bps_curve: PiecewiseLinearScoringCurve
+    roce_improvement_curve: PiecewiseLinearScoringCurve
+    growth_consistency_curve: PiecewiseLinearScoringCurve
+    growth_persistence_ratio_curve: PiecewiseLinearScoringCurve
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> FinancialInflectionScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        if self.margin_code not in {"operating_margin", "ebitda_margin"}:
+            raise ValueError("margin_code must be operating_margin or ebitda_margin")
+        if not self.growth_history_metric_code:
+            raise ValueError("growth_history_metric_code must not be empty")
+        return self
+
+
 class FinancialInflectionPolicy(_PolicyModel):
     consistency_window_size: int
     persistence_window_size: int
     persistence_threshold: Decimal
+    scoring: FinancialInflectionScoringPolicy | None = None
 
     @model_validator(mode="after")
     def validate_windows(self) -> FinancialInflectionPolicy:
@@ -172,7 +248,12 @@ def _canonical_value(value: object) -> object:
 
 
 def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, object]:
-    value = _canonical_value(policy.model_dump(mode="python"))
+    policy_value = policy.model_dump(mode="python")
+    financial_inflection = policy_value["financial_inflection"]
+    assert isinstance(financial_inflection, dict)
+    if financial_inflection.get("scoring") is None:
+        financial_inflection.pop("scoring", None)
+    value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value
 
