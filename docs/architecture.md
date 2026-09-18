@@ -121,6 +121,14 @@ formulas remain deferred until capex-sign and denominator semantics are
 controlled. See
 [`cash-flow-quality-features.md`](cash-flow-quality-features.md).
 
+Phase 3F adds `GrowthHistoryFeatures`, a final read-only Phase 3 aggregation
+layer over the public Phase 3D YoY series. It requires complete fixed windows
+of consecutive percentage-mode observations, then exposes exact positive share
+and explicit-threshold persistence with stopping/saturation lineage. It does
+not query raw facts, bridge missing or loss-transition observations, persist
+features, or apply scoring policy; see
+[`growth-history-features.md`](growth-history-features.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

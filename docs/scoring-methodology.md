@@ -66,8 +66,8 @@ mean revenue for the current quarter and `P_t` PAT.
 | Revenue QoQ | `(R_t / R_t-1) - 1`; displayed but seasonality-aware and lower weight |
 | PAT YoY / QoQ | Corresponding formula on PAT; losses and near-zero denominators use signed absolute-change rules and a warning |
 | Growth acceleration | current YoY growth minus trailing median of the prior 3 comparable YoY growth observations |
-| Growth consistency | share of last 4 comparable periods with positive growth, adjusted for data quality |
-| Persistence | number of consecutive periods above threshold, capped; one quarter cannot create a high score |
+| Growth consistency | raw positive share over an explicit complete consecutive percentage-mode YoY window; zero is non-positive |
+| Persistence | consecutive percentage-mode YoYs strictly above an explicit threshold within an explicit complete lookback window |
 | Margin expansion | current operating/EBITDA margin minus comparable prior-year margin, in basis points |
 | ROE | TTM PAT / average beginning-and-ending equity |
 | ROCE | TTM EBIT / average capital employed, where capital employed = equity + interest-bearing debt − cash; definition/version is stored |
@@ -93,16 +93,22 @@ sector normalization, weights, persistence rules, or score contributions.
 FCF, inventory days, payable days, and CCC remain planned rather than
 implemented deterministic primitives.
 
+Phase 3F supplies only the raw growth-history primitives. Phase 4 configuration
+will choose consistency/persistence window sizes, persistence thresholds, and
+score caps. Data-quality or confidence adjustment, weighting, new-listing
+exceptions, and outlier policy are not part of the Phase 3F calculations.
+
 ## Component construction
 
 ### Financial inflection (25)
 
 Sub-factors are revenue acceleration (30%), profit acceleration (25%), margin
 expansion (20%), return-on-capital improvement (15%), and persistence/
-consistency (10%). Each score combines magnitude, trend slope, acceleration,
-and persistence over 4–8 quarters. A single extreme period is downweighted
-through robust median/MAD outlier detection and cannot contribute more than a
-configured fraction of the component.
+consistency (10%). The proposed score may combine magnitude, trend slope,
+acceleration, and persistence over configured windows. Raw Phase 3F consistency
+is not adjusted for data quality; that adjustment belongs to Phase 4. A future
+Phase 4 model may downweight a single extreme period through robust median/MAD
+outlier detection and cap its configured contribution.
 
 ### Business catalyst (20)
 

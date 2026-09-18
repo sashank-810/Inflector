@@ -98,7 +98,7 @@ Add PIT-clean net debt, debt/equity, TTM interest coverage, ROE, and ROCE over
 the approved snapshot and TTM layers. Require exact ROE/ROCE balance-sheet
 boundaries and retain complete input lineage without persistence or scoring.
 
-### Phase 3E-C — cash-flow quality and trade working-capital primitives (acceptance pending)
+### Phase 3E-C — cash-flow quality and trade working-capital primitives
 
 Add PIT-clean CFO/PAT and CFO/reported-EBITDA conversion, receivable days, and
 trade working-capital change over exact TTM and instant-snapshot boundaries.
@@ -107,10 +107,17 @@ isolation without persistence or scoring. FCF, inventory days, payable days,
 and CCC remain deferred until controlled capex-sign, COGS, and purchases
 semantics exist.
 
-### Phase 3E-D+ — remaining quality and balance-sheet features
+### Phase 3F — PIT growth history, consistency, and persistence (acceptance pending)
 
-Liquidity and other deterministic quality features remain deferred. Exact
-sub-phase boundaries require separate acceptance.
+Add complete fixed windows over public Phase 3D percentage-mode YoY series,
+exact positive-share consistency, and explicit-threshold consecutive
+persistence. Preserve nested lineage and refuse partial, gapped, or
+absolute-change windows. This is the final deterministic Phase 3 feature slice;
+scoring policy, confidence adjustment, configured thresholds, and persistence
+caps begin only in Phase 4.
+
+Unsupported liquidity and accounting formulas remain deferred until their
+controlled source semantics and a separately approved phase exist.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

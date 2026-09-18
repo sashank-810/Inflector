@@ -141,6 +141,13 @@ capex remains source data only: no FCF is derived until its sign convention is
 encoded in controlled metric metadata. COGS and purchases are not fabricated,
 so inventory days, payable days, and CCC remain unimplemented.
 
+Phase 3F adds no growth-window, consistency, or persistence tables. Its
+ephemeral results retain complete Phase 3D `QuarterGrowthValue` objects and
+their nested source lineage. Only complete consecutive fixed windows of
+percentage-mode YoY observations are admissible; absolute-change transitions
+and missing endpoints are not skipped. Window size and persistence threshold
+are request inputs rather than stored policy or application constants.
+
 ### Events, interpretation, and risk
 
 | Table | Core columns / constraints | Purpose |
