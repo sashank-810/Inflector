@@ -144,6 +144,14 @@ apply confidence or the top-level component weight, calculate a final score, or
 write score tables. See
 [`financial-inflection-scoring.md`](financial-inflection-scoring.md).
 
+Phase 4C adds the immutable persistence/orchestration spine. The data-layer
+orchestrator resolves active policy, evaluates eligibility and confidence,
+scores candidate financial contexts independently, applies configured context
+priority, and asks the database repository to idempotently persist a snapshot,
+one selected Financial Inflection component, and structured subfactor
+explanations. The final score remains null because seven top-level components
+are not implemented. See [`score-snapshots.md`](score-snapshots.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

@@ -131,17 +131,31 @@ canonical checksums. Add provider-first financial-context selection, hard
 eligibility rules, and independent exact-Decimal confidence. Do not calculate
 component or final scores.
 
-### Phase 4B — Financial Inflection component scoring (acceptance pending)
+### Phase 4B — Financial Inflection component scoring (complete)
 
 Map the six approved Financial Inflection subfactors to versioned development
 curves with exact interpolation, clamping, coherent context/cutoff/endpoint
 validation, a minimum coverage gate, and available-weight renormalization. No
 other component, final score, or persistence is included.
 
-### Phase 4C — score persistence and orchestration
+### Phase 4C — partial score persistence and orchestration (acceptance pending)
 
-Add score snapshots, component contributions, explanations, historical
-comparison, and orchestration only after component scoring is approved.
+Add immutable fingerprinted snapshots, the selected Financial Inflection
+component audit, structured explanations, PIT lineage, and idempotent history.
+Eligibility and confidence are retained independently; the final score remains
+null.
+
+### Phase 4D — remaining top-level component scorers
+
+Implement only separately approved Business Catalyst, Business Quality,
+Cash-flow Quality, Balance Sheet, Valuation, Market Structure, and Low Attention
+component policies. Phase 4C does not fabricate them.
+
+### Phase 4E — final Opportunity Score activation
+
+Aggregate a final score only after sufficient approved top-level scorers exist,
+with separately reviewed top-level weighting, eligibility orchestration, risk
+caps, and activation policy.
 
 **Exit gate:** scores are deterministic, auditable, versioned, and explainable.
 

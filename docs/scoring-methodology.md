@@ -121,6 +121,14 @@ top-level 25% component weight are deliberately not applied. The development
 breakpoints validate mechanics and require calibration/backtesting before any
 activation; they are not asserted to be correct or predictive.
 
+Phase 4C persists Financial Inflection as a partial component set with exact
+eligibility, confidence, selected context, subfactor explanations, and source
+lineage. It never treats that component as the overall Opportunity Score:
+`final_score` and final component contribution remain null, top-level coverage
+is the configured Financial Inflection weight, and missing future components
+are neither zero-filled nor renormalized. Confidence remains a separate audit
+value rather than a score multiplier.
+
 ## Component construction
 
 ### Financial inflection (25)

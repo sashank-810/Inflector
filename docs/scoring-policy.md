@@ -131,3 +131,9 @@ The separate Phase 4B development fixture adds scoring mechanics without
 rewriting this historical fixture. Its 30/25/20/15/5/5 subfactor split and
 piecewise breakpoints are placeholder policy for deterministic validation, not
 empirically calibrated or production-ready parameters.
+
+Phase 4C accepts no arbitrary policy object. Its orchestrator resolves the
+persisted active configuration at the knowledge cutoff and preserves model ID,
+configuration ID, checksum, and semantic identity in the snapshot fingerprint.
+Half-open effective intervals and overlap ambiguity therefore remain part of
+every persisted audit. See [`score-snapshots.md`](score-snapshots.md).

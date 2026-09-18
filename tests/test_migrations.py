@@ -33,6 +33,9 @@ def test_alembic_upgrade_creates_identity_schema(tmp_path: Path) -> None:
             "security_relationships",
             "model_versions",
             "scoring_configurations",
+            "score_snapshots",
+            "score_components",
+            "score_explanations",
         }.issubset(table_names)
         source_columns = {
             column["name"] for column in inspect(engine).get_columns("source_records")
@@ -53,13 +56,7 @@ def test_phase_4a_migration_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
         inspector = inspect(engine)
         tables = set(inspector.get_table_names())
         assert {"model_versions", "scoring_configurations"}.issubset(tables)
-        assert not {
-            "feature_snapshots",
-            "feature_values",
-            "score_snapshots",
-            "score_components",
-            "score_explanations",
-        }.intersection(tables)
+        assert not {"feature_snapshots", "feature_values"}.intersection(tables)
         foreign_keys = inspector.get_foreign_keys("scoring_configurations")
         assert any(key["referred_table"] == "model_versions" for key in foreign_keys)
     finally:
@@ -89,5 +86,42 @@ def test_phase_4a_migration_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
     try:
         table_names = inspect(engine).get_table_names()
         assert not {"companies", "securities", "exchange_listings"}.intersection(table_names)
+    finally:
+        engine.dispose()
+
+
+def test_phase_4c_migration_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-4c-migration-test.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    phase4c_tables = {"score_snapshots", "score_components", "score_explanations"}
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert phase4c_tables.issubset(tables)
+        assert not {"feature_snapshots", "feature_values"}.intersection(tables)
+        assert any(
+            key["referred_table"] == "scoring_configurations"
+            for key in inspect(engine).get_foreign_keys("score_snapshots")
+        )
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260918_0007")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert not phase4c_tables.intersection(tables)
+        assert {"model_versions", "scoring_configurations"}.issubset(tables)
+        assert "financial_facts" in tables
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert phase4c_tables.issubset(set(inspect(engine).get_table_names()))
     finally:
         engine.dispose()

@@ -12,6 +12,11 @@ Phase 4B does not calculate the final opportunity score, apply the top-level
 25% Financial Inflection weight, multiply by confidence, rank companies, or
 persist feature/score/explanation rows.
 
+Phase 4C now persists this component and its structured subfactor audit without
+changing those semantics. The configured 25% weight remains metadata,
+confidence remains separate, and the overall final score remains null. See
+[`score-snapshots.md`](score-snapshots.md).
+
 ## Configurable normalization
 
 Every raw subfactor is normalized by a versioned piecewise-linear curve. Each
@@ -83,4 +88,3 @@ that new key. Historical Phase 4A JSON, including legitimate `null` values in
 other sections, retains its exact canonical representation and SHA-256.
 Policies without the subsection remain valid but cannot be used by the Phase
 4B scorer.
-

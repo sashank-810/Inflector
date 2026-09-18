@@ -170,9 +170,9 @@ risk rows remain provisional until review and may be excluded by configuration.
 | `feature_value` | snapshot, feature code, value, confidence, input lineage, quality | Deterministic feature output |
 | `model_versions` | model family, unique semantic version, Git SHA, status, dates | Immutable model-semantics identity; implemented in Phase 4A |
 | `scoring_configurations` | model version, name/version, half-open effective range, validated policy JSON, SHA-256 checksum, status | Immutable versioned policy; implemented in Phase 4A |
-| `score_snapshot` | company, as-of/cutoff, config/model, score/confidence/eligibility, feature refs | Immutable final score |
-| `score_component` | score snapshot, component, raw/normalized score, weight/contribution/confidence | Component audit |
-| `score_explanation` | score snapshot, factor/direction/contribution/evidence/rank/template | Human-readable explanation |
+| `score_snapshots` | company, cutoff/endpoint, config/model, eligibility/confidence, context, fingerprint/manifests, nullable final score | Immutable partial scoring audit; implemented in Phase 4C |
+| `score_components` | snapshot, component score, configured top-level weight, subfactor coverage/detail, nullable final contribution | Immutable component audit; implemented for Financial Inflection in Phase 4C |
+| `score_explanations` | snapshot/component, factor values/weights/contribution, rank/template, evidence manifest | Structured mathematical explanation; implemented in Phase 4C |
 
 Index opportunity ranking on `(as_of_date, final_score desc)` and historical
 company scores on `(company_id, as_of_date desc)`. Recalculations insert a new
@@ -188,8 +188,15 @@ are not created by the Phase 4A migration.
 Phase 4B adds no schema. Its optional typed Financial Inflection scoring policy
 is carried in the existing immutable configuration JSON. In-memory component
 and subfactor results retain Phase 3 evidence references but are not
-`score_component` or `score_snapshot` records. Those persistence models remain
-Phase 4C work.
+automatically persisted by the pure scorer; Phase 4C owns that separate
+persistence boundary.
+
+Phase 4C adds only `score_snapshots`, `score_components`, and
+`score_explanations`. Snapshot fingerprints are unique; component code is
+unique per snapshot; factor code is unique per component. Exact Decimal columns
+use wide PostgreSQL numeric storage and exact SQLite text adaptation. All Phase
+4C final-score and final-contribution values remain null. `feature_snapshot`
+and `feature_value` are still future design.
 
 ### Personal workflow, alerts, and operations
 

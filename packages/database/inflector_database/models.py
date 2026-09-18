@@ -21,9 +21,32 @@ from sqlalchemy import (
     func,
 )
 from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.engine.interfaces import Dialect
 from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.types import TypeDecorator
 
 from inflector_database.base import Base
+
+
+class ExactDecimal(TypeDecorator[Decimal]):
+    """Persist exact wide decimals, using text where SQLite lacks exact NUMERIC."""
+
+    impl = Numeric(50, 28)
+    cache_ok = True
+
+    def load_dialect_impl(self, dialect: Dialect):
+        if dialect.name == "sqlite":
+            return dialect.type_descriptor(String(80))
+        return dialect.type_descriptor(Numeric(50, 28))
+
+    def process_bind_param(self, value: Decimal | None, dialect: Dialect) -> object:
+        if value is None:
+            return None
+        return format(value, "f") if dialect.name == "sqlite" else value
+
+    def process_result_value(self, value: object, dialect: Dialect) -> Decimal | None:
+        del dialect
+        return None if value is None else Decimal(str(value))
 
 
 class TimestampMixin:
@@ -448,3 +471,174 @@ class ScoringConfiguration(Base):
     model_version: Mapped[ModelVersion] = relationship(
         back_populates="scoring_configurations"
     )
+
+
+class ScoreSnapshot(Base):
+    """Immutable partial scoring audit at one explicit PIT knowledge cutoff."""
+
+    __tablename__ = "score_snapshots"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    model_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_versions.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    scoring_configuration_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    configuration_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    as_of_date: Mapped[date] = mapped_column(Date, nullable=False)
+    knowledge_cutoff: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    ending_fiscal_year: Mapped[int] = mapped_column(nullable=False)
+    ending_fiscal_quarter: Mapped[int] = mapped_column(nullable=False)
+    selected_provider_dataset_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=True
+    )
+    selected_filing_scope: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    snapshot_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    eligibility_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    eligibility_inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    eligibility_reasons_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    eligibility_warnings_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    financial_core_coverage: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    confidence: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    confidence_inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    confidence_details_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    top_level_component_weight_coverage: Mapped[Decimal] = mapped_column(
+        ExactDecimal(), nullable=False
+    )
+    available_component_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    missing_component_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    context_resolution_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    input_manifest_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    fingerprint_payload_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    snapshot_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), unique=True, nullable=False, index=True
+    )
+    final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    algorithm_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    components: Mapped[list[ScoreComponent]] = relationship(
+        back_populates="score_snapshot", lazy="selectin"
+    )
+
+
+class ScoreComponent(Base):
+    """Immutable audit record for one available top-level component."""
+
+    __tablename__ = "score_components"
+    __table_args__ = (
+        UniqueConstraint(
+            "score_snapshot_id", "component_code", name="uq_score_component_code"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    score_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    component_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    configured_top_level_weight: Mapped[Decimal] = mapped_column(
+        ExactDecimal(), nullable=False
+    )
+    subfactor_weight_coverage: Mapped[Decimal] = mapped_column(
+        ExactDecimal(), nullable=False
+    )
+    final_contribution: Mapped[Decimal | None] = mapped_column(
+        ExactDecimal(), nullable=True
+    )
+    available_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    missing_subfactors_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    warnings_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    score_snapshot: Mapped[ScoreSnapshot] = relationship(back_populates="components")
+    explanations: Mapped[list[ScoreExplanation]] = relationship(
+        back_populates="score_component", lazy="selectin"
+    )
+
+
+class ScoreExplanation(Base):
+    """Structured mathematical explanation for one available subfactor."""
+
+    __tablename__ = "score_explanations"
+    __table_args__ = (
+        UniqueConstraint(
+            "score_component_id", "factor_code", name="uq_score_explanation_factor"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    score_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    score_component_id: Mapped[UUID] = mapped_column(
+        ForeignKey("score_components.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    factor_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    rank: Mapped[int] = mapped_column(nullable=False)
+    raw_value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    raw_unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    normalized_score: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    configured_weight: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    effective_weight: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    component_contribution: Mapped[Decimal] = mapped_column(
+        ExactDecimal(), nullable=False
+    )
+    input_available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    evidence_type: Mapped[str] = mapped_column(String(120), nullable=False)
+    template_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    direction: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    evidence_manifest_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    score_component: Mapped[ScoreComponent] = relationship(back_populates="explanations")
