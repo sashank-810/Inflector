@@ -168,8 +168,8 @@ risk rows remain provisional until review and may be excluded by configuration.
 | `feature_definition` | code PK, domain/version, type/unit, formula ref, eligibility | Formula contract |
 | `feature_snapshot` | company, as-of date, knowledge cutoff, calculation version, manifest, status | Immutable PIT envelope |
 | `feature_value` | snapshot, feature code, value, confidence, input lineage, quality | Deterministic feature output |
-| `model_version` | model family, unique semantic version, Git SHA, status, dates | Version every model |
-| `scoring_configuration` | model version, effective range, weights/thresholds JSON, checksum, status | Versioned policy |
+| `model_versions` | model family, unique semantic version, Git SHA, status, dates | Immutable model-semantics identity; implemented in Phase 4A |
+| `scoring_configurations` | model version, name/version, half-open effective range, validated policy JSON, SHA-256 checksum, status | Immutable versioned policy; implemented in Phase 4A |
 | `score_snapshot` | company, as-of/cutoff, config/model, score/confidence/eligibility, feature refs | Immutable final score |
 | `score_component` | score snapshot, component, raw/normalized score, weight/contribution/confidence | Component audit |
 | `score_explanation` | score snapshot, factor/direction/contribution/evidence/rank/template | Human-readable explanation |
@@ -177,6 +177,13 @@ risk rows remain provisional until review and may be excluded by configuration.
 Index opportunity ranking on `(as_of_date, final_score desc)` and historical
 company scores on `(company_id, as_of_date desc)`. Recalculations insert a new
 snapshot rather than update a historical score.
+
+Phase 4A creates only `model_versions` and `scoring_configurations`. The latter
+uses portable SQLAlchemy JSON with PostgreSQL JSONB as its production variant,
+an indexed canonical checksum, a restrictive model-version foreign key, and a
+unique `(model_version_id, configuration_name, configuration_version)`
+identity. Feature and score tables in this catalogue remain future design and
+are not created by the Phase 4A migration.
 
 ### Personal workflow, alerts, and operations
 

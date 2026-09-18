@@ -49,11 +49,16 @@ risk gate can cap or exclude a score independently of the weighted sum.
 | Low market attention | 5% | Less-recognised improvement, not obscurity for its own sake |
 
 The configuration, including thresholds, caps, universes, and weights, lives
-in `scoring_configuration`; weights are never embedded in application code.
+in `scoring_configurations`; weights are never embedded in application code.
 
 Low-level deterministic feature readers never select a preferred provider or
 filing scope. Any future consolidated-first or provider-fallback policy is an
 explicit research/scoring configuration, not an implicit calculation rule.
+
+Phase 4A implements that context choice as provider-first lexicographic policy:
+for each configured provider in order, it tries configured filing scopes in
+order. One coherent candidate context is selected; features are never borrowed
+across provider/scope pairs.
 
 ## Deterministic feature definitions
 
@@ -97,6 +102,14 @@ Phase 3F supplies only the raw growth-history primitives. Phase 4 configuration
 will choose consistency/persistence window sizes, persistence thresholds, and
 score caps. Data-quality or confidence adjustment, weighting, new-listing
 exceptions, and outlier policy are not part of the Phase 3F calculations.
+
+Phase 4A persists these policy inputs and provides eligibility and confidence
+contracts only. Eligibility is a hard, reasoned gate rather than a zero score.
+Confidence is an independent weighted Decimal blend of completeness, supplied
+source reliability, linear recency, comparable-history coverage, and supplied
+evidence confidence. Missing recency/evidence lowers confidence to the extent
+of its configured weight but does not itself make a company ineligible. No
+feature value is multiplied by confidence in Phase 4A.
 
 ## Component construction
 

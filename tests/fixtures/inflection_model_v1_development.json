@@ -1,0 +1,42 @@
+{
+  "component_weights": {
+    "balance_sheet": "0.10",
+    "business_catalyst": "0.20",
+    "business_quality": "0.15",
+    "cash_flow_quality": "0.10",
+    "financial_inflection": "0.25",
+    "low_market_attention": "0.05",
+    "market_structure": "0.05",
+    "valuation": "0.10"
+  },
+  "confidence": {
+    "completeness_weight": "0.25",
+    "evidence_weight": "0.15",
+    "history_weight": "0.20",
+    "maximum_history_observations": 8,
+    "recency_weight": "0.20",
+    "source_reliability_weight": "0.20",
+    "stale_after_days": 180
+  },
+  "eligibility": {
+    "allowed_listing_statuses": ["active"],
+    "allowed_security_statuses": ["active"],
+    "allowed_security_types": ["equity"],
+    "minimum_average_daily_traded_value_inr": "1000000",
+    "minimum_comparable_yoy_observations": 4,
+    "minimum_financial_core_coverage": "0.75",
+    "new_listing_exception_enabled": true
+  },
+  "financial_context": {
+    "filing_scope_priority": ["consolidated", "standalone"],
+    "provider_dataset_priority": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ]
+  },
+  "financial_inflection": {
+    "consistency_window_size": 4,
+    "persistence_threshold": "0.10",
+    "persistence_window_size": 4
+  }
+}

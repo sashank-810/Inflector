@@ -107,7 +107,7 @@ isolation without persistence or scoring. FCF, inventory days, payable days,
 and CCC remain deferred until controlled capex-sign, COGS, and purchases
 semantics exist.
 
-### Phase 3F — PIT growth history, consistency, and persistence (acceptance pending)
+### Phase 3F — PIT growth history, consistency, and persistence (complete)
 
 Add complete fixed windows over public Phase 3D percentage-mode YoY series,
 exact positive-share consistency, and explicit-threshold consecutive
@@ -124,11 +124,22 @@ prove no future facts appear at a historical cutoff.
 
 ## Phase 4 — scoring
 
-1. Implement model/configuration versioning, eligibility and risk gates.
-2. Build financial inflection, quality, cash, balance-sheet, valuation, market
-structure, attention, and final scoring components.
-3. Persist explanations and score-change comparisons; run sensitivity and
-historical sanity checks before enabling rankings.
+### Phase 4A — policy and control contracts (acceptance pending)
+
+Persist immutable model versions and typed scoring configurations with
+canonical checksums. Add provider-first financial-context selection, hard
+eligibility rules, and independent exact-Decimal confidence. Do not calculate
+component or final scores.
+
+### Phase 4B — component scoring primitives
+
+Map approved deterministic features to versioned component points with explicit
+normalization and missing-data policy. This remains deferred.
+
+### Phase 4C — score persistence and orchestration
+
+Add score snapshots, component contributions, explanations, historical
+comparison, and orchestration only after component scoring is approved.
 
 **Exit gate:** scores are deterministic, auditable, versioned, and explainable.
 

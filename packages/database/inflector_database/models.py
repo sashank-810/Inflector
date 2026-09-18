@@ -1,4 +1,4 @@
-"""Canonical identity, provenance, quality, and append-only market-data models."""
+"""Canonical identity, provenance, facts, and immutable policy models."""
 
 from __future__ import annotations
 
@@ -7,6 +7,7 @@ from decimal import Decimal
 from uuid import UUID, uuid4
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Boolean,
     Date,
@@ -19,6 +20,7 @@ from sqlalchemy import (
     Uuid,
     func,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from inflector_database.base import Base
@@ -381,3 +383,68 @@ class SecurityRelationship(Base):
     effective_date: Mapped[date] = mapped_column(Date, nullable=False)
     source_record_id: Mapped[UUID] = mapped_column(ForeignKey("source_records.id"), nullable=False)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ModelVersion(Base):
+    """Immutable identity for one version of model/code semantics."""
+
+    __tablename__ = "model_versions"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_family",
+            "semantic_version",
+            name="uq_model_version_family_semantic",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    semantic_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    git_sha: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    activated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    retired_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    scoring_configurations: Mapped[list[ScoringConfiguration]] = relationship(
+        back_populates="model_version"
+    )
+
+
+class ScoringConfiguration(Base):
+    """Immutable versioned policy document associated with one model version."""
+
+    __tablename__ = "scoring_configurations"
+    __table_args__ = (
+        UniqueConstraint(
+            "model_version_id",
+            "configuration_name",
+            "configuration_version",
+            name="uq_scoring_configuration_version",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    model_version_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_versions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    configuration_name: Mapped[str] = mapped_column(String(120), nullable=False)
+    configuration_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    effective_from: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    effective_to: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    configuration_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    model_version: Mapped[ModelVersion] = relationship(
+        back_populates="scoring_configurations"
+    )

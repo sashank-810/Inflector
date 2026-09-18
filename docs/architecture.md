@@ -129,6 +129,13 @@ not query raw facts, bridge missing or loss-transition observations, persist
 features, or apply scoring policy; see
 [`growth-history-features.md`](growth-history-features.md).
 
+Phase 4A introduces the policy/control boundary before scoring. Frozen typed
+policy models live in `packages/core`; immutable model/configuration rows and
+active-policy resolution live in `packages/database`. Pure context,
+eligibility, and confidence evaluators consume supplied evidence without
+querying financial facts or producing score points. Overlapping active policy
+intervals fail closed. See [`scoring-policy.md`](scoring-policy.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered
