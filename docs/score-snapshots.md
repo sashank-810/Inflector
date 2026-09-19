@@ -128,3 +128,9 @@ lineage; non-selected contexts contribute lightweight scoreability audit data,
 not full facts or score magnitudes. Standard all-four top-level coverage is
 `0.60`, with no renormalization, final contribution, final score, or confidence
 multiplication.
+
+Phase 4D-E's pure Valuation scorer does not change this contract. Valuation has
+an explicit market-provider evidence context that v2 does not resolve, so it
+remains absent from allowed v2 component rows, fingerprints, and persisted
+coverage. Maximum standard v2 persisted coverage remains `0.60`, and
+`final_score` remains `NULL`.

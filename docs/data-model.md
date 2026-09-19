@@ -265,6 +265,9 @@ Phase 3H-A adds no table. Its valuation bundle is an immutable in-memory union
 of a selected atomic `price_bars` observation, independently constructed TTM
 values, and exact-FY/Q instant snapshots. It retains raw lineage and exact
 Decimal values. No valuation feature, percentile, or score is persisted.
+Phase 4D-E likewise adds no table: its typed component and subfactor results,
+including unavailable-factor warning audits, remain immutable in-memory
+objects. Existing v1/v2 score rows cannot contain Valuation.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 

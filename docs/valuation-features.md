@@ -65,4 +65,7 @@ evidence when a feature is unavailable. It is never based on `ingested_at`.
 Phase 3H-A has no freshness heuristic, peer/sector comparison, historical
 percentile, cheap/expensive label, scoring curve, confidence adjustment,
 top-level valuation weight, persistence, or adjusted-price dependency. A
-separate Phase 3H-B policy review is required before valuation scoring.
+Phase 4D-E consumes these immutable results without recomputing them. Its
+development policy and pure scoring semantics are documented in
+[`valuation-scoring.md`](valuation-scoring.md); persistence and orchestration
+remain deferred.

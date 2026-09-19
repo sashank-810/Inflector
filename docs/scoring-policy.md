@@ -167,6 +167,13 @@ The Phase 4D-C fixture adds development Balance Sheet weights of 0.40/0.30/0.30
 and curves for net-debt/EBITDA signal, debt/equity signal, and interest
 coverage. They are likewise uncalibrated placeholders.
 
+The Phase 4D-E fixture retains all prior sections and adds an optional
+Valuation policy. Development weights are 0.30/0.15/0.10/0.30/0.15, minimum
+coverage is 0.70, and each lower-is-better ratio uses an explicit negated
+signal with a non-decreasing curve. Legacy canonical mappings narrowly omit
+`valuation` when absent; other null handling is unchanged. These absolute
+curves are uncalibrated and contain no sector or historical normalization.
+
 Phase 4C accepts no arbitrary policy object. Its orchestrator resolves the
 persisted active configuration at the knowledge cutoff and preserves model ID,
 configuration ID, checksum, and semantic identity in the snapshot fingerprint.
@@ -180,3 +187,7 @@ mean that component is unavailable rather than zero. Provider priority remains
 lexicographically dominant over scope, score magnitude, component count, and
 available component weight. All Phase 4A through Phase 4D-C fixture checksums
 remain unchanged.
+
+Phase 4D-E does not change v2 orchestration. Its policy can configure the pure
+scorer, but the top-level Valuation weight is not applied there and no
+confidence input is accepted.

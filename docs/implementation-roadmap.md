@@ -148,7 +148,7 @@ Compose approved PIT price/benchmark return evidence into separately reviewed
 trend, relative-strength, volatility, volume, delivery, and consolidation
 primitives. Do not begin scoring until those semantics are approved.
 
-### Phase 3H-A — Valuation deterministic feature foundation (acceptance pending)
+### Phase 3H-A — Valuation deterministic feature foundation (complete)
 
 Combine provider-reported PIT market capitalization with an explicit financial
 provider/scope/FY/Q to produce market-cap/TTM-PAT, market-cap/total-equity,
@@ -157,11 +157,8 @@ simplified-EV/TTM-revenue evidence. The conservative names do not claim
 canonical P/E, P/B, or complete EV accounting semantics. Features are
 non-persisted and unscored.
 
-### Phase 3H-B — Valuation component scoring (planned)
-
-Begin only after Phase 3H-A acceptance and a separate policy review. Phase
-3G-C Market Structure primitives and Phase 3H-B ordering will be reviewed after
-3H-A; neither is implemented here.
+Valuation scoring was deliberately moved out of the Phase 3 data layer and into
+Phase 4 to preserve the feature/scoring boundary.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.
@@ -222,9 +219,18 @@ implemented top-level coverage is 0.60, while `final_score`, final
 contributions, and confidence multiplication remain absent. Preserve the v1
 Financial-Inflection-only path and fingerprint semantics.
 
+### Phase 4D-E — Valuation component scoring (acceptance pending)
+
+Score the five approved Phase 3H-A valuation ratios through explicit negation,
+development-only absolute curves, exact Decimal coverage, and available-weight
+renormalization. Preserve conservative accounting names and unavailable-feature
+warnings. Do not persist or integrate Valuation into v2; its explicit market
+provider requires separately reviewed cross-domain orchestration. After 4D-E
+acceptance, the planned next feature slice is Phase 3G-C Market Structure.
+
 ### Later approved slices — remaining top-level component scorers
 
-Implement only separately approved Business Catalyst, Valuation, Market
+Implement only separately approved Business Catalyst, Market
 Structure, and Low Attention component policies. Neither v1 nor v2 fabricates
 them.
 

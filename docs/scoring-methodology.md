@@ -214,9 +214,14 @@ P/E or P/B attribution semantics or a complete enterprise-value bridge.
 Non-positive denominators and non-positive simplified EV remain unavailable
 with reasons rather than being misclassified as cheap.
 
-Valuation scoring, curves, peer/sector and historical percentiles, and the
-top-level 10% weight remain unimplemented pending a separate Phase 3H-B policy
-review. Phase 3H-A features are not scores and make no cheap/expensive claim.
+Phase 4D-E scores these five precursors through factor-specific negation and
+development-only absolute curves. Its 0.30/0.15/0.10/0.30/0.15 split and 0.70
+coverage floor are uncalibrated mechanics policy. Missing factors are
+unavailable, not zero, and remaining weights renormalize only after coverage
+passes. Sector/peer and own-history percentiles, quality/growth overlays,
+confidence multiplication, the top-level 10% application, persistence, and
+final aggregation remain absent. A lower absolute multiple score is not an
+intrinsic-value or investment-attractiveness claim.
 
 ### Market structure and attention (10 combined)
 

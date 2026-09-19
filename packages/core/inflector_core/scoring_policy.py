@@ -313,6 +313,39 @@ class BalanceSheetScoringPolicy(_PolicyModel):
         return self
 
 
+class ValuationSubfactorWeights(_PolicyModel):
+    market_cap_to_ttm_pat: Decimal
+    market_cap_to_total_equity: Decimal
+    market_cap_to_ttm_revenue: Decimal
+    simplified_ev_to_ttm_ebitda: Decimal
+    simplified_ev_to_ttm_revenue: Decimal
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> ValuationSubfactorWeights:
+        weights = tuple(self.__dict__.values())
+        if any(weight < 0 for weight in weights):
+            raise ValueError("valuation subfactor weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("valuation subfactor weights must sum exactly to 1")
+        return self
+
+
+class ValuationScoringPolicy(_PolicyModel):
+    subfactor_weights: ValuationSubfactorWeights
+    minimum_weight_coverage: Decimal
+    market_cap_to_ttm_pat_signal_curve: PiecewiseLinearScoringCurve
+    market_cap_to_total_equity_signal_curve: PiecewiseLinearScoringCurve
+    market_cap_to_ttm_revenue_signal_curve: PiecewiseLinearScoringCurve
+    simplified_ev_to_ttm_ebitda_signal_curve: PiecewiseLinearScoringCurve
+    simplified_ev_to_ttm_revenue_signal_curve: PiecewiseLinearScoringCurve
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> ValuationScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
@@ -322,6 +355,7 @@ class InflectionScoringPolicy(_PolicyModel):
     business_quality: BusinessQualityScoringPolicy | None = None
     cash_flow_quality: CashFlowQualityScoringPolicy | None = None
     balance_sheet: BalanceSheetScoringPolicy | None = None
+    valuation: ValuationScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -354,6 +388,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
         policy_value.pop("cash_flow_quality", None)
     if policy_value.get("balance_sheet") is None:
         policy_value.pop("balance_sheet", None)
+    if policy_value.get("valuation") is None:
+        policy_value.pop("valuation", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

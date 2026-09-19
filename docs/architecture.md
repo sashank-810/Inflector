@@ -295,6 +295,13 @@ Structure scoring, and attention evidence remain deferred. See
 Valuation evidence semantics are documented in
 [`valuation-features.md`](valuation-features.md).
 
+Phase 4D-E adds a pure Valuation scorer over those five Phase 3H-A ratios. It
+uses an optional versioned policy section and persists nothing. Because the
+bundle declares a separate market provider as well as financial provider/scope,
+the scorer is intentionally absent from `score_snapshot_v2`; no existing
+context selection, fingerprint, component coverage, or final-score semantics
+change. See [`valuation-scoring.md`](valuation-scoring.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot
