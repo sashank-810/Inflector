@@ -1,0 +1,2 @@
+external_id,security_isin,trading_date,interval,open,high,low,close,volume,market_cap,delivery_quantity,delivery_percentage,available_at,revision_at
+SYN-MKT-PIT-D1,INF0AUR01018,2026-01-05,1d,100,104,99,102,102000,,,,2026-01-09T18:00:00Z,2026-02-01T00:00:00Z

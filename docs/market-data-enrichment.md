@@ -2,8 +2,9 @@
 
 Phase 2D-A extends the append-only raw market-data spine. It stores optional
 provider-reported market capitalization, delivery quantity, delivery fraction,
-and provider-local daily benchmark bars. It does not select PIT revisions or
-calculate an analytical feature.
+and provider-local daily benchmark bars. Phase 3G-A now selects those immutable
+observations at explicit knowledge cutoffs; storage still calculates no
+analytical feature.
 
 ## Price-bar enrichment
 
@@ -43,10 +44,11 @@ sources, and accepted counters while retaining the failed ingestion-run audit.
 
 ## Deliberate boundaries
 
-This phase stores raw observations only. It does not implement market or
-benchmark PIT readers, adjustment factors, adjusted prices, returns, relative
-strength, moving averages, volatility, delivery ratios, valuation ratios,
-market-structure scoring, or attention proxies. Phase 3G-A is the planned PIT
-read layer. Phase 3G-B is the planned corporate-action-aware adjustment and
-return layer. Valuation and Market Structure scoring must wait for those
-approved deterministic foundations.
+This phase stores raw observations only. Phase 3G-A implements the separate
+read-only PIT selection layer described in
+[`market-point-in-time.md`](market-point-in-time.md). Adjustment factors,
+adjusted prices, returns, relative strength, moving averages, volatility,
+delivery ratios, valuation ratios, market-structure scoring, and attention
+proxies remain deferred. Phase 3G-B is the planned corporate-action-aware
+adjustment and return layer. Valuation and Market Structure scoring must wait
+for those approved deterministic foundations.

@@ -46,7 +46,7 @@ Add provider-neutral action ingestion, exact split/bonus/rights/dividend terms,
 dated symbol transitions, and explicit security replacement lineage. Do not
 derive adjusted prices, returns, or factors until a later deterministic phase.
 
-### Phase 2D-A — market-data enrichment foundation (acceptance pending)
+### Phase 2D-A — market-data enrichment foundation (complete)
 
 Add nullable provider-reported INR market cap and delivery quantity/fraction to
 raw price bars, plus provider-dataset-local benchmark identities and append-only
@@ -128,10 +128,12 @@ caps begin only in Phase 4.
 Unsupported liquidity and accounting formulas remain deferred until their
 controlled source semantics and a separately approved phase exist.
 
-### Phase 3G-A — PIT market and benchmark reads (planned)
+### Phase 3G-A — PIT market and benchmark reads (acceptance pending)
 
 Select raw price, enrichment, and benchmark revisions using explicit provider
-context and knowledge cutoffs. Do not derive adjustments or returns.
+context and knowledge cutoffs. Preserve accepted source lineage, atomic row
+semantics, provider isolation, and one deterministic revision per economic
+date. Do not derive adjustments or returns.
 
 ### Phase 3G-B — adjusted-price and return primitives (planned)
 

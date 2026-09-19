@@ -85,7 +85,7 @@ class FinancialMetricView:
 
 @dataclass(frozen=True, slots=True)
 class SourceRecordView:
-    """Raw-source provenance for a selected canonical financial fact."""
+    """Raw-source provenance shared by selected immutable PIT evidence."""
 
     id: UUID
     external_record_id: str

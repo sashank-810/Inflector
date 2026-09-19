@@ -1,0 +1,3 @@
+external_id,benchmark_code,benchmark_display_name,currency,trading_date,interval,open,high,low,close,available_at,revision_at
+SYN-BENCH-PIT-D1,NIFTY50,Nifty 50,INR,2026-01-05,1d,24900,25100,24800,25000,2026-01-05T18:30:00Z,
+SYN-BENCH-PIT-D2,NIFTY50,Nifty 50,INR,2026-01-07,1d,25100,25300,25000,25200,2026-01-07T18:30:00Z,

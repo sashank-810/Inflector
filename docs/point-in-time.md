@@ -67,5 +67,17 @@ filing metadata, fiscal-period semantics, and source-record/raw-payload lineage.
 Only source records with `validation_status = accepted` are eligible. Quarantined
 and `duplicate_economic` observations have no canonical fact in the series.
 
-There is deliberately no `latest` method without `as_of`: such an API makes
-look-ahead errors easy to introduce.
+There is deliberately no financial `latest` method without `as_of`: such an
+API makes look-ahead errors easy to introduce.
+
+## Market and benchmark PIT reads
+
+Phase 3G-A applies the same inclusive `available_at <= as_of` knowledge rule to
+raw security and benchmark bars, but their economic identity and ordering are
+market-specific. Every query declares one provider dataset and exact interval;
+benchmark codes remain provider-local. Series select one atomic revision per
+trading date, while `latest` convenience methods still require `as_of` and mean
+the greatest economic trading date rather than the most recently corrected
+row. `ingested_at` and `revision_at` are tie-break metadata, not independent
+knowledge gates. Full semantics are in
+[`market-point-in-time.md`](market-point-in-time.md).

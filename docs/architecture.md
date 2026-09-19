@@ -280,11 +280,13 @@ Official NSE/BSE/licensed adapters are deliberately deferred until their
 contracts and permitted fields are verified. API adapters must expose cursors,
 rate limits, retry classification, and deterministic idempotency keys.
 
-Phase 2D-A implements only the provider-neutral raw storage and CSV/mock paths
-described above. Market/benchmark PIT selection, corporate-action adjustment,
-returns, relative strength, valuation, Market Structure scoring, and attention
-evidence remain deferred. See
-[`market-data-enrichment.md`](market-data-enrichment.md).
+Phase 2D-A implements the provider-neutral raw storage and CSV/mock paths
+described above. Phase 3G-A adds explicit-provider market/benchmark PIT reads
+using accepted sources and `available_at <= as_of`, while preserving each
+selected row atomically. Corporate-action adjustment, returns, relative
+strength, valuation, Market Structure scoring, and attention evidence remain
+deferred. See [`market-data-enrichment.md`](market-data-enrichment.md) and
+[`market-point-in-time.md`](market-point-in-time.md).
 
 ## Deployment, auth, and observability
 
