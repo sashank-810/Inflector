@@ -260,7 +260,11 @@ Phase 3G-A PIT APIs are implemented. PIT selections are immutable views and are
 not persisted. Phase 3G-B likewise returns non-persisted split/bonus adjustment
 factors, adjusted OHLC views, and adjacent simple returns. No `price_adjustment`,
 adjusted-price, or return table is implemented; total returns and broader
-derived analytics remain deferred.
+derived analytics remain deferred. Phase 3G-C also adds no table: its typed
+Market Structure bundle composes adjusted price lineage, exact benchmark
+endpoints, and raw market rows in memory. Raw close-times-volume activity and
+delivery retain raw-bar availability; adjusted structure retains applicable
+corporate-action availability. No Market Structure feature or score is stored.
 Phase 3H-A adds no table. Its valuation bundle is an immutable in-memory union
 of a selected atomic `price_bars` observation, independently constructed TTM
 values, and exact-FY/Q instant snapshots. It retains raw lineage and exact

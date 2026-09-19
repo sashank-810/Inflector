@@ -142,11 +142,14 @@ simple security and benchmark price returns. Cash-dividend total returns,
 rights adjustment, relative strength, cumulative returns, persistence, and
 scoring remain deferred.
 
-### Phase 3G-C — Market Structure deterministic feature primitives (planned)
+### Phase 3G-C — Market Structure deterministic feature primitives (acceptance pending)
 
-Compose approved PIT price/benchmark return evidence into separately reviewed
-trend, relative-strength, volatility, volume, delivery, and consolidation
-primitives. Do not begin scoring until those semantics are approved.
+Compose approved PIT market, benchmark, adjustment, and adjacent-return evidence
+into exact benchmark-relative strength, adjusted trend/volatility/consolidation,
+raw close-times-volume activity, and delivery primitives. Provider contexts and
+the benchmark are explicit; observation windows never fill calendar gaps. No
+feature is persisted or scored. After acceptance, Phase 4D-F may add a pure
+Market Structure component scorer under a separate policy review.
 
 ### Phase 3H-A — Valuation deterministic feature foundation (complete)
 
@@ -219,14 +222,20 @@ implemented top-level coverage is 0.60, while `final_score`, final
 contributions, and confidence multiplication remain absent. Preserve the v1
 Financial-Inflection-only path and fingerprint semantics.
 
-### Phase 4D-E — Valuation component scoring (acceptance pending)
+### Phase 4D-E — Valuation component scoring (complete)
 
 Score the five approved Phase 3H-A valuation ratios through explicit negation,
 development-only absolute curves, exact Decimal coverage, and available-weight
 renormalization. Preserve conservative accounting names and unavailable-feature
 warnings. Do not persist or integrate Valuation into v2; its explicit market
-provider requires separately reviewed cross-domain orchestration. After 4D-E
-acceptance, the planned next feature slice is Phase 3G-C Market Structure.
+provider requires separately reviewed cross-domain orchestration.
+
+### Phase 4D-F — Market Structure component scoring (planned)
+
+Score only approved Phase 3G-C primitives after feature acceptance and a
+separate policy review. Cross-domain score orchestration for Valuation and
+Market Structure is reviewed only after this scorer; neither component is added
+to `score_snapshot_v2` in the feature phase.
 
 ### Later approved slices — remaining top-level component scorers
 

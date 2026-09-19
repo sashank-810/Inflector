@@ -225,12 +225,19 @@ intrinsic-value or investment-attractiveness claim.
 
 ### Market structure and attention (10 combined)
 
-Market structure blends relative strength versus benchmark and sector, trend
-and moving-average structure, consolidation/volatility contraction, volume,
-delivery, and liquidity. It is a small confirmation component, never an entry
-signal. Attention blends available institutional holdings, coverage/news/search
-proxies, and trading activity. Low attention scores only when business evidence
-is adequate; it does not reward illiquidity or absent disclosure.
+Phase 3G-C implements non-scored Market Structure evidence for relative
+strength versus one explicitly selected benchmark, adjusted-price moving-average
+structure, simple-return volatility and contraction, adjusted consolidation,
+raw close-times-volume activity, activity expansion, and complete-window
+delivery participation. Observation windows count actual selected bars and all
+calculations retain PIT lineage. Sector-relative strength, raw share-volume
+momentum, RSI, MACD, breakout labels, and Market Structure scoring remain
+deferred. These primitives are evidence, never entry signals.
+
+Attention remains a separate unimplemented domain spanning institutional
+holdings, coverage/news/search proxies, and other approved observations. Low
+activity, low delivery, or small market capitalization is not reclassified as
+Low Market Attention, and illiquidity is not rewarded.
 
 ## Risk gates and confidence
 

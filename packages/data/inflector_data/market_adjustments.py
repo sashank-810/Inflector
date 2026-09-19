@@ -112,6 +112,39 @@ class SimpleBenchmarkReturn:
     warnings: tuple[str, ...]
 
 
+def simple_price_returns_from_adjusted_series(
+    series: AdjustedMarketSeries,
+) -> tuple[SimplePriceReturn, ...]:
+    """Compose adjacent simple returns from an already selected adjusted series."""
+
+    returns: list[SimplePriceReturn] = []
+    for previous, current in zip(series.bars, series.bars[1:], strict=False):
+        if previous.adjusted_close <= Decimal("0"):
+            value = None
+            warnings = ("non_positive_previous_close",)
+        else:
+            value = current.adjusted_close / previous.adjusted_close - Decimal("1")
+            warnings = ()
+        returns.append(
+            SimplePriceReturn(
+                security_id=series.security_id,
+                previous_trading_date=previous.raw_bar.trading_date,
+                trading_date=current.raw_bar.trading_date,
+                previous_adjusted_close=previous.adjusted_close,
+                current_adjusted_close=current.adjusted_close,
+                value=value,
+                unit="ratio",
+                previous_bar=previous,
+                current_bar=current,
+                as_of=series.as_of,
+                available_at=max(previous.available_at, current.available_at),
+                algorithm_version=SIMPLE_PRICE_RETURN_VERSION,
+                warnings=warnings,
+            )
+        )
+    return tuple(returns)
+
+
 class MarketAdjustmentPrimitives:
     """Compose approved PIT readers into non-persisted adjustment/return evidence."""
 
@@ -228,27 +261,7 @@ class MarketAdjustmentPrimitives:
             start_date=start_date,
             end_date=end_date,
         )
-        returns: list[SimplePriceReturn] = []
-        for previous, current in zip(series.bars, series.bars[1:], strict=False):
-            value, warnings = self._simple_return(previous.adjusted_close, current.adjusted_close)
-            returns.append(
-                SimplePriceReturn(
-                    security_id=security_id,
-                    previous_trading_date=previous.raw_bar.trading_date,
-                    trading_date=current.raw_bar.trading_date,
-                    previous_adjusted_close=previous.adjusted_close,
-                    current_adjusted_close=current.adjusted_close,
-                    value=value,
-                    unit="ratio",
-                    previous_bar=previous,
-                    current_bar=current,
-                    as_of=series.as_of,
-                    available_at=max(previous.available_at, current.available_at),
-                    algorithm_version=SIMPLE_PRICE_RETURN_VERSION,
-                    warnings=warnings,
-                )
-            )
-        return tuple(returns)
+        return simple_price_returns_from_adjusted_series(series)
 
     def simple_benchmark_returns_as_of(
         self,

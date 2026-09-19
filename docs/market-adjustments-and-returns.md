@@ -97,3 +97,11 @@ endpoint bars. Both endpoint objects retain recursive raw/action lineage.
 There are no log, cumulative, weekly, monthly, relative, excess, alpha, beta,
 or dividend-aware returns in this phase. No factors, adjusted bars, or returns
 are persisted.
+
+Phase 3G-C reuses the same adjacent security-return constructor for population
+volatility windows; the formula and `simple_price_return_v1` identity remain
+unchanged. It also consumes adjusted bars for comparable price structure while
+using raw close and raw volume for the activity proxy. Adjusted close times raw
+volume is intentionally forbidden because volume has no approved share-basis
+adjustment. See
+[`market-structure-features.md`](market-structure-features.md).

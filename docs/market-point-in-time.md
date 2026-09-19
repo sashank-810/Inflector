@@ -71,7 +71,10 @@ staleness policy is embedded in this convenience read.
 
 Phase 3G-A itself returns raw PIT evidence only. Phase 3G-B now composes it with
 PIT corporate actions for split/bonus-adjusted OHLC and adjacent simple price
-returns without changing this raw reader. Dividend total returns, rights
-adjustments, relative strength and other market-structure features, valuation,
-completeness scoring, and attention inference remain deferred. See
-[`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).
+returns without changing this raw reader. Phase 3G-C composes those public
+views into Market Structure evidence without changing PIT selection: adjusted
+prices drive price structure, while raw atomic rows drive close-times-volume
+and delivery. Dividend total returns, rights adjustments, Market Structure
+scoring, sector benchmark inference, and attention inference remain deferred.
+See [`market-adjustments-and-returns.md`](market-adjustments-and-returns.md) and
+[`market-structure-features.md`](market-structure-features.md).

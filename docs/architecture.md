@@ -284,14 +284,20 @@ Phase 2D-A implements the provider-neutral raw storage and CSV/mock paths
 described above. Phase 3G-A adds explicit-provider market/benchmark PIT reads
 using accepted sources and `available_at <= as_of`, while preserving each
 selected row atomically. Phase 3G-B adds in-memory split/bonus-adjusted OHLC and
-adjacent simple security/benchmark returns. Phase 3H-A combines the atomic
+adjacent simple security/benchmark returns. Phase 3G-C now composes those views
+into non-persisted, non-scored benchmark-relative, trend, volatility,
+consolidation, raw close-times-volume, and delivery primitives under three
+explicit provider contexts. Phase 3H-A combines the atomic
 provider-reported PIT market cap with exact-context TTM and instant financial
 evidence into non-persisted conservative valuation primitives. Valuation
-scoring, dividend total returns, rights adjustment, relative strength, Market
-Structure scoring, and attention evidence remain deferred. See
+scoring is pure and complete, while dividend total returns, rights adjustment,
+Market Structure scoring, sector-relative benchmark mapping, and attention
+evidence remain deferred. See
 [`market-data-enrichment.md`](market-data-enrichment.md),
 [`market-point-in-time.md`](market-point-in-time.md), and
 [`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).
+Market Structure evidence semantics are documented in
+[`market-structure-features.md`](market-structure-features.md).
 Valuation evidence semantics are documented in
 [`valuation-features.md`](valuation-features.md).
 
