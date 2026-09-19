@@ -257,7 +257,10 @@ identities, missing periods, impossible ratios, scales, and outliers, creating
 The financial PIT repository requires `as_of` and returns the latest available
 revision per economic key. Raw market and benchmark storage and their read-only
 Phase 3G-A PIT APIs are implemented. PIT selections are immutable views and are
-not persisted; adjusted prices and derived analytics remain deferred.
+not persisted. Phase 3G-B likewise returns non-persisted split/bonus adjustment
+factors, adjusted OHLC views, and adjacent simple returns. No `price_adjustment`,
+adjusted-price, or return table is implemented; total returns and broader
+derived analytics remain deferred.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 

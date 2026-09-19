@@ -81,3 +81,11 @@ the greatest economic trading date rather than the most recently corrected
 row. `ingested_at` and `revision_at` are tie-break metadata, not independent
 knowledge gates. Full semantics are in
 [`market-point-in-time.md`](market-point-in-time.md).
+
+Phase 3G-B adds an equivalent accepted-source PIT reader for corporate actions.
+It distinguishes knowledge availability from economic effectiveness and
+collapses revisions first by provider external ID and then by the Phase 2C
+economic event anchor. The adjustment layer consumes these readers rather than
+querying raw ORM history, so price and action corrections become visible only
+at their respective inclusive cutoffs. See
+[`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).

@@ -283,10 +283,13 @@ rate limits, retry classification, and deterministic idempotency keys.
 Phase 2D-A implements the provider-neutral raw storage and CSV/mock paths
 described above. Phase 3G-A adds explicit-provider market/benchmark PIT reads
 using accepted sources and `available_at <= as_of`, while preserving each
-selected row atomically. Corporate-action adjustment, returns, relative
-strength, valuation, Market Structure scoring, and attention evidence remain
-deferred. See [`market-data-enrichment.md`](market-data-enrichment.md) and
-[`market-point-in-time.md`](market-point-in-time.md).
+selected row atomically. Phase 3G-B adds in-memory split/bonus-adjusted OHLC and
+adjacent simple security/benchmark returns. Dividend total returns, rights
+adjustment, relative strength, valuation, Market Structure scoring, and
+attention evidence remain deferred. See
+[`market-data-enrichment.md`](market-data-enrichment.md),
+[`market-point-in-time.md`](market-point-in-time.md), and
+[`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).
 
 ## Deployment, auth, and observability
 

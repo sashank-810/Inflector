@@ -128,18 +128,31 @@ caps begin only in Phase 4.
 Unsupported liquidity and accounting formulas remain deferred until their
 controlled source semantics and a separately approved phase exist.
 
-### Phase 3G-A — PIT market and benchmark reads (acceptance pending)
+### Phase 3G-A — PIT market and benchmark reads (complete)
 
 Select raw price, enrichment, and benchmark revisions using explicit provider
 context and knowledge cutoffs. Preserve accepted source lineage, atomic row
 semantics, provider isolation, and one deterministic revision per economic
 date. Do not derive adjustments or returns.
 
-### Phase 3G-B — adjusted-price and return primitives (planned)
+### Phase 3G-B — adjusted-price and return primitives (acceptance pending)
 
-Apply separately reviewed corporate-action adjustment semantics and construct
-PIT-safe returns only after Phase 3G-A. Valuation and Market Structure scoring
-remain blocked until their required deterministic primitives are approved.
+Apply canonical split/bonus adjustment semantics and construct adjacent PIT-safe
+simple security and benchmark price returns. Cash-dividend total returns,
+rights adjustment, relative strength, cumulative returns, persistence, and
+scoring remain deferred.
+
+### Phase 3G-C — Market Structure deterministic feature primitives (planned)
+
+Compose approved PIT price/benchmark return evidence into separately reviewed
+trend, relative-strength, volatility, volume, delivery, and consolidation
+primitives. Do not begin scoring until those semantics are approved.
+
+### Valuation deterministic feature foundation (planned)
+
+Combine PIT market capitalization with coherent PIT financial evidence only in
+a separately approved valuation feature slice. No valuation ratio or score is
+implemented by Phase 3G-B.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

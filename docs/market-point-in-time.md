@@ -69,9 +69,9 @@ staleness policy is embedded in this convenience read.
 
 ## Deliberate boundary
 
-Phase 3G-A returns raw PIT evidence only. It does not consult corporate actions,
-create adjusted OHLC, calculate security or benchmark returns, calculate
-relative strength or other market-structure features, combine market cap with
-financial facts for valuation, score completeness, or infer attention. Those
-behaviors require separately approved deterministic and policy phases. Phase
-3G-B remains planned for corporate-action-aware price transformations.
+Phase 3G-A itself returns raw PIT evidence only. Phase 3G-B now composes it with
+PIT corporate actions for split/bonus-adjusted OHLC and adjacent simple price
+returns without changing this raw reader. Dividend total returns, rights
+adjustments, relative strength and other market-structure features, valuation,
+completeness scoring, and attention inference remain deferred. See
+[`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).

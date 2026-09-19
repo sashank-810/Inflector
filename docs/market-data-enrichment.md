@@ -49,6 +49,6 @@ read-only PIT selection layer described in
 [`market-point-in-time.md`](market-point-in-time.md). Adjustment factors,
 adjusted prices, returns, relative strength, moving averages, volatility,
 delivery ratios, valuation ratios, market-structure scoring, and attention
-proxies remain deferred. Phase 3G-B is the planned corporate-action-aware
-adjustment and return layer. Valuation and Market Structure scoring must wait
-for those approved deterministic foundations.
+proxies remain deferred. Phase 3G-B now supplies non-persisted split/bonus
+adjustments and adjacent simple price returns. Valuation and Market Structure
+scoring must still wait for their approved deterministic foundations.
