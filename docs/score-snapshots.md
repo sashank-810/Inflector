@@ -23,6 +23,11 @@ not accepted by `ScoreSnapshotOrchestrator`, does not alter fingerprints, and
 does not create a component row. Existing snapshots remain Financial
 Inflection-only partial audits with `final_score` set to `NULL`.
 
+Phase 4D-C also leaves this contract unchanged. Balance Sheet evidence and
+scores are not accepted by the orchestrator, do not enter snapshot fingerprints
+or component coverage, and do not create component/explanation rows. Existing
+partial snapshots continue to retain a null final score.
+
 ## Statuses
 
 The allowed statuses are:

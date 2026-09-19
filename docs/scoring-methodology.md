@@ -146,6 +146,15 @@ its negation as the scoring signal: builds score below equal-size releases.
 Non-positive TTM revenue makes only that factor unavailable. Confidence and the
 top-level 10% weight are not applied, and Phase 4C does not persist the result.
 
+Phase 4D-C implements a pure Balance Sheet score from net debt divided by TTM
+reported EBITDA, debt/equity, and interest coverage. Absolute INR debt is not
+scored. Net-debt/EBITDA and debt/equity are explicitly negated so lower
+leverage scores higher on monotonic curves; interest coverage uses an identity
+signal. Net cash and negative-EBIT coverage retain their approved Phase 3
+semantics. Non-positive EBITDA or an undefined denominator makes the relevant
+factor unavailable. Confidence and the top-level 10% weight are not applied,
+and Phase 4C does not persist the result.
+
 ## Component construction
 
 ### Financial inflection (25)
@@ -174,11 +183,12 @@ asset turnover, ROIC, sector-relative quality, and peer percentiles remain
 deferred. Phase 4D-B Cash-Flow Quality currently scores CFO/PAT, CFO/EBITDA,
 receivable days, and revenue-normalized trade-WC change. FCF, FCF trajectory,
 CCC, inventory/payable days, additional accrual ratios, sector-relative cash
-conversion, and multi-period working-capital trends remain deferred. Balance
-sheet evaluates net-debt trend,
-debt/equity, interest coverage, current/quick ratios, and working-capital
-movement. Risk evidence can reduce these components and the final cap applies
-independently.
+conversion, and multi-period working-capital trends remain deferred. Phase
+4D-C Balance Sheet currently scores net debt/TTM reported EBITDA, debt/equity,
+and interest coverage. Net-debt/debt/coverage trends, current and quick ratios,
+maturity profiles, covenants, broader liquidity reserves, sector-relative
+leverage, and peer percentiles remain deferred. Risk evidence can reduce future
+components and a future final cap independently.
 
 ### Valuation (10)
 

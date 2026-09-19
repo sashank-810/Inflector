@@ -29,6 +29,13 @@ transforms remain versioned scorer semantics rather than hidden mutations of
 accounting data. See
 [`cash-flow-quality-scoring.md`](cash-flow-quality-scoring.md).
 
+Phase 4D-C adds an optional top-level `balance_sheet` section. Absent keys are
+removed narrowly during canonical serialization, preserving Phase 4A through
+4D-B checksums. The section versions three subfactor weights, minimum coverage,
+and monotonic development curves; scorer semantics explicitly negate the two
+lower-is-better leverage signals. See
+[`balance-sheet-scoring.md`](balance-sheet-scoring.md).
+
 ## Model version and scoring configuration
 
 `model_versions` identifies code/model semantics by unique
@@ -155,6 +162,10 @@ calibration or empirical claims.
 The Phase 4D-B fixture retains all earlier sections and adds 0.40/0.30/0.15/0.15
 Cash-Flow Quality weights plus four development normalization curves. These are
 also uncalibrated mechanics fixtures, not production policy.
+
+The Phase 4D-C fixture adds development Balance Sheet weights of 0.40/0.30/0.30
+and curves for net-debt/EBITDA signal, debt/equity signal, and interest
+coverage. They are likewise uncalibrated placeholders.
 
 Phase 4C accepts no arbitrary policy object. Its orchestrator resolves the
 persisted active configuration at the knowledge cutoff and preserves model ID,

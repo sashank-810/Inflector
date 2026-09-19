@@ -210,6 +210,12 @@ the accounting raw value, any revenue-normalized raw ratio, the explicit
 scoring transform, and the complete Phase 3E-C evidence object. Phase 4C does
 not yet persist those results.
 
+Phase 4D-C adds no schema. Its optional Balance Sheet policy remains in the
+immutable configuration JSON. Pure in-memory results retain raw INR net debt,
+the paired TTM EBITDA denominator, normalized leverage ratios, explicit scoring
+signals, and original Phase 3E-B evidence. Phase 4C still persists none of these
+results.
+
 ### Personal workflow, alerts, and operations
 
 | Table | Core columns / constraints | Purpose |

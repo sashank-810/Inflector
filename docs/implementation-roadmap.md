@@ -152,7 +152,7 @@ development curves with exact Decimal arithmetic, minimum coverage, and
 available-weight renormalization. No persistence, orchestration, confidence
 adjustment, top-level weighting, or final score is included.
 
-### Phase 4D-B — Cash-Flow Quality component scoring (acceptance pending)
+### Phase 4D-B — Cash-Flow Quality component scoring (complete)
 
 Score CFO/PAT, CFO/EBITDA, negated receivable days, and negated
 revenue-normalized trade-working-capital change through explicit auditable
@@ -160,11 +160,19 @@ transforms and versioned development curves. Phase 3 accounting signs remain
 unchanged. No persistence, orchestration, confidence adjustment, top-level
 weighting, or final score is included.
 
-### Phase 4D-C and later — remaining top-level component scorers
+### Phase 4D-C — Balance Sheet component scoring (acceptance pending)
 
-Implement only separately approved Business Catalyst, Balance Sheet, Valuation,
-Market Structure, and Low Attention component policies. Phase 4C does not
-fabricate them.
+Score net debt/TTM reported EBITDA, debt/equity, and interest coverage through
+explicit size-neutral transforms and versioned development curves. Validate
+stored stock-period identity as well as context, cutoff, endpoint, and economic
+period end. No persistence, orchestration, confidence adjustment, top-level
+weighting, or final score is included.
+
+### Later approved slices — remaining top-level component scorers
+
+Implement only separately approved Business Catalyst, Valuation, Market
+Structure, and Low Attention component policies. Phase 4C does not fabricate
+them.
 
 ### Phase 4E — final Opportunity Score activation
 

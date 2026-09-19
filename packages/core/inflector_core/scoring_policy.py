@@ -284,6 +284,35 @@ class CashFlowQualityScoringPolicy(_PolicyModel):
         return self
 
 
+class BalanceSheetSubfactorWeights(_PolicyModel):
+    net_debt_to_ebitda: Decimal
+    debt_to_equity: Decimal
+    interest_coverage: Decimal
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> BalanceSheetSubfactorWeights:
+        weights = tuple(self.__dict__.values())
+        if any(weight < 0 for weight in weights):
+            raise ValueError("balance-sheet subfactor weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("balance-sheet subfactor weights must sum exactly to 1")
+        return self
+
+
+class BalanceSheetScoringPolicy(_PolicyModel):
+    subfactor_weights: BalanceSheetSubfactorWeights
+    minimum_weight_coverage: Decimal
+    net_debt_to_ebitda_signal_curve: PiecewiseLinearScoringCurve
+    debt_to_equity_signal_curve: PiecewiseLinearScoringCurve
+    interest_coverage_curve: PiecewiseLinearScoringCurve
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> BalanceSheetScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
@@ -292,6 +321,7 @@ class InflectionScoringPolicy(_PolicyModel):
     financial_inflection: FinancialInflectionPolicy
     business_quality: BusinessQualityScoringPolicy | None = None
     cash_flow_quality: CashFlowQualityScoringPolicy | None = None
+    balance_sheet: BalanceSheetScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -322,6 +352,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
         policy_value.pop("business_quality", None)
     if policy_value.get("cash_flow_quality") is None:
         policy_value.pop("cash_flow_quality", None)
+    if policy_value.get("balance_sheet") is None:
+        policy_value.pop("balance_sheet", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

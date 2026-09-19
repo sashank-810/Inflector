@@ -165,6 +165,13 @@ same Decimal curve implementation and likewise does not enter Phase 4C
 orchestration or persistence. See
 [`cash-flow-quality-scoring.md`](cash-flow-quality-scoring.md).
 
+Phase 4D-C adds a pure Balance Sheet scorer for net debt/TTM reported EBITDA,
+debt/equity, and interest coverage. It validates exact context, cutoff,
+endpoint, economic period end, and stored stock-period identity before applying
+explicit size-neutral leverage transforms. It is not connected to Phase 4C
+orchestration or persistence. See
+[`balance-sheet-scoring.md`](balance-sheet-scoring.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered
