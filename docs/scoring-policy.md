@@ -21,6 +21,14 @@ section configures current ROCE, ROE, and margin-level weights, minimum
 coverage, margin identity, and reusable piecewise-linear curves. See
 [`business-quality-scoring.md`](business-quality-scoring.md).
 
+Phase 4D-B similarly adds an optional top-level `cash_flow_quality` section.
+The narrowly scoped canonical serializer removes only an absent key, preserving
+all Phase 4A, 4B, and 4D-A checksums. The section configures four subfactor
+weights, minimum coverage, and shared piecewise-linear curves; interpretation
+transforms remain versioned scorer semantics rather than hidden mutations of
+accounting data. See
+[`cash-flow-quality-scoring.md`](cash-flow-quality-scoring.md).
+
 ## Model version and scoring configuration
 
 `model_versions` identifies code/model semantics by unique
@@ -143,6 +151,10 @@ The separate Phase 4D-A fixture retains all prior sections and adds development
 Business Quality weights of 0.50/0.30/0.20 plus placeholder ROCE, ROE, and
 margin-level curves. These values validate mechanics and are not production
 calibration or empirical claims.
+
+The Phase 4D-B fixture retains all earlier sections and adds 0.40/0.30/0.15/0.15
+Cash-Flow Quality weights plus four development normalization curves. These are
+also uncalibrated mechanics fixtures, not production policy.
 
 Phase 4C accepts no arbitrary policy object. Its orchestrator resolves the
 persisted active configuration at the knowledge cutoff and preserves model ID,

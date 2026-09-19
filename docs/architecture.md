@@ -158,6 +158,13 @@ using the existing Phase 4B Decimal curve implementation. It preserves strict
 context/cutoff/endpoint coherence and does not change Phase 4C orchestration or
 persistence. See [`business-quality-scoring.md`](business-quality-scoring.md).
 
+Phase 4D-B adds a pure Cash-Flow Quality scorer over Phase 3E-C evidence. It
+retains accounting raw values while making the lower-is-better receivable-days
+and revenue-normalized trade-working-capital transforms explicit. It reuses the
+same Decimal curve implementation and likewise does not enter Phase 4C
+orchestration or persistence. See
+[`cash-flow-quality-scoring.md`](cash-flow-quality-scoring.md).
+
 ### Frontend boundary and state
 
 `apps/web` uses the Next.js App Router and strict TypeScript. Server-rendered

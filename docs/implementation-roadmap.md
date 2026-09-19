@@ -145,18 +145,26 @@ component audit, structured explanations, PIT lineage, and idempotent history.
 Eligibility and confidence are retained independently; the final score remains
 null.
 
-### Phase 4D-A — Business Quality component scoring (acceptance pending)
+### Phase 4D-A — Business Quality component scoring (complete)
 
 Score current ROCE, ROE, and configured margin levels through versioned
 development curves with exact Decimal arithmetic, minimum coverage, and
 available-weight renormalization. No persistence, orchestration, confidence
 adjustment, top-level weighting, or final score is included.
 
-### Phase 4D-B and later — remaining top-level component scorers
+### Phase 4D-B — Cash-Flow Quality component scoring (acceptance pending)
 
-Implement only separately approved Business Catalyst, Cash-flow Quality,
-Balance Sheet, Valuation, Market Structure, and Low Attention component
-policies. Phase 4C does not fabricate them.
+Score CFO/PAT, CFO/EBITDA, negated receivable days, and negated
+revenue-normalized trade-working-capital change through explicit auditable
+transforms and versioned development curves. Phase 3 accounting signs remain
+unchanged. No persistence, orchestration, confidence adjustment, top-level
+weighting, or final score is included.
+
+### Phase 4D-C and later — remaining top-level component scorers
+
+Implement only separately approved Business Catalyst, Balance Sheet, Valuation,
+Market Structure, and Low Attention component policies. Phase 4C does not
+fabricate them.
 
 ### Phase 4E — final Opportunity Score activation
 

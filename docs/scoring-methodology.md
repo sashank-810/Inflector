@@ -137,6 +137,15 @@ renormalized only after a minimum-coverage gate. Valid negative profitability
 is scored unchanged. Confidence and the top-level 15% weight are not applied,
 and the result is not yet persisted by Phase 4C.
 
+Phase 4D-B implements a pure Cash-Flow Quality score from CFO/PAT,
+CFO/EBITDA, receivable days, and trade-working-capital change divided by TTM
+revenue. CFO ratios use identity signals. Receivable days are negated so lower
+days rank higher on monotonic curves. Trade-WC change retains the Phase 3
+`ending - beginning` accounting sign and exposes both `change / revenue` and
+its negation as the scoring signal: builds score below equal-size releases.
+Non-positive TTM revenue makes only that factor unavailable. Confidence and the
+top-level 10% weight are not applied, and Phase 4C does not persist the result.
+
 ## Component construction
 
 ### Financial inflection (25)
@@ -162,10 +171,11 @@ unreviewed AI extraction cannot be counted twice.
 Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE
 level, and configured margin level. Multi-period ROCE/ROE or margin trends,
 asset turnover, ROIC, sector-relative quality, and peer percentiles remain
-deferred. Cash-flow quality will eventually evaluate CFO/PAT, CFO/EBITDA, FCF
-trajectory, and accrual/working-capital consistency; Phase 3E-C currently
-implements the first two conversions, receivable days, and exact trade
-working-capital change only. Balance sheet evaluates net-debt trend,
+deferred. Phase 4D-B Cash-Flow Quality currently scores CFO/PAT, CFO/EBITDA,
+receivable days, and revenue-normalized trade-WC change. FCF, FCF trajectory,
+CCC, inventory/payable days, additional accrual ratios, sector-relative cash
+conversion, and multi-period working-capital trends remain deferred. Balance
+sheet evaluates net-debt trend,
 debt/equity, interest coverage, current/quick ratios, and working-capital
 movement. Risk evidence can reduce these components and the final cap applies
 independently.

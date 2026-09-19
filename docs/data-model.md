@@ -204,6 +204,12 @@ component/subfactor results retain Phase 3 evidence only in memory. Phase 4C
 continues to persist Financial Inflection alone; Business Quality persistence
 requires a later, separately reviewed orchestration design.
 
+Phase 4D-B also adds no schema. Its optional Cash-Flow Quality policy is carried
+by the same immutable configuration JSON. In-memory subfactor results retain
+the accounting raw value, any revenue-normalized raw ratio, the explicit
+scoring transform, and the complete Phase 3E-C evidence object. Phase 4C does
+not yet persist those results.
+
 ### Personal workflow, alerts, and operations
 
 | Table | Core columns / constraints | Purpose |

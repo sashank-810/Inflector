@@ -18,6 +18,11 @@ connect it to this orchestration or persistence contract. Phase 4C snapshots
 therefore still persist at most Financial Inflection and retain a null final
 score; no Business Quality component row is written yet.
 
+Phase 4D-B follows the same boundary for Cash-Flow Quality. Its pure score is
+not accepted by `ScoreSnapshotOrchestrator`, does not alter fingerprints, and
+does not create a component row. Existing snapshots remain Financial
+Inflection-only partial audits with `final_score` set to `NULL`.
+
 ## Statuses
 
 The allowed statuses are:
