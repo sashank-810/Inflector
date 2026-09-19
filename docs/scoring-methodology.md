@@ -206,11 +206,17 @@ components and a future final cap independently.
 
 ### Valuation (10)
 
-PE, PB, EV/EBITDA, EV/sales, market-cap/sales, and historical/sector percentiles
-are conditional features. Valuation is judged jointly with growth, profitability
-and capital efficiency; low PE alone cannot score highly. Negative or undefined
-ratios are shown with a reason and excluded from percentile ranking rather than
-misclassified as cheap.
+Phase 3H-A implements only conservative, deterministic precursors:
+`market_cap_to_ttm_pat`, `market_cap_to_total_equity`,
+`market_cap_to_ttm_revenue`, `simplified_ev_to_ttm_ebitda`, and
+`simplified_ev_to_ttm_revenue`. These names deliberately do not claim canonical
+P/E or P/B attribution semantics or a complete enterprise-value bridge.
+Non-positive denominators and non-positive simplified EV remain unavailable
+with reasons rather than being misclassified as cheap.
+
+Valuation scoring, curves, peer/sector and historical percentiles, and the
+top-level 10% weight remain unimplemented pending a separate Phase 3H-B policy
+review. Phase 3H-A features are not scores and make no cheap/expensive claim.
 
 ### Market structure and attention (10 combined)
 

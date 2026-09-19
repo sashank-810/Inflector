@@ -135,7 +135,7 @@ context and knowledge cutoffs. Preserve accepted source lineage, atomic row
 semantics, provider isolation, and one deterministic revision per economic
 date. Do not derive adjustments or returns.
 
-### Phase 3G-B — adjusted-price and return primitives (acceptance pending)
+### Phase 3G-B — adjusted-price and return primitives (complete)
 
 Apply canonical split/bonus adjustment semantics and construct adjacent PIT-safe
 simple security and benchmark price returns. Cash-dividend total returns,
@@ -148,11 +148,20 @@ Compose approved PIT price/benchmark return evidence into separately reviewed
 trend, relative-strength, volatility, volume, delivery, and consolidation
 primitives. Do not begin scoring until those semantics are approved.
 
-### Valuation deterministic feature foundation (planned)
+### Phase 3H-A — Valuation deterministic feature foundation (acceptance pending)
 
-Combine PIT market capitalization with coherent PIT financial evidence only in
-a separately approved valuation feature slice. No valuation ratio or score is
-implemented by Phase 3G-B.
+Combine provider-reported PIT market capitalization with an explicit financial
+provider/scope/FY/Q to produce market-cap/TTM-PAT, market-cap/total-equity,
+market-cap/TTM-revenue, simplified EV, simplified-EV/TTM-EBITDA, and
+simplified-EV/TTM-revenue evidence. The conservative names do not claim
+canonical P/E, P/B, or complete EV accounting semantics. Features are
+non-persisted and unscored.
+
+### Phase 3H-B — Valuation component scoring (planned)
+
+Begin only after Phase 3H-A acceptance and a separate policy review. Phase
+3G-C Market Structure primitives and Phase 3H-B ordering will be reviewed after
+3H-A; neither is implemented here.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.

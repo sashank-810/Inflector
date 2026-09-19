@@ -142,6 +142,57 @@ class InstantFinancialSnapshotReader:
             as_of=cutoff,
         )
 
+    def snapshot_for_fiscal_endpoint_as_of(
+        self,
+        *,
+        provider_dataset_id: UUID,
+        company_id: UUID,
+        filing_scope: str,
+        fiscal_year: int,
+        fiscal_quarter: int,
+        metric_codes: Sequence[str],
+        as_of: datetime,
+    ) -> InstantFinancialSnapshot | None:
+        """Return one unambiguous complete snapshot for an exact fiscal FY/Q.
+
+        FY/Q labels can legitimately identify more than one stored period kind.
+        This layer has no preference policy for that ambiguity, so it fails closed.
+        """
+
+        if fiscal_quarter not in {1, 2, 3, 4}:
+            raise ValueError("fiscal_quarter must be between 1 and 4")
+        requested_metrics = self._validated_metric_codes(metric_codes)
+        cutoff = self._knowledge_cutoff(as_of)
+        facts_by_metric = self._eligible_facts_by_metric(
+            provider_dataset_id=provider_dataset_id,
+            company_id=company_id,
+            filing_scope=filing_scope,
+            metric_codes=requested_metrics,
+            as_of=cutoff,
+        )
+        if facts_by_metric is None:
+            return None
+        first_metric = requested_metrics[0]
+        matching_period_ids = [
+            period_id
+            for period_id in self._common_period_ids(facts_by_metric, requested_metrics)
+            if (
+                facts_by_metric[first_metric][period_id].fiscal_period.fiscal_year == fiscal_year
+                and facts_by_metric[first_metric][period_id].fiscal_period.fiscal_quarter
+                == fiscal_quarter
+            )
+        ]
+        if len(matching_period_ids) != 1:
+            return None
+        selected_period_id = matching_period_ids[0]
+        return self._snapshot(
+            [facts_by_metric[metric_code][selected_period_id] for metric_code in requested_metrics],
+            provider_dataset_id=provider_dataset_id,
+            company_id=company_id,
+            filing_scope=filing_scope,
+            as_of=cutoff,
+        )
+
     def common_snapshot_for_period_end_as_of(
         self,
         *,

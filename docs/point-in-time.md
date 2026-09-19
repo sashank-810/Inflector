@@ -89,3 +89,14 @@ economic event anchor. The adjustment layer consumes these readers rather than
 querying raw ORM history, so price and action corrections become visible only
 at their respective inclusive cutoffs. See
 [`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).
+
+## Valuation evidence
+
+Phase 3H-A preserves the same cutoff across the market and financial readers
+while keeping their provider datasets explicit and independent. The market
+date is an economic bound, not a substitute knowledge cutoff. TTM values and
+instant snapshots use one requested financial provider, scope, FY, and quarter;
+the instant reader's exact-endpoint API returns only one common stored period
+identity and fails closed on FY/Q ambiguity. Market-cap corrections and
+financial restatements therefore revise derived ratios only once their source
+evidence becomes PIT-visible. See [`valuation-features.md`](valuation-features.md).

@@ -1,0 +1,2 @@
+external_id,security_isin,trading_date,interval,open,high,low,close,volume,market_cap,delivery_quantity,delivery_percentage,available_at,revision_at
+VAL-MKT-2,INF0AUR01018,2027-04-11,1d,100,102,99,101,1200,,,,2027-04-11T18:00:00Z,

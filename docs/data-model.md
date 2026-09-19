@@ -261,6 +261,10 @@ not persisted. Phase 3G-B likewise returns non-persisted split/bonus adjustment
 factors, adjusted OHLC views, and adjacent simple returns. No `price_adjustment`,
 adjusted-price, or return table is implemented; total returns and broader
 derived analytics remain deferred.
+Phase 3H-A adds no table. Its valuation bundle is an immutable in-memory union
+of a selected atomic `price_bars` observation, independently constructed TTM
+values, and exact-FY/Q instant snapshots. It retains raw lineage and exact
+Decimal values. No valuation feature, percentile, or score is persisted.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 
