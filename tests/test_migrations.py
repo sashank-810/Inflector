@@ -25,6 +25,8 @@ def test_alembic_upgrade_creates_identity_schema(tmp_path: Path) -> None:
             "source_records",
             "data_quality_issues",
             "price_bars",
+            "benchmark_series",
+            "benchmark_bars",
             "fiscal_periods",
             "financial_filings",
             "financial_metric_definitions",
@@ -41,6 +43,63 @@ def test_alembic_upgrade_creates_identity_schema(tmp_path: Path) -> None:
             column["name"] for column in inspect(engine).get_columns("source_records")
         }
         assert "raw_payload_reference" in source_columns
+    finally:
+        engine.dispose()
+
+
+def test_phase_2da_market_enrichment_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-2da-market-enrichment.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    enrichment_columns = {"market_cap", "delivery_quantity", "delivery_percentage"}
+    benchmark_tables = {"benchmark_series", "benchmark_bars"}
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert benchmark_tables.issubset(set(inspector.get_table_names()))
+        price_columns = {column["name"]: column for column in inspector.get_columns("price_bars")}
+        assert enrichment_columns.issubset(price_columns)
+        assert all(price_columns[name]["nullable"] for name in enrichment_columns)
+        assert any(
+            key["referred_table"] == "provider_datasets"
+            for key in inspector.get_foreign_keys("benchmark_series")
+        )
+        assert {key["referred_table"] for key in inspector.get_foreign_keys("benchmark_bars")} == {
+            "benchmark_series",
+            "source_records",
+        }
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260919_0008")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        tables = set(inspector.get_table_names())
+        assert not benchmark_tables.intersection(tables)
+        assert not enrichment_columns.intersection(
+            {column["name"] for column in inspector.get_columns("price_bars")}
+        )
+        assert {
+            "companies",
+            "price_bars",
+            "financial_facts",
+            "model_versions",
+            "score_snapshots",
+        }.issubset(tables)
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "head")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert benchmark_tables.issubset(set(inspector.get_table_names()))
+        assert enrichment_columns.issubset(
+            {column["name"] for column in inspector.get_columns("price_bars")}
+        )
     finally:
         engine.dispose()
 

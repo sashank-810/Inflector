@@ -1,0 +1,4 @@
+external_id,benchmark_code,benchmark_display_name,currency,trading_date,interval,open,high,low,close,available_at,revision_at
+SYN-BENCH-BAD-CURRENCY,NIFTY50,Nifty 50,inr,2026-01-06,1d,24900,25100,24800,25000,2026-01-06T18:30:00Z,
+SYN-BENCH-BAD-RANGE,NIFTY500,Nifty 500,INR,2026-01-06,1d,23000,22500,22000,22800,2026-01-06T18:30:00Z,
+SYN-BENCH-MISSING-TIME,NIFTY100,Nifty 100,INR,2026-01-06,1d,24000,24100,23900,24050,,

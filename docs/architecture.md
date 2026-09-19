@@ -265,7 +265,8 @@ licence tag, cursor, and validation results.
 | Port | Minimum operations | Initial adapter |
 |---|---|---|
 | `UniverseProvider` | listings, ISINs, classifications, status, aliases | CSV/manual/mock |
-| `MarketDataProvider` | daily bars, delivery, market cap, corrections | CSV/manual/mock |
+| `MarketDataProvider` | raw daily OHLCV plus optional delivery and provider-reported market cap; corrections | CSV/mock implemented; manual/official deferred |
+| `BenchmarkDataProvider` | provider-local benchmark identity and raw daily OHLC corrections | CSV/mock implemented; official deferred |
 | `FinancialsProvider` | filing headers, line items, restatements | CSV/manual/mock |
 | `CorporateActionProvider` | split, bonus, dividend, merge, delisting | CSV/manual/mock |
 | `DisclosureProvider` | announcements, filings, document references | CSV/manual/mock |
@@ -278,6 +279,12 @@ licence tag, cursor, and validation results.
 Official NSE/BSE/licensed adapters are deliberately deferred until their
 contracts and permitted fields are verified. API adapters must expose cursors,
 rate limits, retry classification, and deterministic idempotency keys.
+
+Phase 2D-A implements only the provider-neutral raw storage and CSV/mock paths
+described above. Market/benchmark PIT selection, corporate-action adjustment,
+returns, relative strength, valuation, Market Structure scoring, and attention
+evidence remain deferred. See
+[`market-data-enrichment.md`](market-data-enrichment.md).
 
 ## Deployment, auth, and observability
 

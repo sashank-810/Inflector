@@ -12,6 +12,7 @@ from io import StringIO
 from pathlib import Path
 
 from inflector_core.providers import (
+    BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
     IngestionEnvelope,
@@ -148,6 +149,67 @@ class CSVMarketDataProvider:
                 low_price=_optional_decimal(row.get("low", ""), errors, "low"),
                 close_price=_optional_decimal(row.get("close", ""), errors, "close"),
                 volume=_optional_int(row.get("volume", ""), errors, "volume"),
+                market_cap=_optional_decimal(row.get("market_cap", ""), errors, "market_cap"),
+                delivery_quantity=_optional_int(
+                    row.get("delivery_quantity", ""), errors, "delivery_quantity"
+                ),
+                delivery_percentage=_optional_decimal(
+                    row.get("delivery_percentage", ""),
+                    errors,
+                    "delivery_percentage",
+                ),
+                parse_errors=tuple(errors),
+            )
+            records.append(
+                IngestionEnvelope(
+                    provider=self.metadata,
+                    external_record_id=row.get("external_id") or f"row-{index}",
+                    source_uri=f"file://{self.path.name}",
+                    raw_payload_reference=f"row-{index}",
+                    content_sha256=_row_hash(row),
+                    retrieved_at=self.retrieved_at,
+                    record=record,
+                    available_at=available_at,
+                    revision_at=revision_at,
+                )
+            )
+        return ProviderBatch(
+            self.metadata,
+            f"file://{self.path.name}",
+            raw_payload,
+            self.retrieved_at,
+            tuple(records),
+        )
+
+
+@dataclass(frozen=True, slots=True)
+class CSVBenchmarkDataProvider:
+    """Development-only benchmark adapter retaining parse failures."""
+
+    path: Path
+    metadata: ProviderMetadata
+    retrieved_at: datetime
+
+    def fetch_benchmark_data(self) -> ProviderBatch[BenchmarkBarRecord]:
+        raw_payload = self.path.read_bytes()
+        records: list[IngestionEnvelope[BenchmarkBarRecord]] = []
+        for index, row in enumerate(
+            csv.DictReader(StringIO(raw_payload.decode("utf-8-sig"))), start=1
+        ):
+            errors: list[str] = []
+            trading_date = _optional_date(row.get("trading_date", ""), errors, "date")
+            available_at = _optional_datetime(row.get("available_at", ""), errors, "available_at")
+            revision_at = _optional_datetime(row.get("revision_at", ""), errors, "revision_at")
+            record = BenchmarkBarRecord(
+                benchmark_code=row.get("benchmark_code") or None,
+                benchmark_display_name=row.get("benchmark_display_name") or None,
+                currency=row.get("currency") or None,
+                trading_date=trading_date,
+                interval=row.get("interval") or None,
+                open_value=_optional_decimal(row.get("open", ""), errors, "open"),
+                high_value=_optional_decimal(row.get("high", ""), errors, "high"),
+                low_value=_optional_decimal(row.get("low", ""), errors, "low"),
+                close_value=_optional_decimal(row.get("close", ""), errors, "close"),
                 parse_errors=tuple(errors),
             )
             records.append(
@@ -322,6 +384,16 @@ class MockMarketDataProvider:
     batch: ProviderBatch[MarketBarRecord]
 
     def fetch_market_data(self) -> ProviderBatch[MarketBarRecord]:
+        return self.batch
+
+
+@dataclass(frozen=True, slots=True)
+class MockBenchmarkDataProvider:
+    """In-memory benchmark provider for orchestration tests."""
+
+    batch: ProviderBatch[BenchmarkBarRecord]
+
+    def fetch_benchmark_data(self) -> ProviderBatch[BenchmarkBarRecord]:
         return self.batch
 
 

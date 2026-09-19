@@ -46,6 +46,15 @@ Add provider-neutral action ingestion, exact split/bonus/rights/dividend terms,
 dated symbol transitions, and explicit security replacement lineage. Do not
 derive adjusted prices, returns, or factors until a later deterministic phase.
 
+### Phase 2D-A — market-data enrichment foundation (acceptance pending)
+
+Add nullable provider-reported INR market cap and delivery quantity/fraction to
+raw price bars, plus provider-dataset-local benchmark identities and append-only
+daily benchmark bars. Reuse archive-first ingestion, quarantine, source
+idempotency, provenance timestamps, and rollback semantics. Do not add PIT
+market readers, adjusted prices, returns, valuation, structure features, or
+scoring.
+
 1. Define provider ports and shared ingestion envelope; build mock, CSV, and
    manual-import adapters first.
 2. Implement raw archival, idempotent ingestion runs, normalization, company
@@ -112,12 +121,23 @@ semantics exist.
 Add complete fixed windows over public Phase 3D percentage-mode YoY series,
 exact positive-share consistency, and explicit-threshold consecutive
 persistence. Preserve nested lineage and refuse partial, gapped, or
-absolute-change windows. This is the final deterministic Phase 3 feature slice;
+absolute-change windows. This is the final deterministic Phase 3 financial feature slice;
 scoring policy, confidence adjustment, configured thresholds, and persistence
 caps begin only in Phase 4.
 
 Unsupported liquidity and accounting formulas remain deferred until their
 controlled source semantics and a separately approved phase exist.
+
+### Phase 3G-A — PIT market and benchmark reads (planned)
+
+Select raw price, enrichment, and benchmark revisions using explicit provider
+context and knowledge cutoffs. Do not derive adjustments or returns.
+
+### Phase 3G-B — adjusted-price and return primitives (planned)
+
+Apply separately reviewed corporate-action adjustment semantics and construct
+PIT-safe returns only after Phase 3G-A. Valuation and Market Structure scoring
+remain blocked until their required deterministic primitives are approved.
 
 **Exit gate:** formula and edge-case tests pass; late-report/restatement tests
 prove no future facts appear at a historical cutoff.
@@ -168,7 +188,7 @@ stored stock-period identity as well as context, cutoff, endpoint, and economic
 period end. No persistence, orchestration, confidence adjustment, top-level
 weighting, or final score is included.
 
-### Phase 4D-D — coherent financial-component orchestration (acceptance pending)
+### Phase 4D-D — coherent financial-component orchestration (complete)
 
 Add a `score_snapshot_v2` path that persists any scoreable subset of Financial
 Inflection, Business Quality, Cash-Flow Quality, and Balance Sheet from one

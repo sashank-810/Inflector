@@ -10,6 +10,8 @@ from uuid import UUID
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    BenchmarkBarRecord,
+    BenchmarkDataProvider,
     CorporateActionProvider,
     CorporateActionRecord,
     FinancialRecord,
@@ -25,9 +27,15 @@ from inflector_core.providers import (
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
 from inflector_data.corporate_actions import validate_corporate_action
 from inflector_data.financials import METRICS, normalize_financial, validate_financial
-from inflector_data.validation import ValidationIssue, validate_price, validate_universe
+from inflector_data.validation import (
+    ValidationIssue,
+    validate_benchmark,
+    validate_price,
+    validate_universe,
+)
 from inflector_database.ingestion_repository import IngestionRepository
 from inflector_database.models import (
+    BenchmarkBar,
     CorporateAction,
     FinancialFact,
     IngestionRun,
@@ -73,6 +81,9 @@ class IngestionService:
     def ingest_market_data(self, provider: MarketDataProvider) -> IngestionResult:
         return self._ingest_market(provider.fetch_market_data())
 
+    def ingest_benchmark_data(self, provider: BenchmarkDataProvider) -> IngestionResult:
+        return self._ingest_benchmark(provider.fetch_benchmark_data())
+
     def ingest_financials(self, provider: FinancialsProvider) -> IngestionResult:
         return self._ingest_financials(provider.fetch_financials())
 
@@ -83,6 +94,7 @@ class IngestionService:
         self,
         batch: ProviderBatch[UniverseRecord]
         | ProviderBatch[MarketBarRecord]
+        | ProviderBatch[BenchmarkBarRecord]
         | ProviderBatch[FinancialRecord]
         | ProviderBatch[CorporateActionRecord],
     ) -> tuple[ProviderDataset, IngestionRun, ArchivedRawObject]:
@@ -150,6 +162,7 @@ class IngestionService:
         self,
         envelope: IngestionEnvelope[UniverseRecord]
         | IngestionEnvelope[MarketBarRecord]
+        | IngestionEnvelope[BenchmarkBarRecord]
         | IngestionEnvelope[FinancialRecord]
         | IngestionEnvelope[CorporateActionRecord],
         dataset_id: UUID,
@@ -288,9 +301,84 @@ class IngestionService:
                     low_price=record.low_price,
                     close_price=record.close_price,
                     volume=record.volume,
+                    market_cap=record.market_cap,
+                    delivery_quantity=record.delivery_quantity,
+                    delivery_percentage=record.delivery_percentage,
                     available_at=envelope.available_at,
                     revision_at=envelope.revision_at,
                 )
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
+    def _ingest_benchmark(self, batch: ProviderBatch[BenchmarkBarRecord]) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if envelope.record.parse_errors else "parsed",
+                )
+                issues = validate_benchmark(envelope.record)
+                if envelope.available_at is None:
+                    issues.append(
+                        ValidationIssue(
+                            "missing_available_at",
+                            "available_at is required for benchmark facts",
+                        )
+                    )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                record = envelope.record
+                assert record.trading_date is not None and record.interval is not None
+                assert envelope.available_at is not None
+                series = self._repository.ensure_benchmark_series(dataset.id, record)
+                existing = self._repository.economic_benchmark_bars(
+                    series_id=series.id,
+                    trading_date=record.trading_date,
+                    interval=record.interval,
+                )
+                if self._benchmark_equivalent(existing, record):
+                    source.validation_status = "duplicate_economic"
+                    counters.duplicated += 1
+                    continue
+                if existing and not self._benchmark_later(existing, envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_benchmark_revision",
+                                (
+                                    "changed values lack a strictly later availability "
+                                    "or revision time"
+                                ),
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                self._repository.add_benchmark_bar(
+                    series_id=series.id,
+                    source_id=source.id,
+                    record=record,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                source.validation_status = "accepted"
                 counters.accepted += 1
             return self._completed(run.id, counters)
         except Exception as error:
@@ -463,9 +551,13 @@ class IngestionService:
                 external_matches = self._repository.corporate_actions_by_external_id(
                     dataset_id=dataset.id, external_id=envelope.external_record_id
                 )
-                if existing and external_matches and not {
-                    action.id for action in existing
-                }.intersection(action.id for action in external_matches):
+                if (
+                    existing
+                    and external_matches
+                    and not {action.id for action in existing}.intersection(
+                        action.id for action in external_matches
+                    )
+                ):
                     self._quarantine(
                         run.id,
                         source.id,
@@ -501,9 +593,7 @@ class IngestionService:
                     counters.quarantined += 1
                     continue
                 if envelope.record.action_type == "symbol_change":
-                    listing_issue = self._repository.symbol_change_issue(
-                        security, envelope.record
-                    )
+                    listing_issue = self._repository.symbol_change_issue(security, envelope.record)
                     if listing_issue is not None:
                         self._quarantine(
                             run.id,
@@ -666,6 +756,9 @@ class IngestionService:
                 price.low_price,
                 price.close_price,
                 price.volume,
+                price.market_cap,
+                price.delivery_quantity,
+                price.delivery_percentage,
             )
             == (
                 record.open_price,
@@ -673,6 +766,9 @@ class IngestionService:
                 record.low_price,
                 record.close_price,
                 record.volume,
+                record.market_cap,
+                record.delivery_quantity,
+                record.delivery_percentage,
             )
             for price in existing
         )
@@ -691,6 +787,34 @@ class IngestionService:
                 IngestionService._utc(price.revision_at or price.available_at),
             )
             for price in existing
+        )
+        return new_order > previous_order
+
+    @staticmethod
+    def _benchmark_equivalent(existing: list[BenchmarkBar], record: BenchmarkBarRecord) -> bool:
+        return any(
+            (bar.open_value, bar.high_value, bar.low_value, bar.close_value)
+            == (
+                record.open_value,
+                record.high_value,
+                record.low_value,
+                record.close_value,
+            )
+            for bar in existing
+        )
+
+    @staticmethod
+    def _benchmark_later(
+        existing: list[BenchmarkBar], envelope: IngestionEnvelope[BenchmarkBarRecord]
+    ) -> bool:
+        assert envelope.available_at is not None
+        new_order = (envelope.available_at, envelope.revision_at or envelope.available_at)
+        previous_order = max(
+            (
+                IngestionService._utc(bar.available_at),
+                IngestionService._utc(bar.revision_at or bar.available_at),
+            )
+            for bar in existing
         )
         return new_order > previous_order
 

@@ -59,6 +59,25 @@ class MarketBarRecord:
     close_price: Decimal | None
     volume: int | None
     parse_errors: tuple[str, ...] = ()
+    market_cap: Decimal | None = None
+    delivery_quantity: int | None = None
+    delivery_percentage: Decimal | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BenchmarkBarRecord:
+    """Provider-neutral daily benchmark observation with explicit identity."""
+
+    benchmark_code: str | None
+    benchmark_display_name: str | None
+    currency: str | None
+    trading_date: date | None
+    interval: str | None
+    open_value: Decimal | None
+    high_value: Decimal | None
+    low_value: Decimal | None
+    close_value: Decimal | None
+    parse_errors: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +202,15 @@ class MarketDataProvider(Protocol):
 
     def fetch_market_data(self) -> ProviderBatch[MarketBarRecord]:
         """Return one provider-neutral market-data batch."""
+
+        ...
+
+
+class BenchmarkDataProvider(Protocol):
+    """Provider port for daily benchmark observations."""
+
+    def fetch_benchmark_data(self) -> ProviderBatch[BenchmarkBarRecord]:
+        """Return one provider-neutral benchmark-data batch."""
 
         ...
 

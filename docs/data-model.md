@@ -69,9 +69,9 @@ large blobs. Every normalized fact references a `source_record`.
 
 | Table | Core columns / constraints | Purpose |
 |---|---|---|
-| `price_bar` | security, date, interval, OHLC, adjusted close, volume, delivery, cap, revision, source/time fields | Daily data first, intraday-ready |
-| `price_adjustment` | security, effective date, adjustment type/factor, corporate action, source | Reproducible adjusted prices |
-| `benchmark_series` / `benchmark_bar` | benchmark identity; date/interval/value/revision/source | Index comparison |
+| `price_bars` | security, date, interval, raw OHLCV, optional provider-reported INR market cap, optional delivery quantity/fraction, revision/source/time fields | Implemented raw daily observations; no adjusted values |
+| `benchmark_series` / `benchmark_bars` | provider-dataset-local benchmark identity; raw daily OHLC/revision/source fields | Implemented raw benchmark observations |
+| `price_adjustment` | security, effective date, adjustment type/factor, corporate action, source | Deferred; reproducible adjusted-price input |
 | `institutional_holding` | company, holder category/name, shares/percent, as-of date, source/time fields | Promoter, MF, FII/FPI, pledge holdings |
 | `attention_observation` | company, metric code, value, window, source/time fields, quality | Extensible attention proxies |
 
@@ -249,13 +249,14 @@ versions require null final scores and null final contributions.
 ## Integrity and PIT contract
 
 Use restrictive foreign keys for facts and soft status changes for companies.
-Checks enforce valid dates, non-negative volume, delivery percent 0–100, valid
+Checks enforce valid dates, non-negative volume, delivery fraction 0–1, valid
 OHLC, revision sequence, and bounded scores. Ingestion validates duplicate
 identities, missing periods, impossible ratios, scales, and outliers, creating
 `data_quality_issue` records instead of silently dropping rows.
 
-The repository API for financial/event/market facts requires `as_of` and
-`knowledge_cutoff`; it returns the latest available revision per economic key.
+The financial PIT repository requires `as_of` and returns the latest available
+revision per economic key. Raw market and benchmark storage is now implemented,
+but their PIT read APIs remain deferred to Phase 3G-A.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 

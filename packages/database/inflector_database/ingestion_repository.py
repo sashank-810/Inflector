@@ -10,6 +10,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
     ProviderMetadata,
@@ -17,6 +18,8 @@ from inflector_core.providers import (
     corporate_action_event_anchor,
 )
 from inflector_database.models import (
+    BenchmarkBar,
+    BenchmarkSeries,
     Company,
     CorporateAction,
     DataProvider,
@@ -598,6 +601,9 @@ class IngestionRepository:
         low_price: Decimal,
         close_price: Decimal,
         volume: int,
+        market_cap: Decimal | None,
+        delivery_quantity: int | None,
+        delivery_percentage: Decimal | None,
         available_at: datetime,
         revision_at: datetime | None,
     ) -> None:
@@ -612,8 +618,94 @@ class IngestionRepository:
                 low_price=low_price,
                 close_price=close_price,
                 volume=volume,
+                market_cap=market_cap,
+                delivery_quantity=delivery_quantity,
+                delivery_percentage=delivery_percentage,
                 available_at=available_at,
                 revision_at=revision_at,
+            )
+        )
+
+    def ensure_benchmark_series(
+        self, dataset_id: UUID, record: BenchmarkBarRecord
+    ) -> BenchmarkSeries:
+        """Resolve provider-local benchmark identity without cross-provider merging."""
+
+        assert record.benchmark_code is not None
+        assert record.benchmark_display_name is not None
+        assert record.currency is not None
+        series = self.session.scalar(
+            select(BenchmarkSeries).where(
+                BenchmarkSeries.provider_dataset_id == dataset_id,
+                BenchmarkSeries.code == record.benchmark_code,
+            )
+        )
+        if series is None:
+            series = BenchmarkSeries(
+                provider_dataset_id=dataset_id,
+                code=record.benchmark_code,
+                display_name=record.benchmark_display_name,
+                currency=record.currency,
+                status="active",
+            )
+            self.session.add(series)
+            self.session.flush()
+        elif (
+            series.display_name != record.benchmark_display_name
+            or series.currency != record.currency
+        ):
+            raise ValueError("benchmark identity metadata conflicts with stored series")
+        return series
+
+    def add_benchmark_bar(
+        self,
+        *,
+        series_id: UUID,
+        source_id: UUID,
+        record: BenchmarkBarRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> None:
+        assert record.trading_date is not None and record.interval is not None
+        assert record.open_value is not None and record.high_value is not None
+        assert record.low_value is not None and record.close_value is not None
+        self.session.add(
+            BenchmarkBar(
+                benchmark_series_id=series_id,
+                source_record_id=source_id,
+                trading_date=record.trading_date,
+                interval=record.interval,
+                open_value=record.open_value,
+                high_value=record.high_value,
+                low_value=record.low_value,
+                close_value=record.close_value,
+                available_at=available_at,
+                revision_at=revision_at,
+            )
+        )
+
+    def economic_benchmark_bars(
+        self,
+        *,
+        series_id: UUID,
+        trading_date: date,
+        interval: str,
+    ) -> list[BenchmarkBar]:
+        """Return all immutable revisions for one provider-local benchmark bar."""
+
+        return list(
+            self.session.scalars(
+                select(BenchmarkBar)
+                .where(
+                    BenchmarkBar.benchmark_series_id == series_id,
+                    BenchmarkBar.trading_date == trading_date,
+                    BenchmarkBar.interval == interval,
+                )
+                .order_by(
+                    BenchmarkBar.available_at,
+                    BenchmarkBar.revision_at,
+                    BenchmarkBar.ingested_at,
+                )
             )
         )
 

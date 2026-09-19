@@ -1,0 +1,2 @@
+external_id,security_isin,trading_date,interval,open,high,low,close,volume,market_cap,delivery_quantity,delivery_percentage,available_at,revision_at
+SYN-MKT-ENRICHED-001,INF0AUR01018,2026-01-06,1d,100,103,99,102,500000,1234567890.25,250000,0.375,2026-01-06T18:00:00Z,

@@ -246,6 +246,55 @@ class PriceBar(Base):
     low_price: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     close_price: Mapped[Decimal] = mapped_column(Numeric(20, 6), nullable=False)
     volume: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    market_cap: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    delivery_quantity: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    delivery_percentage: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BenchmarkSeries(Base):
+    """Provider-dataset-local benchmark identity without hidden reconciliation."""
+
+    __tablename__ = "benchmark_series"
+    __table_args__ = (
+        UniqueConstraint("provider_dataset_id", "code", name="uq_benchmark_series_dataset_code"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    code: Mapped[str] = mapped_column(String(64), nullable=False)
+    display_name: Mapped[str] = mapped_column(String(255), nullable=False)
+    currency: Mapped[str] = mapped_column(String(3), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BenchmarkBar(Base):
+    """Append-only raw benchmark bar with source and knowledge-time provenance."""
+
+    __tablename__ = "benchmark_bars"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    benchmark_series_id: Mapped[UUID] = mapped_column(
+        ForeignKey("benchmark_series.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    interval: Mapped[str] = mapped_column(String(16), nullable=False)
+    open_value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    high_value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    low_value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    close_value: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
     available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     ingested_at: Mapped[datetime] = mapped_column(
@@ -468,9 +517,7 @@ class ScoringConfiguration(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    model_version: Mapped[ModelVersion] = relationship(
-        back_populates="scoring_configurations"
-    )
+    model_version: Mapped[ModelVersion] = relationship(back_populates="scoring_configurations")
 
 
 class ScoreSnapshot(Base):
@@ -557,9 +604,7 @@ class ScoreComponent(Base):
 
     __tablename__ = "score_components"
     __table_args__ = (
-        UniqueConstraint(
-            "score_snapshot_id", "component_code", name="uq_score_component_code"
-        ),
+        UniqueConstraint("score_snapshot_id", "component_code", name="uq_score_component_code"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -569,18 +614,10 @@ class ScoreComponent(Base):
     component_code: Mapped[str] = mapped_column(String(96), nullable=False)
     score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     unit: Mapped[str] = mapped_column(String(32), nullable=False)
-    configured_top_level_weight: Mapped[Decimal] = mapped_column(
-        ExactDecimal(), nullable=False
-    )
-    subfactor_weight_coverage: Mapped[Decimal] = mapped_column(
-        ExactDecimal(), nullable=False
-    )
-    final_contribution: Mapped[Decimal | None] = mapped_column(
-        ExactDecimal(), nullable=True
-    )
-    available_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    configured_top_level_weight: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    subfactor_weight_coverage: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    final_contribution: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    available_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     algorithm_version: Mapped[str] = mapped_column(String(96), nullable=False)
     missing_subfactors_json: Mapped[list[object]] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
@@ -606,9 +643,7 @@ class ScoreExplanation(Base):
 
     __tablename__ = "score_explanations"
     __table_args__ = (
-        UniqueConstraint(
-            "score_component_id", "factor_code", name="uq_score_explanation_factor"
-        ),
+        UniqueConstraint("score_component_id", "factor_code", name="uq_score_explanation_factor"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -625,12 +660,8 @@ class ScoreExplanation(Base):
     normalized_score: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
     configured_weight: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
     effective_weight: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
-    component_contribution: Mapped[Decimal] = mapped_column(
-        ExactDecimal(), nullable=False
-    )
-    input_available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    component_contribution: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    input_available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     evidence_type: Mapped[str] = mapped_column(String(120), nullable=False)
     template_code: Mapped[str] = mapped_column(String(120), nullable=False)
     direction: Mapped[str | None] = mapped_column(String(32), nullable=True)
