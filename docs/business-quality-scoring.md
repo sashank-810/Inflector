@@ -68,5 +68,8 @@ availability of participating evidence.
 Asset turnover, ROIC, NOPAT/tax inference, multi-period ROCE or ROE trends,
 margin trends, peer percentiles, and sector normalization are not implemented.
 They require separately approved deterministic primitives and policy.
-Phase 4D-A also adds no Business Quality snapshot persistence or orchestration;
-Phase 4C continues to persist Financial Inflection only with a null final score.
+Phase 4D-A itself added no snapshot persistence. Phase 4D-D's explicitly
+versioned v2 path can now persist Business Quality with other scoreable
+financial components from the same selected provider/scope. The Phase 4C/v1
+path remains Financial-Inflection-only, and both paths retain a null final
+score and null final contribution.

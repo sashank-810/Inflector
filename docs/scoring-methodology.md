@@ -18,9 +18,10 @@ lineage, components, contributions, confidence, and explanations.
 Every feature calculation receives `as_of_date` and `knowledge_cutoff`. It can
 read only facts, disclosures, holdings, and prices with
 `available_at <= knowledge_cutoff`; it selects the latest eligible revision for
-each economic item. Financial features use consolidated values by default and
-declare a fallback to standalone. A later restatement cannot revise a past
-score. Scores are not produced for records failing material quality or
+each economic item. Financial context selection follows the active policy's
+provider-first lexicographic `provider_dataset_priority` and then
+`filing_scope_priority`; there is no hidden consolidated-first default. A later
+restatement cannot revise a past score. Scores are not produced for records failing material quality or
 eligibility checks.
 
 Minimum eligibility for v1.0: an active common-equity listing, a configurable
@@ -32,10 +33,12 @@ risk score.
 
 ## Component model
 
-The final score is a weighted mean of available, confidence-adjusted component
-scores, on a 0–100 scale. The denominator is the sum of weights for eligible
-components; missing components are disclosed and lower final confidence. A hard
-risk gate can cap or exclude a score independently of the weighted sum.
+No final Opportunity Score aggregation rule is approved yet. Current component
+scores stay on independent 0–100 scales; configured top-level weights are audit
+metadata until a later approved aggregation phase. Missing components are
+disclosed. Confidence is an independent audit/display value and is not
+multiplied into component or subfactor scores. Any future aggregation or risk
+gate requires explicit review.
 
 | Component | Initial weight | Intent |
 |---|---:|---|
@@ -52,8 +55,8 @@ The configuration, including thresholds, caps, universes, and weights, lives
 in `scoring_configurations`; weights are never embedded in application code.
 
 Low-level deterministic feature readers never select a preferred provider or
-filing scope. Any future consolidated-first or provider-fallback policy is an
-explicit research/scoring configuration, not an implicit calculation rule.
+filing scope. Provider and scope preference is an explicit scoring
+configuration, never an implicit consolidated-first calculation rule.
 
 Phase 4A implements that context choice as provider-first lexicographic policy:
 for each configured provider in order, it tries configured filing scopes in
@@ -135,7 +138,7 @@ margin. Versioned piecewise-linear development curves normalize these ratios;
 missing factors are unavailable rather than zero and available weights are
 renormalized only after a minimum-coverage gate. Valid negative profitability
 is scored unchanged. Confidence and the top-level 15% weight are not applied,
-and the result is not yet persisted by Phase 4C.
+and the result is not persisted by the v1 Phase 4C path.
 
 Phase 4D-B implements a pure Cash-Flow Quality score from CFO/PAT,
 CFO/EBITDA, receivable days, and trade-working-capital change divided by TTM
@@ -144,7 +147,8 @@ days rank higher on monotonic curves. Trade-WC change retains the Phase 3
 `ending - beginning` accounting sign and exposes both `change / revenue` and
 its negation as the scoring signal: builds score below equal-size releases.
 Non-positive TTM revenue makes only that factor unavailable. Confidence and the
-top-level 10% weight are not applied, and Phase 4C does not persist the result.
+top-level 10% weight are not applied. The separate Phase 4D-D v2 path may
+persist it from the selected coherent financial context.
 
 Phase 4D-C implements a pure Balance Sheet score from net debt divided by TTM
 reported EBITDA, debt/equity, and interest coverage. Absolute INR debt is not
@@ -153,7 +157,17 @@ leverage scores higher on monotonic curves; interest coverage uses an identity
 signal. Net cash and negative-EBIT coverage retain their approved Phase 3
 semantics. Non-positive EBITDA or an undefined denominator makes the relevant
 factor unavailable. Confidence and the top-level 10% weight are not applied,
-and Phase 4C does not persist the result.
+and the v1 Phase 4C path does not persist the result.
+
+Phase 4D-D adds a separate `score_snapshot_v2` path that can persist all four
+approved financial components from one coherent provider/scope context. A
+context needs only one scoreable positive-weight implemented component to be
+selectable; configured provider-first priority then wins over score magnitude,
+component count, and coverage. The selected context is never supplemented from
+another source. Standard all-four coverage is `0.60`, not a partial score;
+Business Catalyst, Valuation, Market Structure, and Low Market Attention remain
+missing. `final_score`, final contributions, and confidence multiplication
+remain absent.
 
 ## Component construction
 

@@ -171,8 +171,8 @@ risk rows remain provisional until review and may be excluded by configuration.
 | `model_versions` | model family, unique semantic version, Git SHA, status, dates | Immutable model-semantics identity; implemented in Phase 4A |
 | `scoring_configurations` | model version, name/version, half-open effective range, validated policy JSON, SHA-256 checksum, status | Immutable versioned policy; implemented in Phase 4A |
 | `score_snapshots` | company, cutoff/endpoint, config/model, eligibility/confidence, context, fingerprint/manifests, nullable final score | Immutable partial scoring audit; implemented in Phase 4C |
-| `score_components` | snapshot, component score, configured top-level weight, subfactor coverage/detail, nullable final contribution | Immutable component audit; implemented for Financial Inflection in Phase 4C |
-| `score_explanations` | snapshot/component, factor values/weights/contribution, rank/template, evidence manifest | Structured mathematical explanation; implemented in Phase 4C |
+| `score_components` | snapshot, component score, configured top-level weight, subfactor coverage/detail, nullable final contribution | Immutable component audit; v1 supports Financial Inflection and v2 supports four approved financial components |
+| `score_explanations` | snapshot/component, factor values/weights/contribution, rank/template, evidence manifest | Structured mathematical explanation, including transform audit metadata in v2 manifests |
 
 Index opportunity ranking on `(as_of_date, final_score desc)` and historical
 company scores on `(company_id, as_of_date desc)`. Recalculations insert a new
@@ -213,8 +213,14 @@ not yet persist those results.
 Phase 4D-C adds no schema. Its optional Balance Sheet policy remains in the
 immutable configuration JSON. Pure in-memory results retain raw INR net debt,
 the paired TTM EBITDA denominator, normalized leverage ratios, explicit scoring
-signals, and original Phase 3E-B evidence. Phase 4C still persists none of these
-results.
+signals, and original Phase 3E-B evidence.
+
+Phase 4D-D also adds no schema. The existing generic score tables store the new
+`score_snapshot_v2` audit contract: up to four component rows from one selected
+provider/scope, component-specific explanation templates, transform metadata
+inside evidence manifests, and a selected-component lineage union. Historical
+`score_snapshot_v1` rows remain valid and Financial-Inflection-only. Both
+versions require null final scores and null final contributions.
 
 ### Personal workflow, alerts, and operations
 

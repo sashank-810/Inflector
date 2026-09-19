@@ -1,4 +1,4 @@
-"""Immutable persistence boundary for partial Phase 4C score audits."""
+"""Immutable persistence boundary for versioned partial score audits."""
 
 from __future__ import annotations
 
@@ -13,8 +13,14 @@ from sqlalchemy.orm import Session
 from inflector_core.score_audit import audit_fingerprint_sha256
 from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot
 
-VALID_SNAPSHOT_STATUSES = frozenset(
+V1_SNAPSHOT_STATUSES = frozenset(
     {"ineligible", "financial_inflection_unavailable", "partial_component_set"}
+)
+V2_SNAPSHOT_STATUSES = frozenset(
+    {"ineligible", "financial_components_unavailable", "partial_component_set"}
+)
+V2_COMPONENT_CODES = frozenset(
+    {"financial_inflection", "business_quality", "cash_flow_quality", "balance_sheet"}
 )
 
 
@@ -190,9 +196,7 @@ class ScoreSnapshotRepository:
 
     def get_by_fingerprint(self, fingerprint: str) -> ScoreSnapshot | None:
         record = self._session.scalar(
-            select(ScoreSnapshot).where(
-                ScoreSnapshot.snapshot_fingerprint_sha256 == fingerprint
-            )
+            select(ScoreSnapshot).where(ScoreSnapshot.snapshot_fingerprint_sha256 == fingerprint)
         )
         return None if record is None else self._validated(record)
 
@@ -215,21 +219,59 @@ class ScoreSnapshotRepository:
         expected = audit_fingerprint_sha256(record.fingerprint_payload_json)
         if expected != record.snapshot_fingerprint_sha256:
             raise ScoreSnapshotIntegrityError("persisted score snapshot fingerprint mismatch")
+        payload_version = record.fingerprint_payload_json.get("algorithm_version")
+        if payload_version != record.algorithm_version:
+            raise ScoreSnapshotIntegrityError("snapshot algorithm version does not match payload")
+        if record.algorithm_version == "score_snapshot_v1":
+            statuses = V1_SNAPSHOT_STATUSES
+            component_codes = frozenset({"financial_inflection"})
+        elif record.algorithm_version == "score_snapshot_v2":
+            statuses = V2_SNAPSHOT_STATUSES
+            component_codes = V2_COMPONENT_CODES
+        else:
+            raise ScoreSnapshotIntegrityError("unsupported persisted snapshot algorithm version")
+        if record.snapshot_status not in statuses:
+            raise ScoreSnapshotIntegrityError("invalid persisted status for algorithm version")
+        if record.final_score is not None:
+            raise ScoreSnapshotIntegrityError("partial persisted snapshot has a final score")
+        if record.snapshot_status != "partial_component_set" and record.components:
+            raise ScoreSnapshotIntegrityError("non-partial persisted snapshot has components")
+        if record.snapshot_status == "partial_component_set" and not record.components:
+            raise ScoreSnapshotIntegrityError("partial persisted snapshot has no components")
+        for component in record.components:
+            if component.component_code not in component_codes:
+                raise ScoreSnapshotIntegrityError(
+                    "persisted component is invalid for snapshot algorithm version"
+                )
+            if component.final_contribution is not None:
+                raise ScoreSnapshotIntegrityError(
+                    "partial persisted component has a final contribution"
+                )
         return record
 
     @staticmethod
     def _validate_write(value: ScoreSnapshotWrite) -> None:
-        if value.snapshot_status not in VALID_SNAPSHOT_STATUSES:
-            raise ValueError("invalid Phase 4C snapshot status")
+        if value.algorithm_version == "score_snapshot_v1":
+            statuses = V1_SNAPSHOT_STATUSES
+            component_codes = frozenset({"financial_inflection"})
+        elif value.algorithm_version == "score_snapshot_v2":
+            statuses = V2_SNAPSHOT_STATUSES
+            component_codes = V2_COMPONENT_CODES
+        else:
+            raise ValueError("unsupported score snapshot algorithm version")
+        if value.snapshot_status not in statuses:
+            raise ValueError("invalid snapshot status for algorithm version")
         if value.final_score is not None:
-            raise ValueError("Phase 4C final_score must be None")
+            raise ValueError("partial snapshot final_score must be None")
         if value.snapshot_status != "partial_component_set" and value.components:
             raise ValueError("only a partial_component_set snapshot may have components")
+        if value.snapshot_status == "partial_component_set" and not value.components:
+            raise ValueError("a partial_component_set snapshot requires components")
         for component in value.components:
-            if component.component_code != "financial_inflection":
-                raise ValueError("Phase 4C only persists financial_inflection")
+            if component.component_code not in component_codes:
+                raise ValueError("component code is invalid for snapshot algorithm version")
             if component.final_contribution is not None:
-                raise ValueError("Phase 4C final component contribution must be None")
+                raise ValueError("partial snapshot final component contribution must be None")
 
     @classmethod
     def _optional_utc(cls, value: datetime | None, field_name: str) -> datetime | None:

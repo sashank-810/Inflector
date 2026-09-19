@@ -172,3 +172,11 @@ persisted active configuration at the knowledge cutoff and preserves model ID,
 configuration ID, checksum, and semantic identity in the snapshot fingerprint.
 Half-open effective intervals and overlap ambiguity therefore remain part of
 every persisted audit. See [`score-snapshots.md`](score-snapshots.md).
+
+Phase 4D-D introduces no policy field and changes no canonical policy mapping.
+The v2 orchestrator consumes the existing context priorities, four optional
+financial scoring sections, and top-level weights. Missing historical sections
+mean that component is unavailable rather than zero. Provider priority remains
+lexicographically dominant over scope, score magnitude, component count, and
+available component weight. All Phase 4A through Phase 4D-C fixture checksums
+remain unchanged.

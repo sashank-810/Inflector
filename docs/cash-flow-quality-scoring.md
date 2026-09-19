@@ -69,5 +69,9 @@ match exactly across all supplied evidence.
 FCF and capex-sign normalization, inventory days, payable days, cash conversion
 cycle, cash-flow and working-capital trends, additional accrual ratios, peer or
 sector normalization, and curve calibration remain deferred. Phase 4D-B does
-not persist Cash-Flow Quality in score snapshots and does not apply confidence
-or the top-level 10% component weight.
+not apply confidence or the top-level 10% component weight.
+
+Phase 4D-D's v2 orchestration can persist the score from one coherently selected
+provider/scope. Component detail and each explanation retain accounting raw
+values separately from normalized values and transformed scoring signals. The
+v1 path remains unchanged; no final contribution or final score is produced.

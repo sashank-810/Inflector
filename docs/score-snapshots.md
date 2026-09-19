@@ -1,36 +1,28 @@
-# Phase 4C immutable partial score snapshots
+# Immutable partial score snapshots
 
 ## Scope
 
-Phase 4C persists the reproducible audit of one scoring attempt. It resolves an
+The Phase 4C `score_snapshot_v1` path persists the reproducible audit of one scoring attempt. It resolves an
 active persisted policy, evaluates eligibility and confidence, selects one
 coherent financial context, calculates the approved Financial Inflection
 component, and stores structured component and subfactor records.
 
-Only one of eight proposed top-level components is supported by Phase 4C
-orchestration and persistence. Consequently every Phase 4C `final_score` is SQL
+Only one of eight proposed top-level components is supported by the v1
+orchestration contract. Consequently every v1 `final_score` is SQL
 `NULL`. The Financial Inflection score is not
 multiplied by its 25% top-level weight, divided by that weight, renormalized to
 stand in for missing components, or adjusted by confidence.
 
-Phase 4D-A provides a pure Business Quality scorer, but deliberately does not
-connect it to this orchestration or persistence contract. Phase 4C snapshots
-therefore still persist at most Financial Inflection and retain a null final
-score; no Business Quality component row is written yet.
-
-Phase 4D-B follows the same boundary for Cash-Flow Quality. Its pure score is
-not accepted by `ScoreSnapshotOrchestrator`, does not alter fingerprints, and
-does not create a component row. Existing snapshots remain Financial
-Inflection-only partial audits with `final_score` set to `NULL`.
-
-Phase 4D-C also leaves this contract unchanged. Balance Sheet evidence and
-scores are not accepted by the orchestrator, do not enter snapshot fingerprints
-or component coverage, and do not create component/explanation rows. Existing
-partial snapshots continue to retain a null final score.
+Phase 4D-D adds a separate `score_snapshot_v2` method on the orchestrator. It
+can persist Financial Inflection, Business Quality, Cash-Flow Quality, and
+Balance Sheet from one selected provider/scope context. It does not change the
+v1 method, algorithm identity, statuses, component set, or exact-rerun
+fingerprints. See
+[`financial-component-orchestration.md`](financial-component-orchestration.md).
 
 ## Statuses
 
-The allowed statuses are:
+The v1 statuses are:
 
 - `ineligible`: eligibility failed; confidence and reasons are stored but no
   component or explanation exists;
@@ -40,6 +32,12 @@ The allowed statuses are:
   while `final_score` remains `NULL`.
 
 There is no complete status in this phase.
+
+V2 retains `ineligible` and `partial_component_set`, and replaces the
+v1-specific unavailable status with `financial_components_unavailable`. This
+means no configured supplied context produced any scoreable positive-weight
+implemented financial component. Both versions require `final_score = NULL`;
+repository validation rejects cross-version statuses and component codes.
 
 ## Context selection and evaluation order
 
@@ -97,7 +95,7 @@ Decimals as exact text; PostgreSQL uses wide `NUMERIC(50,28)`.
 
 ## Components and explanations
 
-Phase 4C persists at most one `financial_inflection` component. Its detail JSON
+V1 persists at most one `financial_inflection` component. Its detail JSON
 contains canonical subfactor summaries in Phase 4B order. One explanation row
 is written for each available subfactor—never for missing evidence. Rows retain
 raw value/unit, normalized score, configured/effective weights, component
@@ -120,3 +118,13 @@ component, curve, and Phase 3 algorithm versions.
 Restatements affect snapshots only at their PIT availability boundary. Earlier
 snapshots remain unchanged, and a historical rerun reproduces the earlier
 fingerprint when its cutoff and evidence remain identical.
+
+V2 generalizes the same persistence tables and recursive lineage contract to
+four financial components. It persists selected components in canonical
+financial order, ranks explanations independently within each component, and
+stores Cash-Flow/Balance-Sheet transforms in each explanation evidence
+manifest. The snapshot manifest includes only selected-context component
+lineage; non-selected contexts contribute lightweight scoreability audit data,
+not full facts or score magnitudes. Standard all-four top-level coverage is
+`0.60`, with no renormalization, final contribution, final score, or confidence
+multiplication.

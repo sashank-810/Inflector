@@ -160,7 +160,7 @@ transforms and versioned development curves. Phase 3 accounting signs remain
 unchanged. No persistence, orchestration, confidence adjustment, top-level
 weighting, or final score is included.
 
-### Phase 4D-C — Balance Sheet component scoring (acceptance pending)
+### Phase 4D-C — Balance Sheet component scoring (complete)
 
 Score net debt/TTM reported EBITDA, debt/equity, and interest coverage through
 explicit size-neutral transforms and versioned development curves. Validate
@@ -168,10 +168,20 @@ stored stock-period identity as well as context, cutoff, endpoint, and economic
 period end. No persistence, orchestration, confidence adjustment, top-level
 weighting, or final score is included.
 
+### Phase 4D-D — coherent financial-component orchestration (acceptance pending)
+
+Add a `score_snapshot_v2` path that persists any scoreable subset of Financial
+Inflection, Business Quality, Cash-Flow Quality, and Balance Sheet from one
+provider/scope context. Provider-first policy wins over score and coverage;
+missing coverage remains visible. Under current standard weights the maximum
+implemented top-level coverage is 0.60, while `final_score`, final
+contributions, and confidence multiplication remain absent. Preserve the v1
+Financial-Inflection-only path and fingerprint semantics.
+
 ### Later approved slices — remaining top-level component scorers
 
 Implement only separately approved Business Catalyst, Valuation, Market
-Structure, and Low Attention component policies. Phase 4C does not fabricate
+Structure, and Low Attention component policies. Neither v1 nor v2 fabricates
 them.
 
 ### Phase 4E — final Opportunity Score activation

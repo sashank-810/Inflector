@@ -71,4 +71,10 @@ output, missing-factor reporting, coverage, score, and availability.
 Net-debt/debt/coverage trends, current and quick ratios, maturity schedules,
 covenants, broader liquidity reserves, sector normalization, and peer
 percentiles remain deferred. Phase 4D-C does not apply confidence or the
-top-level 10% Balance Sheet weight and is not persisted by Phase 4C.
+top-level 10% Balance Sheet weight.
+
+Phase 4D-D's v2 orchestration can persist the score from one coherently selected
+provider/scope. Component detail and explanation manifests retain raw INR,
+normalized leverage, transformed signal, and source lineage separately. The v1
+path remains Financial-Inflection-only; no final contribution or final score is
+produced.

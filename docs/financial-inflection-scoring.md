@@ -17,6 +17,11 @@ changing those semantics. The configured 25% weight remains metadata,
 confidence remains separate, and the overall final score remains null. See
 [`score-snapshots.md`](score-snapshots.md).
 
+Phase 4D-D preserves that v1 path and adds a v2 path that may persist Financial
+Inflection alongside the three other approved financial components, always
+from one coherent provider/scope context. Its raw 0–100 score and top-level
+weight remain separate; no final contribution is calculated.
+
 ## Configurable normalization
 
 Every raw subfactor is normalized by a versioned piecewise-linear curve. Each

@@ -168,9 +168,17 @@ orchestration or persistence. See
 Phase 4D-C adds a pure Balance Sheet scorer for net debt/TTM reported EBITDA,
 debt/equity, and interest coverage. It validates exact context, cutoff,
 endpoint, economic period end, and stored stock-period identity before applying
-explicit size-neutral leverage transforms. It is not connected to Phase 4C
-orchestration or persistence. See
+explicit size-neutral leverage transforms. See
 [`balance-sheet-scoring.md`](balance-sheet-scoring.md).
+
+Phase 4D-D adds the explicitly versioned `score_snapshot_v2` orchestration path
+without changing the Phase 4C/v1 contract. It scores the four approved
+financial components independently inside each supplied provider/scope context,
+selects one context by configured provider-first lexicographic priority, and
+persists every scoreable positive-weight component from that context. It never
+selects by score or coverage, never borrows across contexts, and keeps final
+scores, final contributions, and confidence multiplication absent. See
+[`financial-component-orchestration.md`](financial-component-orchestration.md).
 
 ### Frontend boundary and state
 
