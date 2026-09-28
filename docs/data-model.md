@@ -61,16 +61,18 @@ erDiagram
 | `data_quality_issue` | source/entity, rule, severity, message, lifecycle | Quarantine and review |
 | `documents` | company, optional security, provider dataset, unique source record, structural type/title/language/media type/URI, optional provider-supplied content SHA-256, availability/revision/ingestion timestamps | Implemented Phase 6A announcement-document metadata |
 | `announcement_documents` | announcement/document composite identity and structural role | Implemented revision-specific many-to-many attachment set |
-| `document_text` | document PK, extracted text/key, extractor version, checksum, page map | Planned Phase 6B; not implemented |
+| `document_assets` | document, exact byte hash/object key/size, requested/resolved URI, declared/detected media, retrieval time, status/warnings; unique document + content hash | Implemented immutable Phase 6B attachment bytes |
+| `document_text_extractions` | asset, explicit extractor code/semantic/runtime identity, text object/hash/counts, page map, status/warnings, extraction time; unique asset + extractor identity | Implemented deterministic Phase 6B text metadata |
 | `document_interpretation` | document, task, schema/model/prompt versions, output JSON, confidence, evidence, review state | Planned reviewed AI layer; not implemented |
 
 Phase 6A archives complete incoming provider batches in the existing
 content-addressed raw object store and stores normalized document identity and
 metadata in PostgreSQL, never large PDF/document bytes. A document content
 hash is nullable and means document-byte SHA-256 only when the provider
-actually supplied or calculated it. Text, extraction, citations, and AI
-interpretation remain unimplemented. Every normalized announcement and
-document references a `source_record`.
+actually supplied or calculated it. Phase 6B adds external byte/text objects,
+deterministic extraction metadata, and in-memory citation slices; AI
+interpretation and persisted event evidence remain unimplemented. Every
+normalized announcement and document references a `source_record`.
 
 ### Market, benchmarks, ownership, and attention
 
@@ -175,6 +177,14 @@ current document relation set. The Phase 6A PIT reader gates on accepted source
 status and `available_at <= as_of`; it never gates on mutable security or
 listing status. See
 [`announcement-document-evidence.md`](announcement-document-evidence.md).
+
+Migration 0012 implements only `document_assets` and
+`document_text_extractions`. Bytes and canonical UTF-8 text remain in the
+content-addressed object store, not PostgreSQL. Page maps use one-based page
+numbers, inclusive/exclusive Unicode offsets, and per-page UTF-8 SHA-256
+hashes. Asset retrieval and extraction timestamps are operational audit times;
+the associated Phase 6A Document `available_at` remains model knowledge time.
+See [`document-acquisition-and-text.md`](document-acquisition-and-text.md).
 
 ### Features, models, and opportunity scores
 

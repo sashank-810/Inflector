@@ -247,6 +247,7 @@ def test_phase_6a_announcement_evidence_upgrade_downgrade_upgrade(tmp_path: Path
     finally:
         engine.dispose()
 
+
     command.upgrade(config, "20260928_0011")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     try:
@@ -282,6 +283,7 @@ def test_phase_6a_announcement_evidence_upgrade_downgrade_upgrade(tmp_path: Path
     finally:
         engine.dispose()
 
+
     command.downgrade(config, "20260928_0010")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     try:
@@ -297,5 +299,77 @@ def test_phase_6a_announcement_evidence_upgrade_downgrade_upgrade(tmp_path: Path
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     try:
         assert phase6a_tables.issubset(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+def test_phase_6b_document_text_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-6b-document-text.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    phase6b_tables = {"document_assets", "document_text_extractions"}
+
+    command.upgrade(config, "20260928_0011")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert not phase6b_tables.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0012")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert phase6b_tables.issubset(inspector.get_table_names())
+        asset_columns = {
+            column["name"]: column for column in inspector.get_columns("document_assets")
+        }
+        extraction_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("document_text_extractions")
+        }
+        assert not asset_columns["content_sha256"]["nullable"]
+        assert not asset_columns["warnings_json"]["nullable"]
+        assert extraction_columns["text_object_key"]["nullable"]
+        assert not extraction_columns["page_map_json"]["nullable"]
+        assert {key["referred_table"] for key in inspector.get_foreign_keys("document_assets")} == {
+            "documents"
+        }
+        assert {
+            key["referred_table"]
+            for key in inspector.get_foreign_keys("document_text_extractions")
+        } == {"document_assets"}
+        asset_uniques = inspector.get_unique_constraints("document_assets")
+        assert frozenset({"document_id", "content_sha256"}) in {
+            frozenset(value["column_names"]) for value in asset_uniques
+        }
+        extraction_uniques = inspector.get_unique_constraints("document_text_extractions")
+        extraction_identity = frozenset(
+            {
+                "document_asset_id",
+                "extractor_code",
+                "extractor_semantic_version",
+                "extractor_runtime_version",
+            }
+        )
+        assert extraction_identity in {
+            frozenset(value["column_names"]) for value in extraction_uniques
+        }
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260928_0011")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert not phase6b_tables.intersection(tables)
+        assert {"announcements", "documents", "announcement_documents"}.issubset(tables)
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0012")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert phase6b_tables.issubset(inspect(engine).get_table_names())
     finally:
         engine.dispose()

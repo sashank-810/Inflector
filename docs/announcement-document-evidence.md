@@ -105,11 +105,15 @@ their `SourceRecordView`, including archive provenance and timestamps.
 
 ## Explicitly deferred
 
-Phase 6A does not fetch document bytes, parse PDFs, extract text, run OCR,
-create embeddings, call an LLM, produce summaries, or create document
-interpretations. It creates no catalyst, event-evidence, risk, or management
-commitment rows and performs no direction, sentiment, materiality, importance,
-confidence, or recency-decay classification.
+Phase 6A itself does not fetch document bytes or extract text. Phase 6B now
+adds separately versioned immutable byte acquisition and deterministic
+plain-text/PDF extraction while preserving the Phase 6A Document as the PIT
+source identity; see
+[`document-acquisition-and-text.md`](document-acquisition-and-text.md).
+Neither phase runs OCR, creates embeddings, calls an LLM, produces summaries,
+or creates catalyst, event-evidence, risk, or management-commitment rows. No
+direction, sentiment, materiality, importance, confidence, or recency-decay
+classification exists.
 
 Scoring policies and `score_snapshot_v1`, `score_snapshot_v2`, and
 `score_snapshot_v3` are unchanged. V3 maximum standard component coverage

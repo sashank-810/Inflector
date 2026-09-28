@@ -273,19 +273,22 @@ caps, and activation policy.
 
 ## Phase 6 — announcement and catalyst evidence
 
-### Phase 6A — Announcement & Document Evidence Foundation (acceptance pending)
+### Phase 6A — Announcement & Document Evidence Foundation (complete)
 
 Persist provider-neutral, append-only announcement and document metadata with
 raw archive provenance, deterministic validation, revision ordering, and PIT
 reads. This phase is source evidence only: it adds no document text, AI,
 catalyst/risk interpretation, or scoring.
 
-### Planned next: Phase 6B — Document acquisition/text/evidence extraction foundation
+### Phase 6B — Document acquisition/text/evidence extraction foundation (acceptance pending)
 
-Acquire approved document bytes and establish reviewed text/evidence
-extraction boundaries. This remains unimplemented.
+Acquire bounded offline document bytes into immutable content-addressed
+storage, extract deterministic PDF/plain text with explicit runtime identity,
+and expose page/offset citation primitives. Source knowledge time remains the
+Phase 6A availability timestamp. No OCR, AI, interpretation, or scoring enters
+this phase.
 
-### Then: Phase 6C — Deterministic Catalyst Event Primitives
+### Planned next: Phase 6C — Deterministic Catalyst Event Primitives
 
 Derive separately reviewed deterministic event primitives from accepted
 evidence. This remains unimplemented.

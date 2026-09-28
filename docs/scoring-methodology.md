@@ -190,6 +190,13 @@ recency decay, materiality, sentiment, importance, guidance, or risk. Any
 future deterministic event primitives and component policy require separate
 review, and unreviewed AI extraction cannot enter scoring.
 
+Phase 6B adds exact document-byte acquisition, deterministic plain-text/PDF
+extraction, and citable page/offset slices only. These source representations
+have no direction, sentiment, materiality, catalyst type, confidence, or score
+effect. Acquisition and extraction timestamps do not replace the Phase 6A
+source availability cutoff. Business Catalyst and Low Market Attention remain
+missing, v1/v2/v3 coverage is unchanged, and `final_score` remains null.
+
 ### Quality, cash flow, and balance sheet (35 combined)
 
 Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE

@@ -287,6 +287,77 @@ class Document(Base):
     )
 
 
+class DocumentAsset(Base):
+    """Immutable content-addressed bytes acquired for one Phase 6A document."""
+
+    __tablename__ = "document_assets"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_id",
+            "content_sha256",
+            name="uq_document_asset_content",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    size_bytes: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    requested_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    resolved_uri: Mapped[str | None] = mapped_column(Text, nullable=True)
+    declared_media_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    detected_media_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(48), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class DocumentTextExtraction(Base):
+    """Immutable deterministic text extraction identity and object lineage."""
+
+    __tablename__ = "document_text_extractions"
+    __table_args__ = (
+        UniqueConstraint(
+            "document_asset_id",
+            "extractor_code",
+            "extractor_semantic_version",
+            "extractor_runtime_version",
+            name="uq_document_text_extraction_identity",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    document_asset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("document_assets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    extractor_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    extractor_semantic_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    extractor_runtime_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    text_object_key: Mapped[str | None] = mapped_column(Text, nullable=True)
+    text_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    character_count: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    page_count: Mapped[int | None] = mapped_column(nullable=True)
+    page_map_json: Mapped[list[dict[str, object]]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(48), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    extracted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class AnnouncementDocument(Base):
     """Revision-specific relation between an announcement and its document set."""
 

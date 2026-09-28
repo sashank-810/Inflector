@@ -337,6 +337,16 @@ not acquire document bytes, extract text, invoke AI, classify catalysts or
 risks, or change scoring. See
 [`announcement-document-evidence.md`](announcement-document-evidence.md).
 
+Phase 6B adds a second, still non-interpretive evidence boundary. A bounded
+offline fetch port acquires exact document bytes into content-addressed
+storage; deterministic plain-text and `pypdf` extractors create immutable text
+objects with explicit semantic/runtime identities and page-offset hashes.
+Readers consume an already PIT-selected Phase 6A document, so source
+`available_at` remains distinct from operational retrieval and extraction
+times. No HTTP fetcher, OCR, AI, event classification, score, or snapshot
+change is introduced. See
+[`document-acquisition-and-text.md`](document-acquisition-and-text.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -181,6 +181,9 @@ class _FailingRawStore:
     def put(self, content: bytes) -> ArchivedRawObject:
         raise OSError("archive unavailable")
 
+    def get(self, object_key: str) -> bytes:
+        raise OSError("archive unavailable")
+
 
 def test_archive_failure_creates_no_zombie_run(session) -> None:
     service = IngestionService(session, _FailingRawStore())

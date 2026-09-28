@@ -143,3 +143,25 @@ hashed as a substitute. Phase 6A performs no PDF extraction, OCR, text storage,
 AI interpretation, or catalyst/risk classification. PIT behavior and the
 complete validation contract are documented in
 [`announcement-document-evidence.md`](announcement-document-evidence.md).
+
+## Document acquisition and text (Phase 6B)
+
+Phase 6B stores actual attachment bytes separately from the Phase 6A provider
+metadata archive. Acquisition is bounded by an explicit maximum size and uses
+only mock or configured-root local-file fetchers; arbitrary HTTP(S) fetching is
+absent. Exact fetched bytes are hashed and stored content-addressably. A
+provider hash match is `verified`; the first no-hash asset is
+`accepted_unverified`; hash mismatches, changed content behind an immutable
+Document URI, and empty content remain archived but cannot be extracted.
+
+Deterministic extraction supports strict UTF-8 plain text and page-by-page PDF
+text through `pypdf`. It records extractor code, semantic version, and runtime
+package version. CRLF and CR normalize to LF; no other semantic rewriting is
+allowed. Page strings join with `"\n\f\n"`, and page maps retain exact Unicode
+offsets plus UTF-8 page hashes. Full text is another immutable object-store
+object, never a PostgreSQL blob.
+
+Source `available_at`, asset `retrieved_at`, and extraction `extracted_at` are
+distinct. PIT eligibility continues to use only the Phase 6A source time. No
+OCR, AI, catalyst inference, event-evidence persistence, or scoring occurs.
+See [`document-acquisition-and-text.md`](document-acquisition-and-text.md).
