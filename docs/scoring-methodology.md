@@ -241,9 +241,18 @@ are 0.30/0.10/0.15/0.15/0.10/0.10/0.10 and its coverage floor is 0.70.
 Volatility ratio and consolidation are explicitly negated; other signals use
 identity. Missing positive weights renormalize only after the floor passes.
 Absolute volatility and absolute close-times-volume are not scored. The result
-is confirmation evidence, not timing, recommendation, alpha, or a forecast. It
-has no confidence multiplication, top-level 5%, persistence, v2 integration,
-or final score.
+is confirmation evidence, not timing, recommendation, alpha, or a forecast.
+The pure scorer has no confidence multiplication or top-level 5%; it remains
+absent from v2 and never computes a final score.
+
+Phase 4D-G's `score_snapshot_v3` may persist the pure Valuation and Market
+Structure results alongside the four financial components after one
+provider-first financial context is selected. Valuation participates in
+financial-context scoreability; Market Structure cannot influence that
+selection and retains its explicit security, market, action, and benchmark
+identity. Standard v3 coverage reaches `0.75` without top-level
+renormalization. This is coverage rather than a final score: confidence remains
+separate, final contributions remain null, and `final_score` remains null.
 
 Attention remains a separate unimplemented domain spanning institutional
 holdings, coverage/news/search proxies, and other approved observations. Low

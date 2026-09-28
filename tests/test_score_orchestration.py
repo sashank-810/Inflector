@@ -21,6 +21,13 @@ from inflector_core.component_scoring import (
     FinancialInflectionComponentScorer,
     FinancialInflectionEvidence,
 )
+from inflector_core.market_structure_scoring import (
+    MARKET_STRUCTURE_COMPONENT_VERSION,
+    MARKET_STRUCTURE_SUBFACTOR_ORDER,
+    MarketStructureComponentScore,
+    MarketStructureComponentScorer,
+    MarketStructureSubfactorScore,
+)
 from inflector_core.providers import ProviderMetadata
 from inflector_core.score_audit import audit_fingerprint_sha256, canonical_audit_value
 from inflector_core.scoring_policy import (
@@ -31,6 +38,13 @@ from inflector_core.scoring_policy import (
     FinancialContextPolicyResolver,
     FinancialContextSelection,
     scoring_policy_from_mapping,
+)
+from inflector_core.valuation_scoring import (
+    VALUATION_COMPONENT_VERSION,
+    VALUATION_SUBFACTOR_ORDER,
+    ValuationComponentScore,
+    ValuationComponentScorer,
+    ValuationSubfactorScore,
 )
 from inflector_data.archive import LocalRawObjectStore
 from inflector_data.capital_features import (
@@ -46,6 +60,7 @@ from inflector_data.cash_flow_features import (
     ReceivableDaysValue,
     TradeWorkingCapitalChangeValue,
 )
+from inflector_data.corporate_action_pit import PointInTimeCorporateAction
 from inflector_data.financial_features import (
     FinancialInflectionFeatures,
     GrowthAccelerationValue,
@@ -58,6 +73,15 @@ from inflector_data.growth_history_features import (
     ComparableGrowthWindow,
     GrowthConsistencyValue,
     GrowthPersistenceValue,
+)
+from inflector_data.market_pit import (
+    BenchmarkSeriesView,
+    PointInTimeBenchmarkBar,
+    PointInTimeMarketBar,
+)
+from inflector_data.market_structure_features import (
+    MarketStructureFeatureBundle,
+    MarketStructureFeatureValue,
 )
 from inflector_data.period_normalization import (
     FiscalQuarterNormalizer,
@@ -74,13 +98,21 @@ from inflector_data.pit import (
 )
 from inflector_data.providers import CSVFinancialsProvider, CSVUniverseProvider
 from inflector_data.score_orchestration import (
+    CROSS_DOMAIN_COMPONENT_ORDER,
+    SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION,
     SCORE_SNAPSHOT_FINANCIAL_V2_VERSION,
+    CrossDomainContextCandidate,
     FinancialComponentContextCandidate,
     NoActiveScoringConfigurationError,
     ScoreSnapshotOrchestrator,
 )
 from inflector_data.service import IngestionService
 from inflector_data.ttm import TrailingTwelveMonthValue
+from inflector_data.valuation_features import (
+    SimplifiedEnterpriseValue,
+    ValuationFeatureBundle,
+    ValuationMultipleValue,
+)
 from inflector_database.models import (
     Company,
     DataProvider,
@@ -88,8 +120,11 @@ from inflector_database.models import (
     ScoreComponent,
     ScoreExplanation,
     ScoreSnapshot,
+    Security,
 )
 from inflector_database.score_repository import (
+    V2_COMPONENT_CODES,
+    V3_COMPONENT_CODES,
     ScoreSnapshotIntegrityError,
     ScoreSnapshotRepository,
 )
@@ -99,6 +134,7 @@ FIXTURES = Path(__file__).parent / "fixtures"
 POLICY_FIXTURE = FIXTURES / "inflection_model_v1_scoring_development.json"
 AS_OF = datetime(2027, 8, 1, 12, tzinfo=UTC)
 COMPANY_ID = UUID("aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa")
+SECURITY_ID = UUID("bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb")
 
 
 def _policy_mapping(
@@ -186,6 +222,22 @@ def _orchestrator(session) -> ScoreSnapshotOrchestrator:
         EligibilityEvaluator(),
         ConfidenceEvaluator(),
         FinancialInflectionComponentScorer(),
+    )
+
+
+def _v3_orchestrator(session) -> ScoreSnapshotOrchestrator:
+    return ScoreSnapshotOrchestrator(
+        ScoringPolicyRepository(session),
+        ScoreSnapshotRepository(session),
+        FinancialContextPolicyResolver(),
+        EligibilityEvaluator(),
+        ConfidenceEvaluator(),
+        FinancialInflectionComponentScorer(),
+        valuation_scorer=cast(ValuationComponentScorer, _DeterministicValuationScorer()),
+        market_structure_scorer=cast(
+            MarketStructureComponentScorer,
+            _DeterministicMarketStructureScorer(),
+        ),
     )
 
 
@@ -1461,6 +1513,840 @@ def test_real_pit_lineage_restatement_and_historical_idempotency(session, tmp_pa
     assert fact["raw_payload_reference"]
     history = ScoreSnapshotRepository(session).list_company_score_snapshots(company_id)
     assert [item.id for item in history] == [restated.record.id, before.record.id]
+
+
+def _v3_policy_mapping(providers: tuple[UUID, ...]) -> dict[str, object]:
+    value = json.loads(
+        (FIXTURES / "inflection_model_v1_market_structure_development.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    value["financial_context"]["provider_dataset_priority"] = [
+        str(provider) for provider in providers
+    ]
+    return cast(dict[str, object], value)
+
+
+def _v3_security(session, company_id: UUID = COMPANY_ID) -> Security:
+    security = Security(
+        id=SECURITY_ID,
+        company_id=company_id,
+        isin="INE000V30001",
+        security_type="equity",
+        status="inactive",
+    )
+    session.add(security)
+    session.flush()
+    return security
+
+
+def _source(label: str) -> SourceRecordView:
+    return SourceRecordView(
+        id=uuid4(),
+        external_record_id=f"external-{label}",
+        source_uri=f"synthetic://{label}",
+        raw_object_key=f"raw/{label}.json",
+        raw_payload_reference=f"row:{label}",
+        content_sha256="b" * 64,
+        validation_status="accepted",
+    )
+
+
+def _market_bar(market_provider_id: UUID, label: str = "market") -> PointInTimeMarketBar:
+    return PointInTimeMarketBar(
+        id=uuid4(),
+        provider_dataset_id=market_provider_id,
+        security_id=SECURITY_ID,
+        trading_date=date(2027, 7, 30),
+        interval="1d",
+        open_price=Decimal("99"),
+        high_price=Decimal("102"),
+        low_price=Decimal("98"),
+        close_price=Decimal("100"),
+        volume=1000,
+        market_cap=Decimal("1000000"),
+        delivery_quantity=600,
+        delivery_percentage=Decimal("0.60"),
+        available_at=AS_OF - timedelta(hours=2),
+        revision_at=None,
+        ingested_at=AS_OF - timedelta(hours=1),
+        source_record=_source(label),
+    )
+
+
+def _benchmark_bar(benchmark_provider_id: UUID, label: str) -> PointInTimeBenchmarkBar:
+    return PointInTimeBenchmarkBar(
+        id=uuid4(),
+        benchmark_series=BenchmarkSeriesView(
+            id=uuid4(),
+            provider_dataset_id=benchmark_provider_id,
+            code="NIFTY_500",
+            display_name="Nifty 500",
+            currency="INR",
+        ),
+        trading_date=date(2027, 7, 30),
+        interval="1d",
+        open_value=Decimal("20000"),
+        high_value=Decimal("20100"),
+        low_value=Decimal("19900"),
+        close_value=Decimal("20050"),
+        available_at=AS_OF - timedelta(hours=2),
+        revision_at=None,
+        ingested_at=AS_OF - timedelta(hours=1),
+        source_record=_source(label),
+    )
+
+
+def _corporate_action(action_provider_id: UUID, label: str) -> PointInTimeCorporateAction:
+    return PointInTimeCorporateAction(
+        id=uuid4(),
+        provider_dataset_id=action_provider_id,
+        security_id=SECURITY_ID,
+        action_type="split",
+        announcement_date=date(2027, 6, 1),
+        ex_date=date(2027, 6, 15),
+        record_date=date(2027, 6, 16),
+        effective_date=date(2027, 6, 15),
+        ratio_numerator=2,
+        ratio_denominator=1,
+        cash_amount=None,
+        cash_currency=None,
+        cash_unit=None,
+        subscription_price=None,
+        subscription_currency=None,
+        exchange="NSE",
+        old_symbol=None,
+        new_symbol=None,
+        successor_isin=None,
+        available_at=AS_OF - timedelta(days=1),
+        revision_at=None,
+        ingested_at=AS_OF - timedelta(hours=1),
+        source_record=_source(label),
+    )
+
+
+def _valuation_bundle(
+    financial_provider_id: UUID,
+    market_provider_id: UUID,
+    *,
+    scope: str = "consolidated",
+    score_marker: str = "79.5",
+    market_bar: PointInTimeMarketBar | None = None,
+) -> ValuationFeatureBundle:
+    bar = market_bar or _market_bar(market_provider_id, "valuation-market")
+    features: dict[str, ValuationMultipleValue] = {}
+    for index, code in enumerate(VALUATION_SUBFACTOR_ORDER, start=1):
+        features[code] = ValuationMultipleValue(
+            code=code,
+            value=Decimal(score_marker) + Decimal(index),
+            unit="ratio",
+            numerator_value=Decimal("1000"),
+            numerator_unit="INR",
+            denominator_value=Decimal("100"),
+            denominator_unit="INR",
+            warnings=(),
+            as_of=AS_OF,
+            available_at=AS_OF - timedelta(hours=1),
+            algorithm_version=f"{code}_v1",
+            evidence=(bar,),
+        )
+    simplified_ev = SimplifiedEnterpriseValue(
+        value=Decimal("1100"),
+        unit="INR",
+        market_cap=Decimal("1000"),
+        total_debt=Decimal("200"),
+        cash_and_equivalents=Decimal("100"),
+        net_debt=Decimal("100"),
+        warnings=(),
+        as_of=AS_OF,
+        available_at=AS_OF - timedelta(hours=1),
+        algorithm_version="simplified_enterprise_value_v1",
+        market_bar=bar,
+        balance_sheet_snapshot=None,
+    )
+    return ValuationFeatureBundle(
+        market_provider_dataset_id=market_provider_id,
+        financial_provider_dataset_id=financial_provider_id,
+        company_id=COMPANY_ID,
+        security_id=SECURITY_ID,
+        filing_scope=scope,
+        ending_fiscal_year=2027,
+        ending_fiscal_quarter=2,
+        market_on_or_before=date(2027, 7, 30),
+        as_of=AS_OF,
+        market_bar=bar,
+        ttm_revenue=None,
+        ttm_pat=None,
+        ttm_ebitda=None,
+        equity_snapshot=None,
+        net_debt_snapshot=None,
+        simplified_enterprise_value=simplified_ev,
+        market_cap_to_ttm_pat=features["market_cap_to_ttm_pat"],
+        market_cap_to_total_equity=features["market_cap_to_total_equity"],
+        market_cap_to_ttm_revenue=features["market_cap_to_ttm_revenue"],
+        simplified_ev_to_ttm_ebitda=features["simplified_ev_to_ttm_ebitda"],
+        simplified_ev_to_ttm_revenue=features["simplified_ev_to_ttm_revenue"],
+        algorithm_version="valuation_feature_bundle_v1",
+    )
+
+
+def _market_structure_bundle(
+    market_provider_id: UUID,
+    action_provider_id: UUID,
+    benchmark_provider_id: UUID,
+    *,
+    relative_strength: str = "0.20",
+    close_to_sma20: str = "0.05",
+    delivery: str = "0.60",
+    lineage_label: str = "base",
+) -> MarketStructureFeatureBundle:
+    bar = _market_bar(market_provider_id, f"market-{lineage_label}")
+    benchmark = _benchmark_bar(benchmark_provider_id, f"benchmark-{lineage_label}")
+    action = _corporate_action(action_provider_id, f"action-{lineage_label}")
+    values = {
+        "relative_strength_60_to_benchmark": relative_strength,
+        "close_to_sma20": close_to_sma20,
+        "sma20_to_sma60": "0.10",
+        "return_volatility_20": "0.12",
+        "return_volatility_60": "0.20",
+        "volatility_ratio_20_to_60": "0.60",
+        "consolidation_range_20": "0.08",
+        "average_close_times_volume_20_inr": "100000",
+        "close_times_volume_ratio_20_to_60": "1.50",
+        "average_delivery_percentage_20": delivery,
+    }
+    features: dict[str, MarketStructureFeatureValue] = {}
+    for code, value in values.items():
+        if code == "relative_strength_60_to_benchmark":
+            evidence: object = (bar, benchmark)
+        elif code == "close_to_sma20":
+            evidence = (bar, action)
+        else:
+            evidence = (bar,)
+        features[code] = MarketStructureFeatureValue(
+            code=code,
+            value=Decimal(value),
+            unit="INR" if code == "average_close_times_volume_20_inr" else "ratio",
+            warnings=(),
+            as_of=AS_OF,
+            available_at=AS_OF - timedelta(hours=1),
+            algorithm_version=f"{code}_v1",
+            evidence=evidence,
+        )
+    return MarketStructureFeatureBundle(
+        market_provider_dataset_id=market_provider_id,
+        corporate_action_provider_dataset_id=action_provider_id,
+        benchmark_provider_dataset_id=benchmark_provider_id,
+        benchmark_code="NIFTY_500",
+        security_id=SECURITY_ID,
+        interval="1d",
+        market_on_or_before=date(2027, 7, 30),
+        as_of=AS_OF,
+        basis_date=date(2027, 7, 30),
+        relative_strength_60_to_benchmark=features["relative_strength_60_to_benchmark"],
+        close_to_sma20=features["close_to_sma20"],
+        sma20_to_sma60=features["sma20_to_sma60"],
+        return_volatility_20=features["return_volatility_20"],
+        return_volatility_60=features["return_volatility_60"],
+        volatility_ratio_20_to_60=features["volatility_ratio_20_to_60"],
+        consolidation_range_20=features["consolidation_range_20"],
+        average_close_times_volume_20_inr=features["average_close_times_volume_20_inr"],
+        close_times_volume_ratio_20_to_60=features["close_times_volume_ratio_20_to_60"],
+        average_delivery_percentage_20=features["average_delivery_percentage_20"],
+        algorithm_version="market_structure_feature_bundle_v1",
+    )
+
+
+class _DeterministicValuationScorer:
+    def score(self, *, evidence, policy) -> ValuationComponentScore:
+        assert policy.valuation is not None
+        weights = policy.valuation.subfactor_weights
+        score_value = cast(Decimal, evidence.market_cap_to_ttm_pat.value) - Decimal("1")
+        subfactors = tuple(
+            ValuationSubfactorScore(
+                code=code,
+                raw_value=getattr(evidence, code).value,
+                raw_unit="ratio",
+                normalized_raw_value=None,
+                normalized_raw_unit=None,
+                scoring_value=-getattr(evidence, code).value,
+                scoring_unit="ratio",
+                transform_code=f"negate_{code}",
+                normalized_score=score_value,
+                configured_weight=getattr(weights, code),
+                effective_weight=getattr(weights, code),
+                contribution=score_value * getattr(weights, code),
+                input_available_at=getattr(evidence, code).available_at,
+                evidence_type="ValuationMultipleValue",
+                evidence=getattr(evidence, code),
+                curve_algorithm_version="piecewise_linear_v1",
+            )
+            for code in VALUATION_SUBFACTOR_ORDER
+        )
+        return ValuationComponentScore(
+            company_id=evidence.company_id,
+            security_id=evidence.security_id,
+            market_provider_dataset_id=evidence.market_provider_dataset_id,
+            financial_provider_dataset_id=evidence.financial_provider_dataset_id,
+            filing_scope=evidence.filing_scope,
+            ending_fiscal_year=evidence.ending_fiscal_year,
+            ending_fiscal_quarter=evidence.ending_fiscal_quarter,
+            score=score_value,
+            unit="score_0_100",
+            weight_coverage=Decimal("1"),
+            available_weight=Decimal("1"),
+            subfactors=subfactors,
+            unavailable_subfactors=(),
+            missing_subfactors=(),
+            warnings=(),
+            as_of=evidence.as_of,
+            available_at=max(item.input_available_at for item in subfactors),
+            algorithm_version=VALUATION_COMPONENT_VERSION,
+        )
+
+
+class _DeterministicMarketStructureScorer:
+    def score(self, *, evidence, policy) -> MarketStructureComponentScore:
+        assert policy.market_structure is not None
+        weights = policy.market_structure.subfactor_weights
+        subfactors = []
+        for code in MARKET_STRUCTURE_SUBFACTOR_ORDER:
+            feature = getattr(evidence, code)
+            transform = (
+                f"negate_{code}"
+                if code in {"volatility_ratio_20_to_60", "consolidation_range_20"}
+                else "identity"
+            )
+            scoring_value = -feature.value if transform != "identity" else feature.value
+            subfactors.append(
+                MarketStructureSubfactorScore(
+                    code=code,
+                    raw_value=feature.value,
+                    raw_unit="ratio",
+                    normalized_raw_value=None,
+                    normalized_raw_unit=None,
+                    scoring_value=scoring_value,
+                    scoring_unit="ratio",
+                    transform_code=transform,
+                    normalized_score=Decimal("81"),
+                    configured_weight=getattr(weights, code),
+                    effective_weight=getattr(weights, code),
+                    contribution=Decimal("81") * getattr(weights, code),
+                    input_available_at=feature.available_at,
+                    evidence_type="MarketStructureFeatureValue",
+                    evidence=feature,
+                    curve_algorithm_version="piecewise_linear_v1",
+                )
+            )
+        return MarketStructureComponentScore(
+            security_id=evidence.security_id,
+            market_provider_dataset_id=evidence.market_provider_dataset_id,
+            corporate_action_provider_dataset_id=evidence.corporate_action_provider_dataset_id,
+            benchmark_provider_dataset_id=evidence.benchmark_provider_dataset_id,
+            benchmark_code=evidence.benchmark_code,
+            interval=evidence.interval,
+            basis_date=evidence.basis_date,
+            market_on_or_before=evidence.market_on_or_before,
+            score=Decimal("81.0"),
+            unit="score_0_100",
+            weight_coverage=Decimal("1"),
+            available_weight=Decimal("1"),
+            subfactors=tuple(subfactors),
+            unavailable_subfactors=(),
+            missing_subfactors=(),
+            warnings=(),
+            as_of=evidence.as_of,
+            available_at=max(item.input_available_at for item in subfactors),
+            algorithm_version=MARKET_STRUCTURE_COMPONENT_VERSION,
+        )
+
+
+def _v3_candidate(
+    provider_id: UUID,
+    market_provider_id: UUID,
+    *,
+    financial: bool = True,
+    valuation: bool = True,
+    valuation_marker: str = "79.5",
+) -> CrossDomainContextCandidate:
+    return CrossDomainContextCandidate(
+        provider_dataset_id=provider_id,
+        filing_scope="consolidated",
+        financial_inflection=_candidate(provider_id) if financial else None,
+        business_quality=_v2_business_quality(provider_id) if financial else None,
+        cash_flow_quality=_v2_cash_flow_quality(provider_id) if financial else None,
+        balance_sheet=_v2_balance_sheet(provider_id) if financial else None,
+        valuation=(
+            _valuation_bundle(provider_id, market_provider_id, score_marker=valuation_marker)
+            if valuation
+            else None
+        ),
+    )
+
+
+def _run_v3(
+    orchestrator: ScoreSnapshotOrchestrator,
+    candidates: tuple[CrossDomainContextCandidate, ...],
+    market_structure: MarketStructureFeatureBundle | None,
+    *,
+    family: str = "cross_domain_v3",
+):
+    return orchestrator.orchestrate_cross_domain_components_and_persist(
+        model_family=family,
+        company_id=COMPANY_ID,
+        security_id=SECURITY_ID,
+        ending_fiscal_year=2027,
+        ending_fiscal_quarter=2,
+        knowledge_cutoff=AS_OF,
+        eligibility_inputs=_eligibility(),
+        confidence_inputs=_confidence(),
+        cross_domain_context_candidates=candidates,
+        market_structure_evidence=market_structure,
+    )
+
+
+def test_v3_full_cross_domain_snapshot_is_auditable_and_idempotent(session) -> None:
+    _, datasets = _identities(session, 4)
+    financial, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (financial,),
+        family="cross_domain_v3",
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    orchestrator = _v3_orchestrator(session)
+    market_bundle = _market_structure_bundle(market, action, benchmark)
+    candidate = _v3_candidate(financial, market)
+    assert candidate.business_quality is not None
+    lineaged_quality = _v2_lineaged_business_quality(financial, uuid4())
+    candidate = replace(
+        candidate,
+        business_quality=replace(
+            candidate.business_quality,
+            margin=lineaged_quality.margin,
+        ),
+    )
+
+    first = _run_v3(orchestrator, (candidate,), market_bundle)
+    second = _run_v3(orchestrator, (candidate,), market_bundle)
+    snapshot = first.record
+    components = {item.component_code: item for item in snapshot.components}
+
+    assert first.created and not second.created and first.record.id == second.record.id
+    assert snapshot.algorithm_version == SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION
+    assert snapshot.selected_security_id == SECURITY_ID
+    assert snapshot.snapshot_status == "partial_component_set"
+    assert snapshot.available_component_codes_json == list(CROSS_DOMAIN_COMPONENT_ORDER)
+    assert [item.component_code for item in snapshot.components] == list(
+        CROSS_DOMAIN_COMPONENT_ORDER
+    )
+    assert snapshot.missing_component_codes_json == [
+        "business_catalyst",
+        "low_market_attention",
+    ]
+    assert snapshot.top_level_component_weight_coverage == Decimal("0.75")
+    assert snapshot.final_score is None
+    assert all(item.final_contribution is None for item in snapshot.components)
+    assert components["valuation"].score == Decimal("79.5")
+    assert components["market_structure"].score == Decimal("81.0")
+    context = cast(dict[str, object], snapshot.context_resolution_json)
+    financial_context = cast(dict[str, object], context["financial_context"])
+    assert financial_context["selected"] == {
+        "filing_scope": "consolidated",
+        "provider_dataset_id": str(financial),
+        "provider_priority_index": 0,
+        "scope_priority_index": 0,
+        "fallback_used": False,
+        "selection_reason": "preferred_provider_preferred_scope",
+    }
+    assert context["market_context"] == {
+        "security_id": str(SECURITY_ID),
+        "market_provider_dataset_id": str(market),
+        "corporate_action_provider_dataset_id": str(action),
+        "benchmark_provider_dataset_id": str(benchmark),
+        "benchmark_code": "NIFTY_500",
+        "interval": "1d",
+        "market_on_or_before": "2027-07-30",
+        "basis_date": "2027-07-30",
+    }
+    valuation_explanation = components["valuation"].explanations[0]
+    market_explanations = {
+        item.factor_code: item for item in components["market_structure"].explanations
+    }
+    assert valuation_explanation.template_code == "valuation_subfactor_v1"
+    valuation_transform = cast(
+        dict[str, object],
+        valuation_explanation.evidence_manifest_json["scoring_transform"],
+    )
+    assert cast(str, valuation_transform["transform_code"]).startswith("negate_")
+    volatility_transform = cast(
+        dict[str, object],
+        market_explanations["volatility_ratio_20_to_60"].evidence_manifest_json[
+            "scoring_transform"
+        ],
+    )
+    consolidation_transform = cast(
+        dict[str, object],
+        market_explanations["consolidation_range_20"].evidence_manifest_json["scoring_transform"],
+    )
+    assert volatility_transform["transform_code"] == "negate_volatility_ratio_20_to_60"
+    assert consolidation_transform["transform_code"] == "negate_consolidation_range_20"
+    component_manifest_values = cast(
+        list[dict[str, object]], snapshot.input_manifest_json["components"]
+    )
+    manifests: dict[str, dict[str, object]] = {
+        cast(str, item["component_code"]): item for item in component_manifest_values
+    }
+    assert manifests["valuation"]["market_bars"]
+    assert manifests["valuation"]["benchmark_bars"] == []
+    assert manifests["market_structure"]["market_bars"]
+    assert manifests["market_structure"]["benchmark_bars"]
+    assert manifests["market_structure"]["corporate_actions"]
+    assert manifests["market_structure"]["financial_facts"] == []
+    assert manifests["business_quality"]["financial_facts"]
+    union = cast(dict[str, object], snapshot.input_manifest_json["union"])
+    assert union["market_bars"] and union["benchmark_bars"] and union["corporate_actions"]
+    algorithm_versions = cast(list[dict[str, object]], union["component_algorithm_versions"])
+    assert {item["algorithm_version"] for item in algorithm_versions} >= {
+        VALUATION_COMPONENT_VERSION,
+        MARKET_STRUCTURE_COMPONENT_VERSION,
+    }
+
+
+@pytest.mark.parametrize(
+    ("valuation", "market_structure", "expected_coverage"),
+    [
+        (False, False, Decimal("0.60")),
+        (False, True, Decimal("0.65")),
+        (True, False, Decimal("0.70")),
+        (True, True, Decimal("0.75")),
+    ],
+)
+def test_v3_partial_coverage_has_no_top_level_renormalization(
+    session,
+    valuation: bool,
+    market_structure: bool,
+    expected_coverage: Decimal,
+) -> None:
+    _, datasets = _identities(session, 4)
+    financial, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    family = f"v3_partial_{valuation}_{market_structure}"
+    _persist_policy(
+        session,
+        (financial,),
+        family=family,
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    result = _run_v3(
+        _v3_orchestrator(session),
+        (_v3_candidate(financial, market, valuation=valuation),),
+        _market_structure_bundle(market, action, benchmark) if market_structure else None,
+        family=family,
+    )
+    assert result.record.top_level_component_weight_coverage == expected_coverage
+    assert result.record.final_score is None
+    assert all(item.final_contribution is None for item in result.record.components)
+
+
+def test_v3_financial_context_is_provider_first_not_score_or_coverage_shopping(session) -> None:
+    _, datasets = _identities(session, 5)
+    p1, p2, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (p1, p2),
+        family="v3_anti_shopping",
+        mapping=_v3_policy_mapping((p1, p2)),
+    )
+    orchestrator = _v3_orchestrator(session)
+    market_bundle = _market_structure_bundle(market, action, benchmark)
+    p1_candidate = CrossDomainContextCandidate(
+        provider_dataset_id=p1,
+        filing_scope="consolidated",
+        valuation=_valuation_bundle(p1, market, score_marker="10"),
+    )
+    p2_candidate = _v3_candidate(p2, market, valuation_marker="99")
+
+    low_score = _run_v3(
+        orchestrator,
+        (p1_candidate, p2_candidate),
+        market_bundle,
+        family="v3_anti_shopping",
+    )
+    changed_market = _run_v3(
+        orchestrator,
+        (p1_candidate, p2_candidate),
+        replace(
+            market_bundle,
+            relative_strength_60_to_benchmark=replace(
+                market_bundle.relative_strength_60_to_benchmark,
+                value=Decimal("0.40"),
+            ),
+        ),
+        family="v3_anti_shopping",
+    )
+    assert low_score.record.selected_provider_dataset_id == p1
+    assert changed_market.record.selected_provider_dataset_id == p1
+    assert low_score.record.available_component_codes_json == ["valuation", "market_structure"]
+    resolution = cast(dict[str, object], low_score.record.context_resolution_json)
+    financial_context = cast(dict[str, object], resolution["financial_context"])
+    attempts = cast(list[dict[str, object]], financial_context["attempts"])
+    assert Decimal(cast(str, attempts[0]["available_top_level_weight"])) == Decimal("0.10")
+    assert Decimal(cast(str, attempts[1]["available_top_level_weight"])) == Decimal("0.70")
+
+
+def test_v3_market_structure_cannot_make_financial_context_selectable(session) -> None:
+    _, datasets = _identities(session, 4)
+    financial, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (financial,),
+        family="v3_no_financial_context",
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    result = _run_v3(
+        _v3_orchestrator(session),
+        (
+            CrossDomainContextCandidate(
+                provider_dataset_id=financial,
+                filing_scope="consolidated",
+            ),
+        ),
+        _market_structure_bundle(market, action, benchmark),
+        family="v3_no_financial_context",
+    )
+    assert result.record.snapshot_status == "implemented_components_unavailable"
+    assert result.record.components == []
+    assert result.record.top_level_component_weight_coverage == Decimal("0")
+    resolution = cast(dict[str, object], result.record.context_resolution_json)
+    market_attempt = cast(dict[str, object], resolution["market_structure_attempt"])
+    assert not market_attempt["scoreable"]
+    assert market_attempt["warnings"] == ["financial_context_not_selected"]
+
+
+def test_v3_rejects_security_and_cross_market_mismatches(session) -> None:
+    _, datasets = _identities(session, 5)
+    financial, market, other_market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (financial,),
+        family="v3_coherence",
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    orchestrator = _v3_orchestrator(session)
+    candidate = _v3_candidate(financial, market)
+    mismatched_market = _market_structure_bundle(other_market, action, benchmark)
+    with pytest.raises(ValueError, match="different market providers"):
+        _run_v3(orchestrator, (candidate,), mismatched_market, family="v3_coherence")
+
+    with pytest.raises(ValueError, match="security does not exist"):
+        orchestrator.orchestrate_cross_domain_components_and_persist(
+            model_family="v3_coherence",
+            company_id=COMPANY_ID,
+            security_id=uuid4(),
+            ending_fiscal_year=2027,
+            ending_fiscal_quarter=2,
+            knowledge_cutoff=AS_OF,
+            eligibility_inputs=_eligibility(),
+            confidence_inputs=_confidence(),
+            cross_domain_context_candidates=(candidate,),
+            market_structure_evidence=None,
+        )
+
+
+def test_v3_corrections_change_fingerprint_and_historical_rerun_is_stable(session) -> None:
+    _, datasets = _identities(session, 4)
+    financial, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (financial,),
+        family="v3_corrections",
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    orchestrator = _v3_orchestrator(session)
+    candidate = _v3_candidate(financial, market)
+    base_quality = candidate.business_quality
+    assert base_quality is not None
+    original_quality = _v2_lineaged_business_quality(financial, uuid4())
+    corrected_quality = _v2_lineaged_business_quality(financial, uuid4())
+    candidate = replace(
+        candidate,
+        business_quality=replace(
+            base_quality,
+            margin=original_quality.margin,
+        ),
+    )
+    corrected_financial_candidate = replace(
+        candidate,
+        business_quality=replace(
+            base_quality,
+            margin=corrected_quality.margin,
+        ),
+    )
+    original_bundle = _market_structure_bundle(market, action, benchmark, lineage_label="old")
+    corrected_bundle = _market_structure_bundle(
+        market,
+        action,
+        benchmark,
+        relative_strength="0.40",
+        close_to_sma20="0.10",
+        delivery="0.80",
+        lineage_label="corrected",
+    )
+
+    original = _run_v3(
+        orchestrator,
+        (candidate,),
+        original_bundle,
+        family="v3_corrections",
+    )
+    corrected = _run_v3(
+        orchestrator,
+        (candidate,),
+        corrected_bundle,
+        family="v3_corrections",
+    )
+    financial_restatement = _run_v3(
+        orchestrator,
+        (corrected_financial_candidate,),
+        original_bundle,
+        family="v3_corrections",
+    )
+    historical = _run_v3(
+        orchestrator,
+        (candidate,),
+        original_bundle,
+        family="v3_corrections",
+    )
+    assert original.created and corrected.created and financial_restatement.created
+    assert not historical.created
+    assert historical.record.id == original.record.id
+    assert original.record.snapshot_fingerprint_sha256 != (
+        corrected.record.snapshot_fingerprint_sha256
+    )
+    assert original.record.snapshot_fingerprint_sha256 != (
+        financial_restatement.record.snapshot_fingerprint_sha256
+    )
+    original_components = {
+        item.component_code: item.detail_json for item in original.record.components
+    }
+    corrected_components = {
+        item.component_code: item.detail_json for item in corrected.record.components
+    }
+    assert original_components["valuation"] == corrected_components["valuation"]
+    assert original_components["market_structure"] != corrected_components["market_structure"]
+    restated_components = {
+        item.component_code: item.detail_json for item in financial_restatement.record.components
+    }
+    assert original_components == restated_components
+    original_manifest_values = cast(
+        list[dict[str, object]], original.record.input_manifest_json["components"]
+    )
+    restated_manifest_values = cast(
+        list[dict[str, object]],
+        financial_restatement.record.input_manifest_json["components"],
+    )
+    original_manifests = {
+        cast(str, item["component_code"]): item for item in original_manifest_values
+    }
+    restated_manifests = {
+        cast(str, item["component_code"]): item for item in restated_manifest_values
+    }
+    assert original_manifests["business_quality"] != restated_manifests["business_quality"]
+    assert original_manifests["valuation"] == restated_manifests["valuation"]
+    assert original_manifests["market_structure"] == restated_manifests["market_structure"]
+
+
+def test_v3_repository_code_sets_remain_version_specific() -> None:
+    assert V2_COMPONENT_CODES == frozenset(
+        {
+            "financial_inflection",
+            "business_quality",
+            "cash_flow_quality",
+            "balance_sheet",
+        }
+    )
+    assert V3_COMPONENT_CODES == frozenset(CROSS_DOMAIN_COMPONENT_ORDER)
+
+
+def test_v1_v2_v3_snapshots_coexist_with_distinct_identities(session) -> None:
+    _, datasets = _identities(session, 4)
+    financial, market, action, benchmark = (item.id for item in datasets)
+    _v3_security(session)
+    _persist_policy(
+        session,
+        (financial,),
+        family="snapshot_version_coexistence",
+        mapping=_v3_policy_mapping((financial,)),
+    )
+    orchestrator = _v3_orchestrator(session)
+    v1_candidate = _candidate(financial)
+    v2_candidate = _v2_candidate(financial)
+    v3_candidate = _v3_candidate(financial, market)
+    market_bundle = _market_structure_bundle(market, action, benchmark)
+
+    v1 = _run(
+        orchestrator,
+        (v1_candidate,),
+        model_family="snapshot_version_coexistence",
+    )
+    v2 = _run_v2(
+        orchestrator,
+        (v2_candidate,),
+        family="snapshot_version_coexistence",
+    )
+    v3 = _run_v3(
+        orchestrator,
+        (v3_candidate,),
+        market_bundle,
+        family="snapshot_version_coexistence",
+    )
+    v1_again = _run(
+        orchestrator,
+        (v1_candidate,),
+        model_family="snapshot_version_coexistence",
+    )
+    v2_again = _run_v2(
+        orchestrator,
+        (v2_candidate,),
+        family="snapshot_version_coexistence",
+    )
+    v3_again = _run_v3(
+        orchestrator,
+        (v3_candidate,),
+        market_bundle,
+        family="snapshot_version_coexistence",
+    )
+
+    assert {
+        v1.record.algorithm_version,
+        v2.record.algorithm_version,
+        v3.record.algorithm_version,
+    } == {
+        "score_snapshot_v1",
+        "score_snapshot_v2",
+        "score_snapshot_v3",
+    }
+    assert (
+        len(
+            {
+                v1.record.snapshot_fingerprint_sha256,
+                v2.record.snapshot_fingerprint_sha256,
+                v3.record.snapshot_fingerprint_sha256,
+            }
+        )
+        == 3
+    )
+    assert v1.created and v2.created and v3.created
+    assert not v1_again.created and not v2_again.created and not v3_again.created
+    assert v1.record.id == v1_again.record.id
+    assert v2.record.id == v2_again.record.id
+    assert v3.record.id == v3_again.record.id
 
 
 def test_v2_full_financial_snapshot_is_exact_idempotent_and_non_final(session) -> None:

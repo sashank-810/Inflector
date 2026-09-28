@@ -37,6 +37,12 @@ from inflector_core.component_scoring import (
     FinancialInflectionEvidence,
     FinancialInflectionSubfactorScore,
 )
+from inflector_core.market_structure_scoring import (
+    MARKET_STRUCTURE_SUBFACTOR_ORDER,
+    MarketStructureComponentScore,
+    MarketStructureComponentScorer,
+    MarketStructureSubfactorScore,
+)
 from inflector_core.score_audit import canonical_audit_value
 from inflector_core.scoring_policy import (
     ConfidenceEvaluator,
@@ -47,7 +53,17 @@ from inflector_core.scoring_policy import (
     FinancialContextSelection,
     InflectionScoringPolicy,
 )
+from inflector_core.valuation_scoring import (
+    VALUATION_SUBFACTOR_ORDER,
+    ValuationComponentScore,
+    ValuationComponentScorer,
+    ValuationSubfactorScore,
+)
+from inflector_data.corporate_action_pit import PointInTimeCorporateAction
+from inflector_data.market_pit import PointInTimeBenchmarkBar, PointInTimeMarketBar
+from inflector_data.market_structure_features import MarketStructureFeatureBundle
 from inflector_data.pit import PointInTimeFinancialFact
+from inflector_data.valuation_features import ValuationFeatureBundle
 from inflector_database.score_repository import (
     PersistedScoreSnapshotResult,
     ScoreComponentWrite,
@@ -59,6 +75,7 @@ from inflector_database.scoring_repository import ScoringPolicyRepository
 
 SCORE_SNAPSHOT_VERSION = "score_snapshot_v1"
 SCORE_SNAPSHOT_FINANCIAL_V2_VERSION = "score_snapshot_v2"
+SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION = "score_snapshot_v3"
 EXPLANATION_TEMPLATE_CODE = "financial_inflection_subfactor_v1"
 IMPLEMENTED_FINANCIAL_COMPONENT_ORDER = (
     "financial_inflection",
@@ -66,6 +83,15 @@ IMPLEMENTED_FINANCIAL_COMPONENT_ORDER = (
     "cash_flow_quality",
     "balance_sheet",
 )
+CROSS_DOMAIN_COMPONENT_ORDER = (
+    "financial_inflection",
+    "business_quality",
+    "cash_flow_quality",
+    "balance_sheet",
+    "valuation",
+    "market_structure",
+)
+CROSS_DOMAIN_FINANCIAL_CONTEXT_ORDER = CROSS_DOMAIN_COMPONENT_ORDER[:-1]
 TOP_LEVEL_COMPONENT_ORDER = (
     "financial_inflection",
     "business_catalyst",
@@ -82,12 +108,16 @@ COMPONENT_TEMPLATE_CODES = {
     "business_quality": "business_quality_subfactor_v1",
     "cash_flow_quality": "cash_flow_quality_subfactor_v1",
     "balance_sheet": "balance_sheet_subfactor_v1",
+    "valuation": "valuation_subfactor_v1",
+    "market_structure": "market_structure_subfactor_v1",
 }
 COMPONENT_SUBFACTOR_ORDERS = {
     "financial_inflection": SUBFACTOR_ORDER,
     "business_quality": BUSINESS_QUALITY_SUBFACTOR_ORDER,
     "cash_flow_quality": CASH_FLOW_QUALITY_SUBFACTOR_ORDER,
     "balance_sheet": BALANCE_SHEET_SUBFACTOR_ORDER,
+    "valuation": VALUATION_SUBFACTOR_ORDER,
+    "market_structure": MARKET_STRUCTURE_SUBFACTOR_ORDER,
 }
 
 
@@ -101,12 +131,23 @@ class FinancialComponentContextCandidate:
     balance_sheet: BalanceSheetEvidence | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class CrossDomainContextCandidate:
+    provider_dataset_id: UUID
+    filing_scope: str
+    financial_inflection: FinancialInflectionEvidence | None = None
+    business_quality: BusinessQualityEvidence | None = None
+    cash_flow_quality: CashFlowQualityEvidence | None = None
+    balance_sheet: BalanceSheetEvidence | None = None
+    valuation: ValuationFeatureBundle | None = None
+
+
 class NoActiveScoringConfigurationError(RuntimeError):
     """Raised when orchestration has no active persisted policy at the cutoff."""
 
 
 class ScoreSnapshotOrchestrator:
-    """Resolve policy and persist auditable, non-final v1 or v2 snapshots."""
+    """Resolve policy and persist auditable, non-final versioned snapshots."""
 
     def __init__(
         self,
@@ -119,6 +160,8 @@ class ScoreSnapshotOrchestrator:
         business_quality_scorer: BusinessQualityComponentScorer | None = None,
         cash_flow_quality_scorer: CashFlowQualityComponentScorer | None = None,
         balance_sheet_scorer: BalanceSheetComponentScorer | None = None,
+        valuation_scorer: ValuationComponentScorer | None = None,
+        market_structure_scorer: MarketStructureComponentScorer | None = None,
     ) -> None:
         self._policies = policy_repository
         self._snapshots = snapshot_repository
@@ -131,6 +174,8 @@ class ScoreSnapshotOrchestrator:
             cash_flow_quality_scorer or CashFlowQualityComponentScorer()
         )
         self._balance_sheet_scorer = balance_sheet_scorer or BalanceSheetComponentScorer()
+        self._valuation_scorer = valuation_scorer or ValuationComponentScorer()
+        self._market_structure_scorer = market_structure_scorer or MarketStructureComponentScorer()
 
     def orchestrate_and_persist(
         self,
@@ -268,6 +313,7 @@ class ScoreSnapshotOrchestrator:
                     selected.provider_dataset_id if selected is not None else None
                 ),
                 selected_filing_scope=selected.filing_scope if selected is not None else None,
+                selected_security_id=None,
                 snapshot_status=status,
                 eligibility_eligible=eligibility.eligible,
                 eligibility_inputs_json=eligibility_inputs_json,
@@ -444,6 +490,7 @@ class ScoreSnapshotOrchestrator:
                     selected.provider_dataset_id if selected is not None else None
                 ),
                 selected_filing_scope=selected.filing_scope if selected is not None else None,
+                selected_security_id=None,
                 snapshot_status=status,
                 eligibility_eligible=eligibility.eligible,
                 eligibility_inputs_json=eligibility_inputs_json,
@@ -461,6 +508,256 @@ class ScoreSnapshotOrchestrator:
                 fingerprint_payload_json=fingerprint_payload,
                 final_score=None,
                 algorithm_version=SCORE_SNAPSHOT_FINANCIAL_V2_VERSION,
+                components=tuple(component_writes),
+            )
+        )
+
+    def orchestrate_cross_domain_components_and_persist(
+        self,
+        *,
+        model_family: str,
+        company_id: UUID,
+        security_id: UUID,
+        ending_fiscal_year: int,
+        ending_fiscal_quarter: int,
+        knowledge_cutoff: datetime,
+        eligibility_inputs: EligibilityInputs,
+        confidence_inputs: ConfidenceInputs,
+        cross_domain_context_candidates: tuple[CrossDomainContextCandidate, ...],
+        market_structure_evidence: MarketStructureFeatureBundle | None,
+    ) -> PersistedScoreSnapshotResult:
+        """Persist a v3 partial snapshot across one financial and one market context."""
+
+        cutoff = self._aware_utc(knowledge_cutoff, "knowledge_cutoff")
+        self._snapshots.validate_security_company(security_id, company_id)
+        resolved = self._policies.resolve_active_configuration(
+            model_family=model_family,
+            at=cutoff,
+        )
+        if resolved is None:
+            raise NoActiveScoringConfigurationError(
+                f"no active scoring configuration for {model_family!r}"
+            )
+        if (
+            self._aware_utc(confidence_inputs.knowledge_cutoff, "confidence knowledge_cutoff")
+            != cutoff
+        ):
+            raise ValueError("confidence knowledge cutoff must match orchestration cutoff")
+        if market_structure_evidence is not None:
+            self._validate_market_structure_identity(
+                market_structure_evidence,
+                security_id=security_id,
+                cutoff=cutoff,
+            )
+
+        policy = resolved.policy
+        eligibility = self._eligibility.evaluate(eligibility_inputs, policy.eligibility)
+        confidence = self._confidence.evaluate(confidence_inputs, policy.confidence)
+        selected: FinancialContextSelection | None = None
+        selected_components: dict[
+            str,
+            FinancialInflectionComponentScore
+            | BusinessQualityComponentScore
+            | CashFlowQualityComponentScore
+            | BalanceSheetComponentScore
+            | ValuationComponentScore
+            | MarketStructureComponentScore,
+        ] = {}
+        attempts: list[dict[str, object]] = []
+
+        if eligibility.eligible:
+            selected, selected_components, attempts = self._score_cross_domain_contexts(
+                candidates=cross_domain_context_candidates,
+                policy=policy,
+                company_id=company_id,
+                security_id=security_id,
+                fiscal_year=ending_fiscal_year,
+                fiscal_quarter=ending_fiscal_quarter,
+                cutoff=cutoff,
+            )
+
+        market_result, market_attempt = self._attempt_market_structure(
+            evidence=market_structure_evidence,
+            policy=policy,
+            selected_context_exists=eligibility.eligible and selected is not None,
+        )
+        if market_result is not None:
+            selected_components["market_structure"] = market_result
+
+        selected_candidate = (
+            self._cross_domain_candidate_for_selection(
+                cross_domain_context_candidates,
+                selected,
+            )
+            if selected is not None
+            else None
+        )
+        valuation_result = selected_components.get("valuation")
+        if isinstance(valuation_result, ValuationComponentScore) and market_result is not None:
+            assert selected_candidate is not None and selected_candidate.valuation is not None
+            assert market_structure_evidence is not None
+            self._validate_cross_market_coherence(
+                selected_candidate.valuation,
+                market_structure_evidence,
+                security_id=security_id,
+                cutoff=cutoff,
+            )
+
+        if not eligibility.eligible:
+            status = "ineligible"
+            financial_outcome = "ineligible_not_attempted"
+        elif selected is None:
+            status = "implemented_components_unavailable"
+            financial_outcome = "no_scoreable_context"
+        else:
+            status = "partial_component_set"
+            financial_outcome = "selected"
+
+        valuation_evidence = (
+            selected_candidate.valuation
+            if isinstance(valuation_result, ValuationComponentScore)
+            and selected_candidate is not None
+            else None
+        )
+        market_context = self._market_context_mapping(
+            security_id,
+            market_structure_evidence,
+            valuation_evidence,
+        )
+        context_resolution = {
+            "financial_context": {
+                "attempts": attempts,
+                "outcome": financial_outcome,
+                "selected": (self._selection_mapping(selected) if selected is not None else None),
+            },
+            "market_context": market_context,
+            "market_structure_attempt": market_attempt,
+        }
+
+        component_writes: list[ScoreComponentWrite] = []
+        component_manifests: list[dict[str, object]] = []
+        for code in CROSS_DOMAIN_COMPONENT_ORDER:
+            component = selected_components.get(code)
+            if component is None:
+                continue
+            if code in IMPLEMENTED_FINANCIAL_COMPONENT_ORDER:
+                assert isinstance(
+                    component,
+                    (
+                        FinancialInflectionComponentScore,
+                        BusinessQualityComponentScore,
+                        CashFlowQualityComponentScore,
+                        BalanceSheetComponentScore,
+                    ),
+                )
+                component_write, manifest = self._v3_financial_component_write(
+                    code,
+                    component,
+                    getattr(policy.component_weights, code),
+                )
+            else:
+                assert isinstance(
+                    component, (ValuationComponentScore, MarketStructureComponentScore)
+                )
+                component_write, manifest = self._cross_domain_component_write(
+                    code,
+                    component,
+                    getattr(policy.component_weights, code),
+                    security_id=security_id,
+                )
+            component_writes.append(component_write)
+            component_manifests.append(manifest)
+
+        available_codes = [
+            code for code in CROSS_DOMAIN_COMPONENT_ORDER if code in selected_components
+        ]
+        missing_codes = [
+            code
+            for code in TOP_LEVEL_COMPONENT_ORDER
+            if code not in available_codes and getattr(policy.component_weights, code) > 0
+        ]
+        top_level_coverage = sum(
+            (getattr(policy.component_weights, code) for code in available_codes),
+            Decimal("0"),
+        )
+        input_manifest = {
+            "components": component_manifests,
+            "union": self._cross_domain_snapshot_union(tuple(component_manifests)),
+        }
+
+        eligibility_inputs_json = self._canonical_mapping(eligibility_inputs)
+        confidence_inputs_json = self._canonical_mapping(confidence_inputs)
+        eligibility_result_json = self._canonical_mapping(eligibility)
+        confidence_details_json = self._canonical_mapping(confidence)
+        context_json = self._canonical_dict(context_resolution)
+        input_manifest_json = self._canonical_dict(input_manifest)
+        component_summaries = [component.detail_json for component in component_writes]
+        model = resolved.record.model_version
+        fingerprint_payload = self._canonical_dict(
+            {
+                "algorithm_version": SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION,
+                "company_id": company_id,
+                "security_id": security_id,
+                "model_version_id": model.id,
+                "model_semantic_identity": {
+                    "model_family": model.model_family,
+                    "semantic_version": model.semantic_version,
+                    "git_sha": model.git_sha,
+                },
+                "scoring_configuration_id": resolved.record.id,
+                "configuration_checksum_sha256": resolved.record.checksum_sha256,
+                "as_of_date": cutoff.date(),
+                "knowledge_cutoff": cutoff,
+                "ending_fiscal_year": ending_fiscal_year,
+                "ending_fiscal_quarter": ending_fiscal_quarter,
+                "eligibility_inputs": eligibility_inputs_json,
+                "eligibility_result": eligibility_result_json,
+                "confidence_inputs": confidence_inputs_json,
+                "confidence_result": confidence_details_json,
+                "selected_financial_context": (
+                    self._selection_mapping(selected) if selected is not None else None
+                ),
+                "market_context": market_context,
+                "context_resolution": context_json,
+                "top_level_component_weight_coverage": top_level_coverage,
+                "available_component_codes": available_codes,
+                "missing_component_codes": missing_codes,
+                "components": component_summaries,
+                "input_manifest": input_manifest_json,
+            }
+        )
+        return self._snapshots.persist_snapshot(
+            ScoreSnapshotWrite(
+                company_id=company_id,
+                model_version_id=model.id,
+                scoring_configuration_id=resolved.record.id,
+                configuration_checksum_sha256=resolved.record.checksum_sha256,
+                as_of_date=cutoff.date(),
+                knowledge_cutoff=cutoff,
+                ending_fiscal_year=ending_fiscal_year,
+                ending_fiscal_quarter=ending_fiscal_quarter,
+                selected_provider_dataset_id=(
+                    selected.provider_dataset_id if selected is not None else None
+                ),
+                selected_filing_scope=selected.filing_scope if selected is not None else None,
+                selected_security_id=security_id,
+                snapshot_status=status,
+                eligibility_eligible=eligibility.eligible,
+                eligibility_inputs_json=eligibility_inputs_json,
+                eligibility_reasons_json=list(eligibility.reasons),
+                eligibility_warnings_json=list(eligibility.warnings),
+                financial_core_coverage=eligibility.financial_core_coverage,
+                confidence=confidence.confidence,
+                confidence_inputs_json=confidence_inputs_json,
+                confidence_details_json=confidence_details_json,
+                top_level_component_weight_coverage=top_level_coverage,
+                available_component_codes_json=available_codes,
+                missing_component_codes_json=missing_codes,
+                context_resolution_json=context_json,
+                input_manifest_json=input_manifest_json,
+                fingerprint_payload_json=fingerprint_payload,
+                final_score=None,
+                algorithm_version=SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION,
                 components=tuple(component_writes),
             )
         )
@@ -562,6 +859,339 @@ class ScoreSnapshotOrchestrator:
             else {}
         )
         return selected, selected_results, attempts
+
+    def _score_cross_domain_contexts(
+        self,
+        *,
+        candidates: tuple[CrossDomainContextCandidate, ...],
+        policy: InflectionScoringPolicy,
+        company_id: UUID,
+        security_id: UUID,
+        fiscal_year: int,
+        fiscal_quarter: int,
+        cutoff: datetime,
+    ) -> tuple[
+        FinancialContextSelection | None,
+        dict[
+            str,
+            FinancialInflectionComponentScore
+            | BusinessQualityComponentScore
+            | CashFlowQualityComponentScore
+            | BalanceSheetComponentScore
+            | ValuationComponentScore
+            | MarketStructureComponentScore,
+        ],
+        list[dict[str, object]],
+    ]:
+        by_context: dict[tuple[UUID, str], CrossDomainContextCandidate] = {}
+        for candidate in candidates:
+            if candidate.filing_scope not in {"standalone", "consolidated"}:
+                raise ValueError("candidate filing_scope must be standalone or consolidated")
+            key = (candidate.provider_dataset_id, candidate.filing_scope)
+            if key in by_context:
+                raise ValueError("duplicate cross-domain candidate context")
+            self._validate_cross_domain_candidate(
+                candidate,
+                company_id=company_id,
+                security_id=security_id,
+                fiscal_year=fiscal_year,
+                fiscal_quarter=fiscal_quarter,
+                cutoff=cutoff,
+            )
+            by_context[key] = candidate
+
+        configured_keys = [
+            (provider_id, scope)
+            for provider_id in policy.financial_context.provider_dataset_priority
+            for scope in policy.financial_context.filing_scope_priority
+            if (provider_id, scope) in by_context
+        ]
+        results_by_context: dict[
+            tuple[UUID, str],
+            dict[
+                str,
+                FinancialInflectionComponentScore
+                | BusinessQualityComponentScore
+                | CashFlowQualityComponentScore
+                | BalanceSheetComponentScore
+                | ValuationComponentScore
+                | MarketStructureComponentScore,
+            ],
+        ] = {}
+        attempts: list[dict[str, object]] = []
+        for key in configured_keys:
+            selection = self._contexts.resolve(policy.financial_context, (key,))
+            assert selection is not None
+            candidate = by_context[key]
+            financial_candidate = FinancialComponentContextCandidate(
+                provider_dataset_id=candidate.provider_dataset_id,
+                filing_scope=candidate.filing_scope,
+                financial_inflection=candidate.financial_inflection,
+                business_quality=candidate.business_quality,
+                cash_flow_quality=candidate.cash_flow_quality,
+                balance_sheet=candidate.balance_sheet,
+            )
+            results: dict[
+                str,
+                FinancialInflectionComponentScore
+                | BusinessQualityComponentScore
+                | CashFlowQualityComponentScore
+                | BalanceSheetComponentScore
+                | ValuationComponentScore
+                | MarketStructureComponentScore,
+            ] = {}
+            component_attempts: list[dict[str, object]] = []
+            for code in CROSS_DOMAIN_FINANCIAL_CONTEXT_ORDER:
+                if code == "valuation":
+                    result, attempt = self._attempt_valuation_component(
+                        candidate=candidate,
+                        policy=policy,
+                    )
+                else:
+                    result, attempt = self._attempt_financial_component(
+                        code=code,
+                        candidate=financial_candidate,
+                        selection=selection,
+                        policy=policy,
+                    )
+                attempt["available_top_level_weight"] = (
+                    getattr(policy.component_weights, code) if result is not None else Decimal("0")
+                )
+                component_attempts.append(attempt)
+                if result is not None:
+                    results[code] = result
+            if results:
+                results_by_context[key] = results
+            attempts.append(
+                {
+                    "provider_dataset_id": key[0],
+                    "filing_scope": key[1],
+                    "components": component_attempts,
+                    "context_scoreable": bool(results),
+                    "available_top_level_weight": sum(
+                        (getattr(policy.component_weights, code) for code in results),
+                        Decimal("0"),
+                    ),
+                }
+            )
+
+        selected = self._contexts.resolve(policy.financial_context, results_by_context.keys())
+        selected_results = (
+            results_by_context[(selected.provider_dataset_id, selected.filing_scope)]
+            if selected is not None
+            else {}
+        )
+        return selected, selected_results, attempts
+
+    def _validate_cross_domain_candidate(
+        self,
+        candidate: CrossDomainContextCandidate,
+        *,
+        company_id: UUID,
+        security_id: UUID,
+        fiscal_year: int,
+        fiscal_quarter: int,
+        cutoff: datetime,
+    ) -> None:
+        self._validate_financial_candidate(
+            FinancialComponentContextCandidate(
+                provider_dataset_id=candidate.provider_dataset_id,
+                filing_scope=candidate.filing_scope,
+                financial_inflection=candidate.financial_inflection,
+                business_quality=candidate.business_quality,
+                cash_flow_quality=candidate.cash_flow_quality,
+                balance_sheet=candidate.balance_sheet,
+            ),
+            company_id=company_id,
+            fiscal_year=fiscal_year,
+            fiscal_quarter=fiscal_quarter,
+            cutoff=cutoff,
+        )
+        valuation = candidate.valuation
+        if valuation is None:
+            return
+        if valuation.financial_provider_dataset_id != candidate.provider_dataset_id:
+            raise ValueError("valuation provider does not match candidate key")
+        if valuation.filing_scope != candidate.filing_scope:
+            raise ValueError("valuation scope does not match candidate key")
+        if valuation.company_id != company_id:
+            raise ValueError("valuation company does not match orchestration company")
+        if valuation.security_id != security_id:
+            raise ValueError("valuation security does not match orchestration security")
+        if (valuation.ending_fiscal_year, valuation.ending_fiscal_quarter) != (
+            fiscal_year,
+            fiscal_quarter,
+        ):
+            raise ValueError("valuation endpoint does not match orchestration endpoint")
+        if self._aware_utc(valuation.as_of, "valuation as_of") != cutoff:
+            raise ValueError("valuation as_of does not match orchestration cutoff")
+
+    def _attempt_valuation_component(
+        self,
+        *,
+        candidate: CrossDomainContextCandidate,
+        policy: InflectionScoringPolicy,
+    ) -> tuple[ValuationComponentScore | None, dict[str, object]]:
+        code = "valuation"
+        evidence = candidate.valuation
+        policy_configured = policy.valuation is not None
+        top_level_weight = policy.component_weights.valuation
+        result: ValuationComponentScore | None = None
+        if top_level_weight == 0:
+            warnings = ()
+        elif not policy_configured:
+            warnings = ("valuation_scoring_not_configured",)
+        elif evidence is None:
+            warnings = ("valuation_evidence_missing",)
+        else:
+            result = self._valuation_scorer.score(evidence=evidence, policy=policy)
+            warnings = result.warnings
+        scoreable = result is not None and result.score is not None and top_level_weight > 0
+        attempt = {
+            "component_code": code,
+            "policy_configured": policy_configured,
+            "evidence_supplied": evidence is not None,
+            "scoreable": scoreable,
+            "subfactor_weight_coverage": (
+                result.weight_coverage if result is not None else Decimal("0")
+            ),
+            "warnings": warnings,
+        }
+        return (result if scoreable else None), attempt
+
+    def _attempt_market_structure(
+        self,
+        *,
+        evidence: MarketStructureFeatureBundle | None,
+        policy: InflectionScoringPolicy,
+        selected_context_exists: bool,
+    ) -> tuple[MarketStructureComponentScore | None, dict[str, object]]:
+        policy_configured = policy.market_structure is not None
+        top_level_weight = policy.component_weights.market_structure
+        result: MarketStructureComponentScore | None = None
+        if not selected_context_exists:
+            warnings = ("financial_context_not_selected",)
+        elif top_level_weight == 0:
+            warnings = ()
+        elif not policy_configured:
+            warnings = ("market_structure_scoring_not_configured",)
+        elif evidence is None:
+            warnings = ("market_structure_evidence_missing",)
+        else:
+            result = self._market_structure_scorer.score(evidence=evidence, policy=policy)
+            warnings = result.warnings
+        scoreable = result is not None and result.score is not None and top_level_weight > 0
+        return (
+            result if scoreable else None,
+            {
+                "policy_configured": policy_configured,
+                "evidence_supplied": evidence is not None,
+                "scoreable": scoreable,
+                "subfactor_weight_coverage": (
+                    result.weight_coverage if result is not None else Decimal("0")
+                ),
+                "warnings": warnings,
+            },
+        )
+
+    @staticmethod
+    def _cross_domain_candidate_for_selection(
+        candidates: tuple[CrossDomainContextCandidate, ...],
+        selection: FinancialContextSelection,
+    ) -> CrossDomainContextCandidate:
+        matches = tuple(
+            candidate
+            for candidate in candidates
+            if candidate.provider_dataset_id == selection.provider_dataset_id
+            and candidate.filing_scope == selection.filing_scope
+        )
+        if len(matches) != 1:
+            raise AssertionError("selected financial context has no unique candidate")
+        return matches[0]
+
+    def _validate_market_structure_identity(
+        self,
+        evidence: MarketStructureFeatureBundle,
+        *,
+        security_id: UUID,
+        cutoff: datetime,
+    ) -> None:
+        if evidence.security_id != security_id:
+            raise ValueError("market structure security does not match orchestration security")
+        if self._aware_utc(evidence.as_of, "market structure as_of") != cutoff:
+            raise ValueError("market structure as_of does not match orchestration cutoff")
+
+    def _validate_cross_market_coherence(
+        self,
+        valuation: ValuationFeatureBundle,
+        market_structure: MarketStructureFeatureBundle,
+        *,
+        security_id: UUID,
+        cutoff: datetime,
+    ) -> None:
+        if valuation.market_provider_dataset_id != market_structure.market_provider_dataset_id:
+            raise ValueError("valuation and market structure use different market providers")
+        if valuation.security_id != security_id or market_structure.security_id != security_id:
+            raise ValueError("cross-domain market evidence uses a different security")
+        if (
+            self._aware_utc(valuation.as_of, "valuation as_of") != cutoff
+            or self._aware_utc(market_structure.as_of, "market structure as_of") != cutoff
+        ):
+            raise ValueError("cross-domain market evidence uses a different cutoff")
+        if valuation.market_on_or_before != market_structure.market_on_or_before:
+            raise ValueError("cross-domain market date bounds do not match")
+        if valuation.market_bar is not None:
+            if valuation.market_bar.interval != market_structure.interval:
+                raise ValueError("cross-domain market intervals do not match")
+            if (
+                market_structure.basis_date is not None
+                and valuation.market_bar.trading_date != market_structure.basis_date
+            ):
+                raise ValueError("cross-domain market endpoints do not match")
+
+    @staticmethod
+    def _market_context_mapping(
+        security_id: UUID,
+        market_structure: MarketStructureFeatureBundle | None,
+        valuation: ValuationFeatureBundle | None,
+    ) -> dict[str, object]:
+        valuation_bar = valuation.market_bar if valuation is not None else None
+        return {
+            "security_id": security_id,
+            "market_provider_dataset_id": (
+                market_structure.market_provider_dataset_id
+                if market_structure is not None
+                else (valuation.market_provider_dataset_id if valuation is not None else None)
+            ),
+            "corporate_action_provider_dataset_id": (
+                market_structure.corporate_action_provider_dataset_id
+                if market_structure is not None
+                else None
+            ),
+            "benchmark_provider_dataset_id": (
+                market_structure.benchmark_provider_dataset_id
+                if market_structure is not None
+                else None
+            ),
+            "benchmark_code": (
+                market_structure.benchmark_code if market_structure is not None else None
+            ),
+            "interval": (
+                market_structure.interval
+                if market_structure is not None
+                else (valuation_bar.interval if valuation_bar is not None else None)
+            ),
+            "market_on_or_before": (
+                market_structure.market_on_or_before
+                if market_structure is not None
+                else (valuation.market_on_or_before if valuation is not None else None)
+            ),
+            "basis_date": (
+                market_structure.basis_date
+                if market_structure is not None
+                else (valuation_bar.trading_date if valuation_bar is not None else None)
+            ),
+        }
 
     def _validate_financial_candidate(
         self,
@@ -839,6 +1469,228 @@ class ScoreSnapshotOrchestrator:
             union_manifest,
         )
 
+    def _cross_domain_component_write(
+        self,
+        component_code: str,
+        component: ValuationComponentScore | MarketStructureComponentScore,
+        configured_top_level_weight: Decimal,
+        *,
+        security_id: UUID,
+    ) -> tuple[ScoreComponentWrite, dict[str, object]]:
+        if component.score is None:
+            raise AssertionError("only scoreable cross-domain components may be persisted")
+        subfactors = cast(
+            tuple[ValuationSubfactorScore | MarketStructureSubfactorScore, ...],
+            component.subfactors,
+        )
+        details = [self._cross_domain_subfactor_detail(item) for item in subfactors]
+        manifests = {
+            item.code: self._cross_domain_lineage_manifest(
+                item.evidence,
+                component_algorithm_version=component.algorithm_version,
+            )
+            for item in subfactors
+        }
+        explanations = self._cross_domain_explanation_writes(
+            component_code,
+            subfactors,
+            manifests,
+        )
+        detail_value: dict[str, object] = {
+            "component_code": component_code,
+            "security_id": security_id,
+            "score": component.score,
+            "unit": component.unit,
+            "weight_coverage": component.weight_coverage,
+            "missing_subfactors": component.missing_subfactors,
+            "warnings": component.warnings,
+            "algorithm_version": component.algorithm_version,
+            "subfactors": details,
+        }
+        if isinstance(component, MarketStructureComponentScore):
+            detail_value["market_context"] = {
+                "market_provider_dataset_id": component.market_provider_dataset_id,
+                "corporate_action_provider_dataset_id": (
+                    component.corporate_action_provider_dataset_id
+                ),
+                "benchmark_provider_dataset_id": component.benchmark_provider_dataset_id,
+                "benchmark_code": component.benchmark_code,
+                "interval": component.interval,
+                "market_on_or_before": component.market_on_or_before,
+                "basis_date": component.basis_date,
+            }
+        else:
+            detail_value["market_provider_dataset_id"] = component.market_provider_dataset_id
+            detail_value["financial_provider_dataset_id"] = component.financial_provider_dataset_id
+            detail_value["filing_scope"] = component.filing_scope
+        detail = self._canonical_dict(detail_value)
+        union_manifest = self._cross_domain_component_union(
+            tuple(manifests.values()),
+            component_code=component_code,
+            component_algorithm_version=component.algorithm_version,
+        )
+        return (
+            ScoreComponentWrite(
+                component_code=component_code,
+                score=component.score,
+                unit=component.unit,
+                configured_top_level_weight=configured_top_level_weight,
+                subfactor_weight_coverage=component.weight_coverage,
+                final_contribution=None,
+                available_at=component.available_at,
+                algorithm_version=component.algorithm_version,
+                missing_subfactors_json=list(component.missing_subfactors),
+                warnings_json=list(component.warnings),
+                detail_json=detail,
+                explanations=explanations,
+            ),
+            union_manifest,
+        )
+
+    def _v3_financial_component_write(
+        self,
+        component_code: str,
+        component: FinancialInflectionComponentScore
+        | BusinessQualityComponentScore
+        | CashFlowQualityComponentScore
+        | BalanceSheetComponentScore,
+        configured_top_level_weight: Decimal,
+    ) -> tuple[ScoreComponentWrite, dict[str, object]]:
+        if component.score is None:
+            raise AssertionError("only scoreable financial components may be persisted")
+        subfactors = cast(
+            tuple[
+                FinancialInflectionSubfactorScore
+                | BusinessQualitySubfactorScore
+                | CashFlowQualitySubfactorScore
+                | BalanceSheetSubfactorScore,
+                ...,
+            ],
+            component.subfactors,
+        )
+        details = [self._financial_subfactor_detail(item) for item in subfactors]
+        manifests = {
+            item.code: self._cross_domain_lineage_manifest(
+                item.evidence,
+                component_algorithm_version=component.algorithm_version,
+            )
+            for item in subfactors
+        }
+        explanations = self._financial_explanation_writes(
+            component_code,
+            subfactors,
+            manifests,
+        )
+        detail = self._canonical_dict(
+            {
+                "component_code": component_code,
+                "score": component.score,
+                "unit": component.unit,
+                "weight_coverage": component.weight_coverage,
+                "missing_subfactors": component.missing_subfactors,
+                "warnings": component.warnings,
+                "algorithm_version": component.algorithm_version,
+                "subfactors": details,
+            }
+        )
+        union_manifest = self._cross_domain_component_union(
+            tuple(manifests.values()),
+            component_code=component_code,
+            component_algorithm_version=component.algorithm_version,
+        )
+        return (
+            ScoreComponentWrite(
+                component_code=component_code,
+                score=component.score,
+                unit=component.unit,
+                configured_top_level_weight=configured_top_level_weight,
+                subfactor_weight_coverage=component.weight_coverage,
+                final_contribution=None,
+                available_at=component.available_at,
+                algorithm_version=component.algorithm_version,
+                missing_subfactors_json=list(component.missing_subfactors),
+                warnings_json=list(component.warnings),
+                detail_json=detail,
+                explanations=explanations,
+            ),
+            union_manifest,
+        )
+
+    def _cross_domain_explanation_writes(
+        self,
+        component_code: str,
+        subfactors: tuple[ValuationSubfactorScore | MarketStructureSubfactorScore, ...],
+        manifests: dict[str, dict[str, object]],
+    ) -> tuple[ScoreExplanationWrite, ...]:
+        order = {
+            code: index for index, code in enumerate(COMPONENT_SUBFACTOR_ORDERS[component_code])
+        }
+        ranked = sorted(subfactors, key=lambda item: (-item.contribution, order[item.code]))
+        writes: list[ScoreExplanationWrite] = []
+        for rank, item in enumerate(ranked, start=1):
+            manifest = self._canonical_dict(
+                {
+                    **manifests[item.code],
+                    "scoring_transform": {
+                        "raw_value": item.raw_value,
+                        "raw_unit": item.raw_unit,
+                        "normalized_raw_value": item.normalized_raw_value,
+                        "normalized_raw_unit": item.normalized_raw_unit,
+                        "scoring_value": item.scoring_value,
+                        "scoring_unit": item.scoring_unit,
+                        "transform_code": item.transform_code,
+                        "normalized_score": item.normalized_score,
+                        "configured_weight": item.configured_weight,
+                        "effective_weight": item.effective_weight,
+                        "contribution": item.contribution,
+                    },
+                }
+            )
+            writes.append(
+                ScoreExplanationWrite(
+                    factor_code=item.code,
+                    rank=rank,
+                    raw_value=item.raw_value,
+                    raw_unit=item.raw_unit,
+                    normalized_score=item.normalized_score,
+                    configured_weight=item.configured_weight,
+                    effective_weight=item.effective_weight,
+                    component_contribution=item.contribution,
+                    input_available_at=item.input_available_at,
+                    evidence_type=item.evidence_type,
+                    template_code=COMPONENT_TEMPLATE_CODES[component_code],
+                    direction=None,
+                    evidence_manifest_json=manifest,
+                )
+            )
+        return tuple(writes)
+
+    @staticmethod
+    def _cross_domain_subfactor_detail(
+        item: ValuationSubfactorScore | MarketStructureSubfactorScore,
+    ) -> dict[str, object]:
+        value = canonical_audit_value(
+            {
+                "code": item.code,
+                "raw_value": item.raw_value,
+                "raw_unit": item.raw_unit,
+                "normalized_raw_value": item.normalized_raw_value,
+                "normalized_raw_unit": item.normalized_raw_unit,
+                "scoring_value": item.scoring_value,
+                "scoring_unit": item.scoring_unit,
+                "transform_code": item.transform_code,
+                "normalized_score": item.normalized_score,
+                "configured_weight": item.configured_weight,
+                "effective_weight": item.effective_weight,
+                "component_contribution": item.contribution,
+                "input_available_at": item.input_available_at,
+                "evidence_type": item.evidence_type,
+                "curve_algorithm_version": item.curve_algorithm_version,
+            }
+        )
+        assert isinstance(value, dict)
+        return cast(dict[str, object], value)
+
     def _financial_explanation_writes(
         self,
         component_code: str,
@@ -1023,6 +1875,183 @@ class ScoreSnapshotOrchestrator:
                 "facts": [facts[key] for key in sorted(facts)],
             }
         )
+
+    def _cross_domain_lineage_manifest(
+        self,
+        evidence: object,
+        *,
+        component_algorithm_version: str,
+    ) -> dict[str, object]:
+        financial_facts: dict[str, dict[str, object]] = {}
+        market_bars: dict[str, dict[str, object]] = {}
+        benchmark_bars: dict[str, dict[str, object]] = {}
+        corporate_actions: dict[str, dict[str, object]] = {}
+        algorithms: set[tuple[str, str]] = set()
+        visited: set[int] = set()
+
+        def source_mapping(value: object) -> dict[str, object]:
+            source = getattr(value, "source_record")
+            return {
+                "source_record_id": source.id,
+                "external_record_id": source.external_record_id,
+                "raw_object_key": source.raw_object_key,
+                "raw_payload_reference": source.raw_payload_reference,
+                "content_sha256": source.content_sha256,
+            }
+
+        def visit(value: object) -> None:
+            identity = id(value)
+            if identity in visited:
+                return
+            visited.add(identity)
+            algorithm = getattr(value, "algorithm_version", None)
+            if isinstance(algorithm, str):
+                algorithms.add((type(value).__name__, algorithm))
+            if isinstance(value, PointInTimeFinancialFact):
+                financial_facts[str(value.id)] = self._canonical_dict(
+                    {
+                        "financial_fact_id": value.id,
+                        **source_mapping(value),
+                        "metric_code": value.metric_code,
+                        "available_at": value.available_at,
+                    }
+                )
+                return
+            if isinstance(value, PointInTimeMarketBar):
+                market_bars[str(value.id)] = self._canonical_dict(
+                    {
+                        "price_bar_id": value.id,
+                        "provider_dataset_id": value.provider_dataset_id,
+                        "security_id": value.security_id,
+                        "trading_date": value.trading_date,
+                        "interval": value.interval,
+                        "available_at": value.available_at,
+                        **source_mapping(value),
+                    }
+                )
+                return
+            if isinstance(value, PointInTimeBenchmarkBar):
+                benchmark_bars[str(value.id)] = self._canonical_dict(
+                    {
+                        "benchmark_bar_id": value.id,
+                        "benchmark_series_id": value.benchmark_series.id,
+                        "provider_dataset_id": value.benchmark_series.provider_dataset_id,
+                        "benchmark_code": value.benchmark_series.code,
+                        "trading_date": value.trading_date,
+                        "interval": value.interval,
+                        "available_at": value.available_at,
+                        **source_mapping(value),
+                    }
+                )
+                return
+            if isinstance(value, PointInTimeCorporateAction):
+                corporate_actions[str(value.id)] = self._canonical_dict(
+                    {
+                        "corporate_action_id": value.id,
+                        "provider_dataset_id": value.provider_dataset_id,
+                        "security_id": value.security_id,
+                        "action_type": value.action_type,
+                        "event_date": value.event_anchor,
+                        "effective_date": value.effective_date,
+                        "available_at": value.available_at,
+                        **source_mapping(value),
+                    }
+                )
+                return
+            if is_dataclass(value) and not isinstance(value, type):
+                for field in fields(value):
+                    visit(getattr(value, field.name))
+            elif isinstance(value, (tuple, list)):
+                for item in value:
+                    visit(item)
+
+        visit(evidence)
+        return self._canonical_dict(
+            {
+                "component_algorithm_version": component_algorithm_version,
+                "curve_algorithm_version": PIECEWISE_LINEAR_CURVE_VERSION,
+                "phase3_algorithm_versions": [
+                    {"evidence_type": kind, "algorithm_version": version}
+                    for kind, version in sorted(algorithms)
+                ],
+                "financial_facts": [financial_facts[key] for key in sorted(financial_facts)],
+                "market_bars": [market_bars[key] for key in sorted(market_bars)],
+                "benchmark_bars": [benchmark_bars[key] for key in sorted(benchmark_bars)],
+                "corporate_actions": [corporate_actions[key] for key in sorted(corporate_actions)],
+            }
+        )
+
+    def _cross_domain_component_union(
+        self,
+        manifests: tuple[dict[str, object], ...],
+        *,
+        component_code: str,
+        component_algorithm_version: str,
+    ) -> dict[str, object]:
+        union = self._merge_cross_domain_manifests(manifests)
+        return self._canonical_dict(
+            {
+                "component_code": component_code,
+                "component_algorithm_version": component_algorithm_version,
+                "curve_algorithm_version": PIECEWISE_LINEAR_CURVE_VERSION,
+                **union,
+            }
+        )
+
+    def _cross_domain_snapshot_union(
+        self,
+        manifests: tuple[dict[str, object], ...],
+    ) -> dict[str, object]:
+        return self._canonical_dict(self._merge_cross_domain_manifests(manifests))
+
+    @staticmethod
+    def _merge_cross_domain_manifests(
+        manifests: tuple[dict[str, object], ...],
+    ) -> dict[str, object]:
+        identity_fields = {
+            "financial_facts": "financial_fact_id",
+            "market_bars": "price_bar_id",
+            "benchmark_bars": "benchmark_bar_id",
+            "corporate_actions": "corporate_action_id",
+        }
+        merged: dict[str, dict[str, dict[str, object]]] = {
+            category: {} for category in identity_fields
+        }
+        algorithms: dict[tuple[str, str], dict[str, object]] = {}
+        component_algorithms: dict[str, dict[str, object]] = {}
+        for manifest in manifests:
+            component_code = manifest.get("component_code")
+            component_version = manifest.get("component_algorithm_version")
+            if isinstance(component_code, str) and isinstance(component_version, str):
+                component_algorithms[component_code] = {
+                    "component_code": component_code,
+                    "algorithm_version": component_version,
+                }
+            for category, identity_field in identity_fields.items():
+                for item in cast(list[dict[str, object]], manifest.get(category, [])):
+                    merged[category][cast(str, item[identity_field])] = item
+            for item in cast(
+                list[dict[str, object]], manifest.get("phase3_algorithm_versions", [])
+            ):
+                key = (
+                    cast(str, item["evidence_type"]),
+                    cast(str, item["algorithm_version"]),
+                )
+                algorithms[key] = item
+        result: dict[str, object] = {
+            category: [merged[category][key] for key in sorted(merged[category])]
+            for category in identity_fields
+        }
+        result.update(
+            {
+                "component_algorithm_versions": [
+                    component_algorithms[key] for key in sorted(component_algorithms)
+                ],
+                "curve_algorithm_version": PIECEWISE_LINEAR_CURVE_VERSION,
+                "phase3_algorithm_versions": [algorithms[key] for key in sorted(algorithms)],
+            }
+        )
+        return result
 
     def _union_manifests(
         self,

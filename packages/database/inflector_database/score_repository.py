@@ -11,7 +11,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from inflector_core.score_audit import audit_fingerprint_sha256
-from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot
+from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot, Security
 
 V1_SNAPSHOT_STATUSES = frozenset(
     {"ineligible", "financial_inflection_unavailable", "partial_component_set"}
@@ -21,6 +21,19 @@ V2_SNAPSHOT_STATUSES = frozenset(
 )
 V2_COMPONENT_CODES = frozenset(
     {"financial_inflection", "business_quality", "cash_flow_quality", "balance_sheet"}
+)
+V3_SNAPSHOT_STATUSES = frozenset(
+    {"ineligible", "implemented_components_unavailable", "partial_component_set"}
+)
+V3_COMPONENT_CODES = frozenset(
+    {
+        "financial_inflection",
+        "business_quality",
+        "cash_flow_quality",
+        "balance_sheet",
+        "valuation",
+        "market_structure",
+    }
 )
 
 
@@ -73,6 +86,7 @@ class ScoreSnapshotWrite:
     ending_fiscal_quarter: int
     selected_provider_dataset_id: UUID | None
     selected_filing_scope: str | None
+    selected_security_id: UUID | None
     snapshot_status: str
     eligibility_eligible: bool
     eligibility_inputs_json: dict[str, object]
@@ -123,6 +137,7 @@ class ScoreSnapshotRepository:
             ending_fiscal_quarter=value.ending_fiscal_quarter,
             selected_provider_dataset_id=value.selected_provider_dataset_id,
             selected_filing_scope=value.selected_filing_scope,
+            selected_security_id=value.selected_security_id,
             snapshot_status=value.snapshot_status,
             eligibility_eligible=value.eligibility_eligible,
             eligibility_inputs_json=value.eligibility_inputs_json,
@@ -214,6 +229,13 @@ class ScoreSnapshotRepository:
         )
         return tuple(self._validated(record) for record in records)
 
+    def validate_security_company(self, security_id: UUID, company_id: UUID) -> None:
+        security = self._session.get(Security, security_id)
+        if security is None:
+            raise ValueError("orchestration security does not exist")
+        if security.company_id != company_id:
+            raise ValueError("orchestration security does not belong to company")
+
     @staticmethod
     def _validated(record: ScoreSnapshot) -> ScoreSnapshot:
         expected = audit_fingerprint_sha256(record.fingerprint_payload_json)
@@ -228,10 +250,18 @@ class ScoreSnapshotRepository:
         elif record.algorithm_version == "score_snapshot_v2":
             statuses = V2_SNAPSHOT_STATUSES
             component_codes = V2_COMPONENT_CODES
+        elif record.algorithm_version == "score_snapshot_v3":
+            statuses = V3_SNAPSHOT_STATUSES
+            component_codes = V3_COMPONENT_CODES
         else:
             raise ScoreSnapshotIntegrityError("unsupported persisted snapshot algorithm version")
         if record.snapshot_status not in statuses:
             raise ScoreSnapshotIntegrityError("invalid persisted status for algorithm version")
+        if record.algorithm_version == "score_snapshot_v3":
+            if record.selected_security_id is None:
+                raise ScoreSnapshotIntegrityError("v3 snapshot requires selected security")
+        elif record.selected_security_id is not None:
+            raise ScoreSnapshotIntegrityError("v1/v2 snapshot must not select a security")
         if record.final_score is not None:
             raise ScoreSnapshotIntegrityError("partial persisted snapshot has a final score")
         if record.snapshot_status != "partial_component_set" and record.components:
@@ -257,10 +287,18 @@ class ScoreSnapshotRepository:
         elif value.algorithm_version == "score_snapshot_v2":
             statuses = V2_SNAPSHOT_STATUSES
             component_codes = V2_COMPONENT_CODES
+        elif value.algorithm_version == "score_snapshot_v3":
+            statuses = V3_SNAPSHOT_STATUSES
+            component_codes = V3_COMPONENT_CODES
         else:
             raise ValueError("unsupported score snapshot algorithm version")
         if value.snapshot_status not in statuses:
             raise ValueError("invalid snapshot status for algorithm version")
+        if value.algorithm_version == "score_snapshot_v3":
+            if value.selected_security_id is None:
+                raise ValueError("v3 snapshot requires selected_security_id")
+        elif value.selected_security_id is not None:
+            raise ValueError("v1/v2 snapshot selected_security_id must be None")
         if value.final_score is not None:
             raise ValueError("partial snapshot final_score must be None")
         if value.snapshot_status != "partial_component_set" and value.components:

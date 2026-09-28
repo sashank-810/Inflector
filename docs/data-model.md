@@ -277,6 +277,15 @@ scored-subfactor, and unavailable-subfactor objects retain complete Phase 3G-C
 evidence. Existing `ScoreSnapshot`, `ScoreComponent`, and `ScoreExplanation`
 rows cannot contain Market Structure, and v2 maximum persisted standard
 coverage remains `0.60`.
+Phase 4D-G adds only nullable `score_snapshots.selected_security_id` through
+migration 0010, with a restrictive foreign key to `securities.id`. Historical
+v1/v2 rows remain null; `score_snapshot_v3` requires the canonical security.
+The generic component and explanation tables now support the six-code v3 set,
+while repository validation keeps the v1 and v2 allowed sets unchanged. V3
+audit JSON carries explicit market/action/benchmark context and recursive
+financial, market-bar, benchmark-bar, corporate-action, source, and algorithm
+lineage. Maximum standard v3 coverage is `0.75`; `final_score` and component
+final contributions remain null.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 

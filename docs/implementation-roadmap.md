@@ -230,16 +230,24 @@ renormalization. Preserve conservative accounting names and unavailable-feature
 warnings. Do not persist or integrate Valuation into v2; its explicit market
 provider requires separately reviewed cross-domain orchestration.
 
-### Phase 4D-F — Market Structure component scoring (acceptance pending)
+### Phase 4D-F — Market Structure component scoring (complete)
 
 Score only the seven approved Phase 3G-C primitives through explicit
 identity/negation transforms and uncalibrated development curves. Preserve the
 0.70 coverage floor, warning/evidence lineage, and available-weight
 renormalization. Absolute volatility and absolute close-times-volume remain
-unscored. This pure scorer is not persisted or added to `score_snapshot_v2`.
-After acceptance, separately review cross-domain orchestration for Valuation
-and Market Structure. Business Catalyst and Low Market Attention remain
-separate missing top-level domains.
+unscored. This pure scorer is not added to `score_snapshot_v2`.
+
+### Phase 4D-G — cross-domain partial score orchestration (acceptance pending)
+
+Add the separate `score_snapshot_v3` persistence path for the four financial
+components, Valuation, and Market Structure. Financial context selection stays
+provider-first; Valuation participates in financial-context scoreability while
+Market Structure never selects that context. Standard maximum coverage is
+`0.75`, with no top-level renormalization, confidence multiplication, final
+contribution, or final score. Business Catalyst and Low Market Attention remain
+separate missing top-level domains. Acceptance does not automatically activate
+a final score.
 
 ### Later approved slices — remaining top-level component scorers
 

@@ -548,6 +548,9 @@ class ScoreSnapshot(Base):
         ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=True
     )
     selected_filing_scope: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    selected_security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True
+    )
     snapshot_status: Mapped[str] = mapped_column(String(64), nullable=False)
     eligibility_eligible: Mapped[bool] = mapped_column(Boolean, nullable=False)
     eligibility_inputs_json: Mapped[dict[str, object]] = mapped_column(

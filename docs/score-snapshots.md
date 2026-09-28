@@ -141,3 +141,18 @@ creates no snapshot/component/explanation rows and does not apply its reserved
 top-level 5%. Pure scorers exist for standard top-level weight `0.75`;
 persisted v2 maximum coverage is still exactly `0.60`, and `final_score`
 remains `NULL`.
+
+Phase 4D-G adds the separate `score_snapshot_v3` path described in
+[`cross-domain-score-orchestration.md`](cross-domain-score-orchestration.md).
+It persists the four financial components plus Valuation and Market Structure
+in canonical order. Financial context remains provider-first; Valuation may
+make its own provider/scope candidate scoreable, but Market Structure is
+evaluated only after selection and cannot influence it. V3 stores first-class
+security identity and an explicit market/action/benchmark audit context.
+
+Standard maximum coverage is `0.25` for v1, `0.60` for v2, and `0.75` for v3.
+These are coverage values, not final scores. All three versions retain null
+`final_score`; all component final contributions remain null. V3 recursive
+lineage extends the manifest to financial facts, market bars, benchmark bars,
+corporate actions, their source provenance, and participating algorithms,
+without leaking evidence between component manifests.

@@ -184,3 +184,51 @@ def test_phase_4c_migration_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
         assert phase4c_tables.issubset(set(inspect(engine).get_table_names()))
     finally:
         engine.dispose()
+
+
+def test_phase_4dg_security_identity_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-4dg-security-identity.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+
+    command.upgrade(config, "20260919_0009")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("score_snapshots")}
+        assert "selected_security_id" not in columns
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0010")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        columns = {column["name"]: column for column in inspector.get_columns("score_snapshots")}
+        assert columns["selected_security_id"]["nullable"]
+        security_fks = [
+            key
+            for key in inspector.get_foreign_keys("score_snapshots")
+            if key["constrained_columns"] == ["selected_security_id"]
+        ]
+        assert len(security_fks) == 1
+        assert security_fks[0]["referred_table"] == "securities"
+        assert security_fks[0].get("options", {}).get("ondelete") == "RESTRICT"
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260919_0009")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        columns = {column["name"] for column in inspect(engine).get_columns("score_snapshots")}
+        assert "selected_security_id" not in columns
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0010")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert "selected_security_id" in {
+            column["name"] for column in inspect(engine).get_columns("score_snapshots")
+        }
+    finally:
+        engine.dispose()

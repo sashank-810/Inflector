@@ -317,6 +317,16 @@ applied. Pure scorer availability is now 0.75 of standard top-level weight,
 while v2 persisted coverage remains 0.60. See
 [`market-structure-scoring.md`](market-structure-scoring.md).
 
+Phase 4D-G adds a separate `score_snapshot_v3` boundary. It composes the four
+financial scorers, Valuation, and Market Structure without changing v1/v2.
+Financial provider/scope selection remains provider-first and may consider
+Valuation scoreability; Market Structure is evaluated afterward from one
+caller-supplied security/market/action/benchmark context and cannot select the
+financial source. Component-specific recursive lineage is unioned into the v3
+snapshot fingerprint. V3 maximum standard coverage is 0.75, while
+`final_score` and final contributions remain null. See
+[`cross-domain-score-orchestration.md`](cross-domain-score-orchestration.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot
