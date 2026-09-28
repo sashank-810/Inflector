@@ -142,14 +142,14 @@ simple security and benchmark price returns. Cash-dividend total returns,
 rights adjustment, relative strength, cumulative returns, persistence, and
 scoring remain deferred.
 
-### Phase 3G-C — Market Structure deterministic feature primitives (acceptance pending)
+### Phase 3G-C — Market Structure deterministic feature primitives (complete)
 
 Compose approved PIT market, benchmark, adjustment, and adjacent-return evidence
 into exact benchmark-relative strength, adjusted trend/volatility/consolidation,
 raw close-times-volume activity, and delivery primitives. Provider contexts and
 the benchmark are explicit; observation windows never fill calendar gaps. No
-feature is persisted or scored. After acceptance, Phase 4D-F may add a pure
-Market Structure component scorer under a separate policy review.
+feature is persisted or scored. Phase 4D-F now adds the separately reviewed
+pure Market Structure component scorer without changing this feature boundary.
 
 ### Phase 3H-A — Valuation deterministic feature foundation (complete)
 
@@ -230,18 +230,21 @@ renormalization. Preserve conservative accounting names and unavailable-feature
 warnings. Do not persist or integrate Valuation into v2; its explicit market
 provider requires separately reviewed cross-domain orchestration.
 
-### Phase 4D-F — Market Structure component scoring (planned)
+### Phase 4D-F — Market Structure component scoring (acceptance pending)
 
-Score only approved Phase 3G-C primitives after feature acceptance and a
-separate policy review. Cross-domain score orchestration for Valuation and
-Market Structure is reviewed only after this scorer; neither component is added
-to `score_snapshot_v2` in the feature phase.
+Score only the seven approved Phase 3G-C primitives through explicit
+identity/negation transforms and uncalibrated development curves. Preserve the
+0.70 coverage floor, warning/evidence lineage, and available-weight
+renormalization. Absolute volatility and absolute close-times-volume remain
+unscored. This pure scorer is not persisted or added to `score_snapshot_v2`.
+After acceptance, separately review cross-domain orchestration for Valuation
+and Market Structure. Business Catalyst and Low Market Attention remain
+separate missing top-level domains.
 
 ### Later approved slices — remaining top-level component scorers
 
-Implement only separately approved Business Catalyst, Market
-Structure, and Low Attention component policies. Neither v1 nor v2 fabricates
-them.
+Implement only separately approved Business Catalyst and Low Attention
+component policies. Neither v1 nor v2 fabricates them.
 
 ### Phase 4E — final Opportunity Score activation
 

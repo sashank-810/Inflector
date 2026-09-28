@@ -291,8 +291,7 @@ explicit provider contexts. Phase 3H-A combines the atomic
 provider-reported PIT market cap with exact-context TTM and instant financial
 evidence into non-persisted conservative valuation primitives. Valuation
 scoring is pure and complete, while dividend total returns, rights adjustment,
-Market Structure scoring, sector-relative benchmark mapping, and attention
-evidence remain deferred. See
+sector-relative benchmark mapping, and attention evidence remain deferred. See
 [`market-data-enrichment.md`](market-data-enrichment.md),
 [`market-point-in-time.md`](market-point-in-time.md), and
 [`market-adjustments-and-returns.md`](market-adjustments-and-returns.md).
@@ -307,6 +306,16 @@ bundle declares a separate market provider as well as financial provider/scope,
 the scorer is intentionally absent from `score_snapshot_v2`; no existing
 context selection, fingerprint, component coverage, or final-score semantics
 change. See [`valuation-scoring.md`](valuation-scoring.md).
+
+Phase 4D-F adds a pure, non-persisted scorer over seven approved Phase 3G-C
+Market Structure primitives. It validates exact market, corporate-action,
+benchmark, security, interval, cutoff, basis-date, and source lineage already
+carried by the bundle; it performs no PIT reads or feature recomputation.
+Absolute volatility and absolute close-times-volume remain unscored. The
+reserved top-level 5%, confidence, eligibility, and final aggregation are not
+applied. Pure scorer availability is now 0.75 of standard top-level weight,
+while v2 persisted coverage remains 0.60. See
+[`market-structure-scoring.md`](market-structure-scoring.md).
 
 ## Deployment, auth, and observability
 

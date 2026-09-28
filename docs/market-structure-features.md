@@ -130,3 +130,5 @@ scoring curves, a 0–100 score, persistence, or score-snapshot orchestration.
 The close-times-volume proxy is not silently substituted for the eligibility
 policy's official average-daily-traded-value input. Calibration and policy
 interpretation belong to the separately reviewed Phase 4D-F scorer.
+Phase 4D-F now consumes this bundle without recomputing it; see
+[`market-structure-scoring.md`](market-structure-scoring.md).

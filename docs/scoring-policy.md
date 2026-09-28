@@ -191,3 +191,12 @@ remain unchanged.
 Phase 4D-E does not change v2 orchestration. Its policy can configure the pure
 scorer, but the top-level Valuation weight is not applied there and no
 confidence input is accepted.
+
+The Phase 4D-F fixture retains Phase 4D-E and adds optional
+`market_structure`. Its seven development weights are
+0.30/0.10/0.15/0.15/0.10/0.10/0.10 with minimum coverage 0.70 and seven
+explicit monotonic curves. Volatility ratio and consolidation use named
+negations; the other five signals use identity. Legacy canonical mappings
+narrowly omit only `market_structure` when absent, without globally stripping
+nulls, so earlier checksums remain stable. The pure scorer ignores the
+top-level 5%, confidence, and three supporting-only Phase 3G-C slots.

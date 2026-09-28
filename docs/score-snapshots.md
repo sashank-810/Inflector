@@ -134,3 +134,10 @@ an explicit market-provider evidence context that v2 does not resolve, so it
 remains absent from allowed v2 component rows, fingerprints, and persisted
 coverage. Maximum standard v2 persisted coverage remains `0.60`, and
 `final_score` remains `NULL`.
+
+Phase 4D-F's pure Market Structure scorer likewise changes no v1/v2 component
+set, context resolution, fingerprint, explanation, or persisted coverage. It
+creates no snapshot/component/explanation rows and does not apply its reserved
+top-level 5%. Pure scorers exist for standard top-level weight `0.75`;
+persisted v2 maximum coverage is still exactly `0.60`, and `final_score`
+remains `NULL`.

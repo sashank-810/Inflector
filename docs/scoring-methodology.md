@@ -231,8 +231,19 @@ structure, simple-return volatility and contraction, adjusted consolidation,
 raw close-times-volume activity, activity expansion, and complete-window
 delivery participation. Observation windows count actual selected bars and all
 calculations retain PIT lineage. Sector-relative strength, raw share-volume
-momentum, RSI, MACD, breakout labels, and Market Structure scoring remain
-deferred. These primitives are evidence, never entry signals.
+momentum, RSI, MACD, and breakout labels remain deferred. These primitives are
+evidence, never entry signals.
+
+Phase 4D-F scores only relative strength, close/SMA20, SMA20/SMA60, the
+20-to-60 volatility ratio, 20-bar consolidation range, 20-to-60 raw activity
+ratio, and 20-bar delivery participation. Its uncalibrated development weights
+are 0.30/0.10/0.15/0.15/0.10/0.10/0.10 and its coverage floor is 0.70.
+Volatility ratio and consolidation are explicitly negated; other signals use
+identity. Missing positive weights renormalize only after the floor passes.
+Absolute volatility and absolute close-times-volume are not scored. The result
+is confirmation evidence, not timing, recommendation, alpha, or a forecast. It
+has no confidence multiplication, top-level 5%, persistence, v2 integration,
+or final score.
 
 Attention remains a separate unimplemented domain spanning institutional
 holdings, coverage/news/search proxies, and other approved observations. Low

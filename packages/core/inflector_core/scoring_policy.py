@@ -346,6 +346,57 @@ class ValuationScoringPolicy(_PolicyModel):
         return self
 
 
+class MarketStructureSubfactorWeights(_PolicyModel):
+    relative_strength_60_to_benchmark: Decimal
+    close_to_sma20: Decimal
+    sma20_to_sma60: Decimal
+    volatility_ratio_20_to_60: Decimal
+    consolidation_range_20: Decimal
+    close_times_volume_ratio_20_to_60: Decimal
+    average_delivery_percentage_20: Decimal
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("market-structure weights must not use binary floats")
+        return value
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> MarketStructureSubfactorWeights:
+        weights = tuple(self.__dict__.values())
+        if any(weight < 0 for weight in weights):
+            raise ValueError("market-structure subfactor weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("market-structure subfactor weights must sum exactly to 1")
+        return self
+
+
+class MarketStructureScoringPolicy(_PolicyModel):
+    subfactor_weights: MarketStructureSubfactorWeights
+    minimum_weight_coverage: Decimal
+    relative_strength_60_to_benchmark_curve: PiecewiseLinearScoringCurve
+    close_to_sma20_curve: PiecewiseLinearScoringCurve
+    sma20_to_sma60_curve: PiecewiseLinearScoringCurve
+    volatility_ratio_20_to_60_signal_curve: PiecewiseLinearScoringCurve
+    consolidation_range_20_signal_curve: PiecewiseLinearScoringCurve
+    close_times_volume_ratio_20_to_60_curve: PiecewiseLinearScoringCurve
+    average_delivery_percentage_20_curve: PiecewiseLinearScoringCurve
+
+    @field_validator("minimum_weight_coverage", mode="before")
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("minimum_weight_coverage must not use a binary float")
+        return value
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> MarketStructureScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
@@ -356,6 +407,7 @@ class InflectionScoringPolicy(_PolicyModel):
     cash_flow_quality: CashFlowQualityScoringPolicy | None = None
     balance_sheet: BalanceSheetScoringPolicy | None = None
     valuation: ValuationScoringPolicy | None = None
+    market_structure: MarketStructureScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -390,6 +442,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
         policy_value.pop("balance_sheet", None)
     if policy_value.get("valuation") is None:
         policy_value.pop("valuation", None)
+    if policy_value.get("market_structure") is None:
+        policy_value.pop("market_structure", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

@@ -272,6 +272,11 @@ Decimal values. No valuation feature, percentile, or score is persisted.
 Phase 4D-E likewise adds no table: its typed component and subfactor results,
 including unavailable-factor warning audits, remain immutable in-memory
 objects. Existing v1/v2 score rows cannot contain Valuation.
+Phase 4D-F also adds no table or migration. Its immutable in-memory component,
+scored-subfactor, and unavailable-subfactor objects retain complete Phase 3G-C
+evidence. Existing `ScoreSnapshot`, `ScoreComponent`, and `ScoreExplanation`
+rows cannot contain Market Structure, and v2 maximum persisted standard
+coverage remains `0.60`.
 PIT fixtures must include a late filing and a later restatement to prove that
 future knowledge cannot leak into features, scores, or backtests.
 
