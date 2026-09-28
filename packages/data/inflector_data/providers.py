@@ -12,6 +12,8 @@ from io import StringIO
 from pathlib import Path
 
 from inflector_core.providers import (
+    AnnouncementDocumentRecord,
+    AnnouncementRecord,
     BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
@@ -25,6 +27,10 @@ from inflector_core.providers import (
 
 def _row_hash(row: dict[str, str]) -> str:
     return sha256(json.dumps(row, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
+
+
+def _rows_hash(rows: list[dict[str, str]]) -> str:
+    return sha256(json.dumps(rows, sort_keys=True, separators=(",", ":")).encode()).hexdigest()
 
 
 def _optional_datetime(value: str, errors: list[str], field_name: str) -> datetime | None:
@@ -368,6 +374,104 @@ class CSVCorporateActionProvider:
 
 
 @dataclass(frozen=True, slots=True)
+class CSVAnnouncementProvider:
+    """Synthetic CSV adapter grouping repeated external IDs into document sets."""
+
+    path: Path
+    metadata: ProviderMetadata
+    retrieved_at: datetime
+
+    def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
+        raw_payload = self.path.read_bytes()
+        rows = list(csv.DictReader(StringIO(raw_payload.decode("utf-8-sig"))))
+        grouped: dict[str, list[tuple[int, dict[str, str]]]] = {}
+        for index, row in enumerate(rows, start=2):
+            external_id = row.get("external_id") or f"row-{index}"
+            grouped.setdefault(external_id, []).append((index, row))
+
+        envelopes: list[IngestionEnvelope[AnnouncementRecord]] = []
+        announcement_fields = (
+            "company_legal_name",
+            "security_isin",
+            "provider_category",
+            "headline",
+            "announcement_date",
+            "exchange",
+            "available_at",
+            "revision_at",
+        )
+        document_fields = (
+            "document_type",
+            "document_title",
+            "document_language",
+            "document_media_type",
+            "document_uri",
+            "document_content_sha256",
+            "document_role",
+        )
+        for external_id, grouped_rows in grouped.items():
+            errors: list[str] = []
+            first = grouped_rows[0][1]
+            if any(
+                any(row.get(field, "") != first.get(field, "") for field in announcement_fields)
+                for _, row in grouped_rows[1:]
+            ):
+                errors.append("inconsistent_announcement_rows")
+            announcement_date = _optional_date(
+                first.get("announcement_date", ""), errors, "announcement_date"
+            )
+            available_at = _optional_datetime(first.get("available_at", ""), errors, "available_at")
+            revision_at = _optional_datetime(first.get("revision_at", ""), errors, "revision_at")
+            documents: list[AnnouncementDocumentRecord] = []
+            for _, row in grouped_rows:
+                if not any(row.get(field, "") for field in document_fields):
+                    continue
+                documents.append(
+                    AnnouncementDocumentRecord(
+                        document_type=row.get("document_type") or None,
+                        title=row.get("document_title") or None,
+                        language=row.get("document_language") or None,
+                        media_type=row.get("document_media_type") or None,
+                        document_uri=row.get("document_uri") or None,
+                        document_content_sha256=(row.get("document_content_sha256") or None),
+                        role=row.get("document_role") or None,
+                    )
+                )
+            record = AnnouncementRecord(
+                company_legal_name=first.get("company_legal_name") or None,
+                security_isin=first.get("security_isin") or None,
+                provider_category=first.get("provider_category") or None,
+                headline=first.get("headline") or None,
+                announcement_date=announcement_date,
+                exchange=first.get("exchange") or None,
+                documents=tuple(documents),
+                parse_errors=tuple(errors),
+            )
+            group_rows = [row for _, row in grouped_rows]
+            references = ",".join(str(index) for index, _ in grouped_rows)
+            envelopes.append(
+                IngestionEnvelope(
+                    provider=self.metadata,
+                    external_record_id=external_id,
+                    source_uri=f"file://{self.path.name}",
+                    raw_payload_reference=f"rows-{references}",
+                    content_sha256=_rows_hash(group_rows),
+                    retrieved_at=self.retrieved_at,
+                    record=record,
+                    available_at=available_at,
+                    revision_at=revision_at,
+                )
+            )
+        return ProviderBatch(
+            self.metadata,
+            f"file://{self.path.name}",
+            raw_payload,
+            self.retrieved_at,
+            tuple(envelopes),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MockUniverseProvider:
     """In-memory universe provider for orchestration tests."""
 
@@ -414,4 +518,14 @@ class MockCorporateActionProvider:
     batch: ProviderBatch[CorporateActionRecord]
 
     def fetch_corporate_actions(self) -> ProviderBatch[CorporateActionRecord]:
+        return self.batch
+
+
+@dataclass(frozen=True, slots=True)
+class MockAnnouncementProvider:
+    """In-memory synthetic announcement provider for orchestration tests."""
+
+    batch: ProviderBatch[AnnouncementRecord]
+
+    def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
         return self.batch

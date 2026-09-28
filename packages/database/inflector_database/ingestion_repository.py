@@ -10,6 +10,8 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    AnnouncementDocumentRecord,
+    AnnouncementRecord,
     BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
@@ -18,12 +20,15 @@ from inflector_core.providers import (
     corporate_action_event_anchor,
 )
 from inflector_database.models import (
+    Announcement,
+    AnnouncementDocument,
     BenchmarkBar,
     BenchmarkSeries,
     Company,
     CorporateAction,
     DataProvider,
     DataQualityIssue,
+    Document,
     ExchangeListing,
     FinancialFact,
     FinancialFiling,
@@ -355,6 +360,99 @@ class IngestionRepository:
                 successor_isin=record.successor_isin,
                 available_at=available_at,
                 revision_at=revision_at,
+            )
+        )
+        self.session.flush()
+
+    def economic_announcements(self, *, dataset_id: UUID, external_id: str) -> list[Announcement]:
+        """Return accepted immutable revisions for one provider announcement ID."""
+
+        return list(
+            self.session.scalars(
+                select(Announcement)
+                .join(SourceRecord, Announcement.source_record_id == SourceRecord.id)
+                .where(
+                    Announcement.provider_dataset_id == dataset_id,
+                    SourceRecord.external_record_id == external_id,
+                    SourceRecord.validation_status == "accepted",
+                )
+                .order_by(
+                    Announcement.available_at,
+                    Announcement.revision_at,
+                    Announcement.ingested_at,
+                    Announcement.id,
+                )
+            )
+        )
+
+    def add_announcement(
+        self,
+        *,
+        company_id: UUID,
+        security_id: UUID | None,
+        dataset_id: UUID,
+        source_id: UUID,
+        record: AnnouncementRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> Announcement:
+        assert record.headline is not None
+        announcement = Announcement(
+            company_id=company_id,
+            security_id=security_id,
+            provider_dataset_id=dataset_id,
+            source_record_id=source_id,
+            provider_category=record.provider_category,
+            headline=record.headline,
+            announcement_date=record.announcement_date,
+            exchange=record.exchange,
+            available_at=available_at,
+            revision_at=revision_at,
+        )
+        self.session.add(announcement)
+        self.session.flush()
+        return announcement
+
+    def add_document(
+        self,
+        *,
+        company_id: UUID,
+        security_id: UUID | None,
+        dataset_id: UUID,
+        source_id: UUID,
+        record: AnnouncementDocumentRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> Document:
+        assert record.document_type is not None
+        assert record.title is not None
+        assert record.document_uri is not None
+        document = Document(
+            company_id=company_id,
+            security_id=security_id,
+            provider_dataset_id=dataset_id,
+            source_record_id=source_id,
+            document_type=record.document_type,
+            title=record.title,
+            language=record.language,
+            media_type=record.media_type,
+            document_uri=record.document_uri,
+            document_content_sha256=record.document_content_sha256,
+            available_at=available_at,
+            revision_at=revision_at,
+        )
+        self.session.add(document)
+        self.session.flush()
+        return document
+
+    def link_announcement_document(
+        self, *, announcement_id: UUID, document_id: UUID, role: str
+    ) -> None:
+        self.session.add(
+            AnnouncementDocument(
+                announcement_id=announcement_id,
+                document_id=document_id,
+                role=role,
             )
         )
         self.session.flush()

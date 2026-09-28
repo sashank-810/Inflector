@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from hashlib import sha256
 from uuid import UUID
 
 from sqlalchemy.orm import Session
 
 from inflector_core.providers import (
+    AnnouncementDocumentRecord,
+    AnnouncementProvider,
+    AnnouncementRecord,
     BenchmarkBarRecord,
     BenchmarkDataProvider,
     CorporateActionProvider,
@@ -24,6 +29,7 @@ from inflector_core.providers import (
     UniverseRecord,
     corporate_action_event_anchor,
 )
+from inflector_data.announcements import validate_announcement
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
 from inflector_data.corporate_actions import validate_corporate_action
 from inflector_data.financials import METRICS, normalize_financial, validate_financial
@@ -35,6 +41,7 @@ from inflector_data.validation import (
 )
 from inflector_database.ingestion_repository import IngestionRepository
 from inflector_database.models import (
+    Announcement,
     BenchmarkBar,
     CorporateAction,
     FinancialFact,
@@ -90,13 +97,17 @@ class IngestionService:
     def ingest_corporate_actions(self, provider: CorporateActionProvider) -> IngestionResult:
         return self._ingest_actions(provider.fetch_corporate_actions())
 
+    def ingest_announcements(self, provider: AnnouncementProvider) -> IngestionResult:
+        return self._ingest_announcements(provider.fetch_announcements())
+
     def _start(
         self,
         batch: ProviderBatch[UniverseRecord]
         | ProviderBatch[MarketBarRecord]
         | ProviderBatch[BenchmarkBarRecord]
         | ProviderBatch[FinancialRecord]
-        | ProviderBatch[CorporateActionRecord],
+        | ProviderBatch[CorporateActionRecord]
+        | ProviderBatch[AnnouncementRecord],
     ) -> tuple[ProviderDataset, IngestionRun, ArchivedRawObject]:
         """Archive durably before committing the audit run that references its processing."""
 
@@ -164,7 +175,8 @@ class IngestionService:
         | IngestionEnvelope[MarketBarRecord]
         | IngestionEnvelope[BenchmarkBarRecord]
         | IngestionEnvelope[FinancialRecord]
-        | IngestionEnvelope[CorporateActionRecord],
+        | IngestionEnvelope[CorporateActionRecord]
+        | IngestionEnvelope[AnnouncementRecord],
         dataset_id: UUID,
         run_id: UUID,
         raw: ArchivedRawObject,
@@ -634,6 +646,196 @@ class IngestionService:
         except Exception as error:
             self._failed(run.id, counters, error)
             raise
+
+    def _ingest_announcements(self, batch: ProviderBatch[AnnouncementRecord]) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                parse_failed = bool(
+                    envelope.record.parse_errors
+                    or any(document.parse_errors for document in envelope.record.documents)
+                )
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if parse_failed else "parsed",
+                )
+                issues = validate_announcement(envelope.record)
+                company = (
+                    self._repository.company_by_legal_name(envelope.record.company_legal_name)
+                    if envelope.record.company_legal_name
+                    else None
+                )
+                security = (
+                    self._repository.security_by_isin(envelope.record.security_isin)
+                    if envelope.record.security_isin
+                    else None
+                )
+                if envelope.record.company_legal_name and company is None:
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_company",
+                            "company legal name is not in the canonical universe",
+                        )
+                    )
+                if envelope.record.security_isin and security is None:
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_security",
+                            "security ISIN is not in the canonical universe",
+                        )
+                    )
+                company_id = company.id if company is not None else None
+                if company_id is None and security is not None:
+                    company_id = security.company_id
+                if company_id is not None and security is not None:
+                    if security.company_id != company_id:
+                        issues.append(
+                            ValidationIssue(
+                                "security_company_mismatch",
+                                "security belongs to a different canonical company",
+                            )
+                        )
+                if envelope.available_at is None:
+                    issues.append(
+                        ValidationIssue(
+                            "missing_available_at",
+                            "available_at is required for announcements",
+                        )
+                    )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                assert company_id is not None and envelope.available_at is not None
+                existing = self._repository.economic_announcements(
+                    dataset_id=dataset.id,
+                    external_id=envelope.external_record_id,
+                )
+                if existing and not self._announcement_later(existing, envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_announcement_revision",
+                                (
+                                    "changed announcement lacks a strictly later "
+                                    "availability or revision time"
+                                ),
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                announcement = self._repository.add_announcement(
+                    company_id=company_id,
+                    security_id=security.id if security is not None else None,
+                    dataset_id=dataset.id,
+                    source_id=source.id,
+                    record=envelope.record,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                for index, document_record in enumerate(envelope.record.documents, start=1):
+                    document_source = self._document_source(
+                        document_record=document_record,
+                        index=index,
+                        envelope=envelope,
+                        dataset_id=dataset.id,
+                        run_id=run.id,
+                        raw=raw,
+                    )
+                    document_source.validation_status = "accepted"
+                    document = self._repository.add_document(
+                        company_id=company_id,
+                        security_id=security.id if security is not None else None,
+                        dataset_id=dataset.id,
+                        source_id=document_source.id,
+                        record=document_record,
+                        available_at=envelope.available_at,
+                        revision_at=envelope.revision_at,
+                    )
+                    assert document_record.role is not None
+                    self._repository.link_announcement_document(
+                        announcement_id=announcement.id,
+                        document_id=document.id,
+                        role=document_record.role,
+                    )
+                source.validation_status = "accepted"
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
+    def _document_source(
+        self,
+        *,
+        document_record: AnnouncementDocumentRecord,
+        index: int,
+        envelope: IngestionEnvelope[AnnouncementRecord],
+        dataset_id: UUID,
+        run_id: UUID,
+        raw: ArchivedRawObject,
+    ) -> SourceRecord:
+        metadata = {
+            "parent_content_sha256": envelope.content_sha256,
+            "position": index,
+            "document_type": document_record.document_type,
+            "title": document_record.title,
+            "language": document_record.language,
+            "media_type": document_record.media_type,
+            "document_uri": document_record.document_uri,
+            "document_content_sha256": document_record.document_content_sha256,
+            "role": document_record.role,
+        }
+        metadata_sha256 = sha256(
+            json.dumps(metadata, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()
+        child_external_id = (
+            f"{envelope.external_record_id[:180]}#document:{index}:{envelope.content_sha256[:16]}"
+        )
+        return self._repository.create_source(
+            run_id=run_id,
+            dataset_id=dataset_id,
+            external_id=child_external_id,
+            source_uri=envelope.source_uri,
+            raw_object_key=raw.object_key,
+            raw_payload_reference=(f"{envelope.raw_payload_reference}#document-{index}"),
+            raw_sha256=raw.content_sha256,
+            content_sha256=metadata_sha256,
+            retrieved_at=envelope.retrieved_at,
+            reported_at=envelope.reported_at,
+            published_at=envelope.published_at,
+            available_at=envelope.available_at,
+            revision_at=envelope.revision_at,
+            parse_status="parsed",
+        )
+
+    @staticmethod
+    def _announcement_later(
+        existing: Sequence[Announcement],
+        envelope: IngestionEnvelope[AnnouncementRecord],
+    ) -> bool:
+        assert envelope.available_at is not None
+        new_order = (envelope.available_at, envelope.revision_at or envelope.available_at)
+        previous_order = max(
+            (
+                IngestionService._utc(announcement.available_at),
+                IngestionService._utc(announcement.revision_at or announcement.available_at),
+            )
+            for announcement in existing
+        )
+        return new_order > previous_order
 
     @staticmethod
     def _action_equivalent(

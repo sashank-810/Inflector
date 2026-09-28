@@ -1,4 +1,4 @@
-# Phase 2A data ingestion spine
+# Data ingestion spine
 
 Every provider batch follows one path: provider adapter, typed envelope,
 content-addressed raw archive, ingestion run, immutable source record,
@@ -112,3 +112,34 @@ descriptive lifecycle metadata. Universe and symbol-change normalization both
 reject an overlap for the same security and exchange, while adjacent intervals
 are valid. Security succession rejects self edges and any edge that would close
 an existing directed replacement cycle.
+
+## Announcement and document evidence (Phase 6A)
+
+Announcement ingestion reuses this same archive-first transaction boundary.
+`AnnouncementProvider` returns provider-neutral announcement envelopes; the
+synthetic CSV adapter represents multiple attachments as repeated rows under
+one `external_id`, groups them deterministically, and never overwrites a row.
+Mock and CSV are the only adapters in this phase; no live exchange scraper is
+introduced.
+
+The service resolves the canonical company and, when supplied, the ISIN. A
+security/company contradiction quarantines the source, while a company-level
+announcement may keep `security_id` null. Accepted rows append one immutable
+announcement plus zero or more document metadata rows and revision-specific
+relations. Each retains SourceRecord and raw-archive provenance. Documents
+inherit the announcement envelope's availability/revision timestamps because
+Phase 6A has no independent document availability field.
+
+Identical provider-dataset/external-ID/content-hash reruns are source-level
+duplicates. Changed content for the same provider announcement identity is a
+new revision only when `(available_at, revision_at or available_at)` is
+strictly later than the newest accepted revision; otherwise it is quarantined
+as `ambiguous_announcement_revision`. Different provider datasets and distinct
+external IDs remain independent even when headlines match.
+
+Document bytes are not downloaded or stored in PostgreSQL. A supplied content
+hash must be a byte-content SHA-256 digest; null is valid, and the URI is never
+hashed as a substitute. Phase 6A performs no PDF extraction, OCR, text storage,
+AI interpretation, or catalyst/risk classification. PIT behavior and the
+complete validation contract are documented in
+[`announcement-document-evidence.md`](announcement-document-evidence.md).

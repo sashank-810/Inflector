@@ -269,7 +269,7 @@ licence tag, cursor, and validation results.
 | `BenchmarkDataProvider` | provider-local benchmark identity and raw daily OHLC corrections | CSV/mock implemented; official deferred |
 | `FinancialsProvider` | filing headers, line items, restatements | CSV/manual/mock |
 | `CorporateActionProvider` | split, bonus, dividend, merge, delisting | CSV/manual/mock |
-| `DisclosureProvider` | announcements, filings, document references | CSV/manual/mock |
+| `AnnouncementProvider` | public announcement and document metadata | CSV/mock implemented; official exchange adapters deferred |
 | `OwnershipProvider` | promoter, MF, FII/FPI, pledge holdings | CSV/manual/mock |
 | `AttentionProvider` | coverage/news/search/volume proxies | CSV/manual/mock |
 | `DocumentStore` | put/get immutable bytes by checksum | local/S3-compatible |
@@ -326,6 +326,16 @@ financial source. Component-specific recursive lineage is unioned into the v3
 snapshot fingerprint. V3 maximum standard coverage is 0.75, while
 `final_score` and final contributions remain null. See
 [`cross-domain-score-orchestration.md`](cross-domain-score-orchestration.md).
+
+Phase 6A adds the first source-evidence boundary for public announcements and
+associated document metadata. `AnnouncementProvider` adapters return immutable
+provider-neutral batches; ingestion archives the complete batch before
+validation and appends accepted announcement revisions, revision-owned
+document metadata, and source lineage. A dedicated PIT reader selects one
+revision per provider dataset/external ID using public availability. It does
+not acquire document bytes, extract text, invoke AI, classify catalysts or
+risks, or change scoring. See
+[`announcement-document-evidence.md`](announcement-document-evidence.md).
 
 ## Deployment, auth, and observability
 

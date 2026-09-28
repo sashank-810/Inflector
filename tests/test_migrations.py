@@ -232,3 +232,70 @@ def test_phase_4dg_security_identity_upgrade_downgrade_upgrade(tmp_path: Path) -
         }
     finally:
         engine.dispose()
+
+
+def test_phase_6a_announcement_evidence_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-6a-announcement-evidence.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    phase6a_tables = {"announcements", "documents", "announcement_documents"}
+
+    command.upgrade(config, "20260928_0010")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert not phase6a_tables.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0011")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert phase6a_tables.issubset(inspector.get_table_names())
+        announcement_columns = {
+            column["name"]: column for column in inspector.get_columns("announcements")
+        }
+        document_columns = {column["name"]: column for column in inspector.get_columns("documents")}
+        assert announcement_columns["security_id"]["nullable"]
+        assert not announcement_columns["source_record_id"]["nullable"]
+        assert document_columns["document_content_sha256"]["nullable"]
+        assert {key["referred_table"] for key in inspector.get_foreign_keys("announcements")} == {
+            "companies",
+            "securities",
+            "provider_datasets",
+            "source_records",
+        }
+        assert {key["referred_table"] for key in inspector.get_foreign_keys("documents")} == {
+            "companies",
+            "securities",
+            "provider_datasets",
+            "source_records",
+        }
+        assert {
+            key["referred_table"] for key in inspector.get_foreign_keys("announcement_documents")
+        } == {"announcements", "documents"}
+        relation_pk = inspector.get_pk_constraint("announcement_documents")
+        assert set(relation_pk["constrained_columns"]) == {
+            "announcement_id",
+            "document_id",
+        }
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260928_0010")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert not phase6a_tables.intersection(tables)
+        assert "selected_security_id" in {
+            column["name"] for column in inspect(engine).get_columns("score_snapshots")
+        }
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0011")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert phase6a_tables.issubset(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()

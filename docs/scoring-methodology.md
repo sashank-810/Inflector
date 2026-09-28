@@ -183,11 +183,12 @@ work rather than hidden scoring behavior.
 
 ### Business catalyst (20)
 
-Only source-linked catalyst records are used. Direction, evidence confidence,
-recency decay, and materiality determine the score. When amount is known,
-materiality includes `order_or_capex_value / latest available annual revenue`;
-otherwise the event is visible but capped. Duplicate announcements and
-unreviewed AI extraction cannot be counted twice.
+Business Catalyst remains unimplemented. Phase 6A stores only immutable,
+source-linked announcement and document metadata and supplies PIT reads; it
+does not create catalyst records or infer direction, evidence confidence,
+recency decay, materiality, sentiment, importance, guidance, or risk. Any
+future deterministic event primitives and component policy require separate
+review, and unreviewed AI extraction cannot enter scoring.
 
 ### Quality, cash flow, and balance sheet (35 combined)
 

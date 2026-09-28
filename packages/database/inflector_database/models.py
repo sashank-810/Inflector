@@ -227,6 +227,80 @@ class DataQualityIssue(Base):
     )
 
 
+class Announcement(Base):
+    """Append-only public announcement metadata with immutable source provenance."""
+
+    __tablename__ = "announcements"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    provider_category: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    headline: Mapped[str] = mapped_column(Text, nullable=False)
+    announcement_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    exchange: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class Document(Base):
+    """Append-only document identity and location; document bytes remain external."""
+
+    __tablename__ = "documents"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    document_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    title: Mapped[str] = mapped_column(Text, nullable=False)
+    language: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    media_type: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    document_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    document_content_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class AnnouncementDocument(Base):
+    """Revision-specific relation between an announcement and its document set."""
+
+    __tablename__ = "announcement_documents"
+
+    announcement_id: Mapped[UUID] = mapped_column(
+        ForeignKey("announcements.id", ondelete="RESTRICT"), primary_key=True
+    )
+    document_id: Mapped[UUID] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), primary_key=True
+    )
+    role: Mapped[str] = mapped_column(String(32), nullable=False)
+
+
 class PriceBar(Base):
     """Append-only daily bar with source provenance and revision timestamps."""
 

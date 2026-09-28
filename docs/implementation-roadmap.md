@@ -238,7 +238,7 @@ identity/negation transforms and uncalibrated development curves. Preserve the
 renormalization. Absolute volatility and absolute close-times-volume remain
 unscored. This pure scorer is not added to `score_snapshot_v2`.
 
-### Phase 4D-G — cross-domain partial score orchestration (acceptance pending)
+### Phase 4D-G — cross-domain partial score orchestration (complete)
 
 Add the separate `score_snapshot_v3` persistence path for the four financial
 components, Valuation, and Market Structure. Financial context selection stays
@@ -271,11 +271,30 @@ caps, and activation policy.
 
 **Exit gate:** a user can trace any displayed score to inputs and evidence.
 
-## Phase 6 — catalyst intelligence
+## Phase 6 — announcement and catalyst evidence
 
-1. Add announcements/documents ingestion and deterministic rule classification.
-2. Add `AIInterpreter` behind a reviewed, evidence-required interface for
-   catalyst/risk/guidance extraction; track management commitments.
+### Phase 6A — Announcement & Document Evidence Foundation (acceptance pending)
+
+Persist provider-neutral, append-only announcement and document metadata with
+raw archive provenance, deterministic validation, revision ordering, and PIT
+reads. This phase is source evidence only: it adds no document text, AI,
+catalyst/risk interpretation, or scoring.
+
+### Planned next: Phase 6B — Document acquisition/text/evidence extraction foundation
+
+Acquire approved document bytes and establish reviewed text/evidence
+extraction boundaries. This remains unimplemented.
+
+### Then: Phase 6C — Deterministic Catalyst Event Primitives
+
+Derive separately reviewed deterministic event primitives from accepted
+evidence. This remains unimplemented.
+
+### Only after review: Phase 4D-H — Business Catalyst Component Scoring
+
+Add a pure Business Catalyst scorer only after the evidence and primitive
+contracts are accepted. Do not infer catalyst direction or activate a final
+score before that review.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

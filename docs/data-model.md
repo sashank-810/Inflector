@@ -23,6 +23,8 @@ erDiagram
   company ||--o{ financial_filing : files
   financial_filing ||--o{ financial_fact : contains
   company ||--o{ announcement : discloses
+  announcement ||--o{ announcement_document : relates
+  document ||--o{ announcement_document : attaches
   announcement ||--o{ catalyst : may_create
   announcement ||--o{ risk_flag : may_create
   company ||--o{ feature_snapshot : has
@@ -57,13 +59,18 @@ erDiagram
 | `ingestion_run` | dataset, status, start/end, cursor/watermark, counters, error | Job audit and idempotency |
 | `source_record` | run, external ID, URL/object key, raw record locator, content hash, all time fields, parse status | Immutable input provenance |
 | `data_quality_issue` | source/entity, rule, severity, message, lifecycle | Quarantine and review |
-| `document` | company, type, title, URL, object key, unique SHA-256, language, source/time fields | Filing/announcement metadata |
-| `document_text` | document PK, extracted text/key, extractor version, checksum, page map | Searchable document text |
-| `document_interpretation` | document, task, schema/model/prompt versions, output JSON, confidence, evidence, review state | Auditable AI output |
+| `documents` | company, optional security, provider dataset, unique source record, structural type/title/language/media type/URI, optional provider-supplied content SHA-256, availability/revision/ingestion timestamps | Implemented Phase 6A announcement-document metadata |
+| `announcement_documents` | announcement/document composite identity and structural role | Implemented revision-specific many-to-many attachment set |
+| `document_text` | document PK, extracted text/key, extractor version, checksum, page map | Planned Phase 6B; not implemented |
+| `document_interpretation` | document, task, schema/model/prompt versions, output JSON, confidence, evidence, review state | Planned reviewed AI layer; not implemented |
 
-Document bytes are content-addressed in local/S3-compatible object storage;
-PostgreSQL stores metadata, checksums, extraction, and citations rather than
-large blobs. Every normalized fact references a `source_record`.
+Phase 6A archives complete incoming provider batches in the existing
+content-addressed raw object store and stores normalized document identity and
+metadata in PostgreSQL, never large PDF/document bytes. A document content
+hash is nullable and means document-byte SHA-256 only when the provider
+actually supplied or calculated it. Text, extraction, citations, and AI
+interpretation remain unimplemented. Every normalized announcement and
+document references a `source_record`.
 
 ### Market, benchmarks, ownership, and attention
 
@@ -152,14 +159,22 @@ are request inputs rather than stored policy or application constants.
 
 | Table | Core columns / constraints | Purpose |
 |---|---|---|
-| `announcement` | company, optional listing/security, category, headline, external ID, source/document/time fields | Disclosure event |
-| `event_evidence` | parent type/id, source/doc/announcement, excerpt, locator/page, confidence | Citable evidence |
-| `catalyst` | company, source refs, type/direction/materiality, confidence, status, source/time fields, review state | Capacity/order/product catalysts |
-| `risk_flag` | company, category, severity, status, confidence, source/time fields, review state | Financial/governance/liquidity etc. |
-| `management_commitment` | company/document, promise text/type, target date/value, status, evidence/confidence | Management promise tracking |
+| `announcements` | company, optional security, provider dataset, unique source record, raw provider category/headline/date/exchange, availability/revision/ingestion timestamps | Implemented Phase 6A source observation |
+| `event_evidence` | parent type/id, source/doc/announcement, excerpt, locator/page, confidence | Planned; not implemented |
+| `catalyst` | company, source refs, type/direction/materiality, confidence, status, source/time fields, review state | Planned; not implemented |
+| `risk_flag` | company, category, severity, status, confidence, source/time fields, review state | Planned; not implemented |
+| `management_commitment` | company/document, promise text/type, target date/value, status, evidence/confidence | Planned; not implemented |
 
 Multiple evidence rows can support one interpretation. AI-created catalyst or
 risk rows remain provisional until review and may be excluded by configuration.
+
+Migration 0011 implements only `announcements`, `documents`, and
+`announcement_documents`. Announcement revisions are append-only within a
+provider-dataset/external-ID identity and each immutable revision owns its
+current document relation set. The Phase 6A PIT reader gates on accepted source
+status and `available_at <= as_of`; it never gates on mutable security or
+listing status. See
+[`announcement-document-evidence.md`](announcement-document-evidence.md).
 
 ### Features, models, and opportunity scores
 

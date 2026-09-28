@@ -1,0 +1,11 @@
+external_id,company_legal_name,security_isin,provider_category,headline,announcement_date,exchange,available_at,revision_at,document_type,document_title,document_language,document_media_type,document_uri,document_content_sha256,document_role
+SYN-INVALID-NO-IDENTITY,,,raw_notice,Identity missing,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-COMPANY,Unknown Fictional Limited,,raw_notice,Unknown company,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-SECURITY,Fictional Alpha Limited,INE999UNK999,raw_notice,Unknown security,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-MISMATCH,Fictional Alpha Limited,INE000SYN002,raw_notice,Contradictory security,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-HEADLINE,Fictional Alpha Limited,,raw_notice,,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-AVAILABLE,Fictional Alpha Limited,,raw_notice,Missing knowledge time,2027-08-01,NSE,,,,,,,,,
+SYN-INVALID-DATE,Fictional Alpha Limited,,raw_notice,Invalid disclosure date,not-a-date,NSE,2027-08-01T10:00:00+00:00,,,,,,,,
+SYN-INVALID-ROLE,Fictional Alpha Limited,,raw_notice,Invalid relation role,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,exchange_filing,Invalid role,en,application/pdf,synthetic://documents/invalid-role.pdf,,featured
+SYN-INVALID-HASH,Fictional Alpha Limited,,raw_notice,Invalid document hash,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,exchange_filing,Invalid hash,en,application/pdf,synthetic://documents/invalid-hash.pdf,not-a-sha256,primary
+SYN-INVALID-URI,Fictional Alpha Limited,,raw_notice,Missing document URI,2027-08-01,NSE,2027-08-01T10:00:00+00:00,,exchange_filing,Missing URI,en,application/pdf,,,primary

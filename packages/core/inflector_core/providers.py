@@ -127,6 +127,34 @@ class CorporateActionRecord:
     parse_errors: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class AnnouncementDocumentRecord:
+    """Provider-neutral document metadata attached to one announcement observation."""
+
+    document_type: str | None
+    title: str | None
+    language: str | None
+    media_type: str | None
+    document_uri: str | None
+    document_content_sha256: str | None
+    role: str | None
+    parse_errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class AnnouncementRecord:
+    """Provider-neutral public-announcement metadata without interpretation."""
+
+    company_legal_name: str | None
+    security_isin: str | None
+    provider_category: str | None
+    headline: str | None
+    announcement_date: date | None
+    exchange: str | None
+    documents: tuple[AnnouncementDocumentRecord, ...]
+    parse_errors: tuple[str, ...] = ()
+
+
 def corporate_action_event_anchor(
     action_type: str | None, ex_date: date | None, effective_date: date | None
 ) -> date | None:
@@ -229,5 +257,14 @@ class CorporateActionProvider(Protocol):
 
     def fetch_corporate_actions(self) -> ProviderBatch[CorporateActionRecord]:
         """Return one provider-neutral corporate-action batch."""
+
+        ...
+
+
+class AnnouncementProvider(Protocol):
+    """Provider port for public announcement and document metadata."""
+
+    def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
+        """Return one provider-neutral announcement batch."""
 
         ...
