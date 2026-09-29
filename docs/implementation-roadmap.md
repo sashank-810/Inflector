@@ -304,7 +304,7 @@ immutable derivation even when it contains zero facts. Values are source
 observations, not summed totals or materiality; there is no FX, financial join,
 AI, direction, score, or snapshot change.
 
-### Phase 6C-C — Business Event Materiality & Recency Feature Primitives (acceptance pending)
+### Phase 6C-C — Business Event Materiality & Recency Feature Primitives (complete)
 
 Produce a non-persisted bundle for one PIT-selected event. Resolve equivalent
 quantitative observations without summing, fail closed on conflicts, anchor
@@ -312,10 +312,20 @@ revenue denominators to event source availability, and calculate raw event age
 at the requested cutoff. No market cap, FX, provider selection, cross-event
 aggregation, AI, scoring policy, persistence, or snapshot change is included.
 
-### Only after review: Phase 4D-H — Business Catalyst Component Scoring
+### Phase 4D-H — Business Catalyst Component Scoring (acceptance pending)
 
-Add a pure Business Catalyst scorer only after Phase 6C-C is accepted. Do not
-infer catalyst direction or activate a final score before that review.
+Add an optional versioned policy and pure max-event scorer over explicit
+Phase 6C-C bundles. Orders and capacity expansions require quantified strength;
+commercial commencement and regulatory approval use configurable base
+strength. Capex and acquisitions remain neutral and unscoreable. This phase
+does not persist the component, apply its 0.20 top-level weight, or activate a
+final score.
+
+### Planned after separate review
+
+Review Business Catalyst cross-domain snapshot orchestration separately from
+the Low Market Attention evidence foundation. Do not infer attention from
+existing activity, delivery, price, market-cap, or event evidence.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

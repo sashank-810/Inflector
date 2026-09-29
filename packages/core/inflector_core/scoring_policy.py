@@ -8,7 +8,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, field_validator, model_validator
@@ -397,6 +397,39 @@ class MarketStructureScoringPolicy(_PolicyModel):
         return self
 
 
+class BusinessCatalystScoringPolicy(_PolicyModel):
+    maximum_event_age_days: int
+    event_recency_signal_curve: PiecewiseLinearScoringCurve
+    order_value_to_ttm_revenue_curve: PiecewiseLinearScoringCurve
+    capacity_change_ratio_curve: PiecewiseLinearScoringCurve
+    commercial_commencement_base_score: Decimal
+    regulatory_approval_base_score: Decimal
+    aggregation_method: Literal["max_event_score_v1"]
+
+    @field_validator(
+        "commercial_commencement_base_score",
+        "regulatory_approval_base_score",
+        mode="before",
+    )
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("business-catalyst scores must not use binary floats")
+        return value
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> BusinessCatalystScoringPolicy:
+        if self.maximum_event_age_days < 1:
+            raise ValueError("maximum_event_age_days must be at least 1")
+        for score in (
+            self.commercial_commencement_base_score,
+            self.regulatory_approval_base_score,
+        ):
+            if not Decimal("0") <= score <= Decimal("100"):
+                raise ValueError("business-catalyst base scores must be in [0, 100]")
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
@@ -408,6 +441,7 @@ class InflectionScoringPolicy(_PolicyModel):
     balance_sheet: BalanceSheetScoringPolicy | None = None
     valuation: ValuationScoringPolicy | None = None
     market_structure: MarketStructureScoringPolicy | None = None
+    business_catalyst: BusinessCatalystScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -444,6 +478,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
         policy_value.pop("valuation", None)
     if policy_value.get("market_structure") is None:
         policy_value.pop("market_structure", None)
+    if policy_value.get("business_catalyst") is None:
+        policy_value.pop("business_catalyst", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

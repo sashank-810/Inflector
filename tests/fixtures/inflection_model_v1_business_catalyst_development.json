@@ -1,0 +1,852 @@
+{
+  "balance_sheet": {
+    "debt_to_equity_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-3.00",
+          "score": "0"
+        },
+        {
+          "raw_value": "-2.00",
+          "score": "20"
+        },
+        {
+          "raw_value": "-1.00",
+          "score": "50"
+        },
+        {
+          "raw_value": "-0.50",
+          "score": "75"
+        },
+        {
+          "raw_value": "0.00",
+          "score": "100"
+        }
+      ]
+    },
+    "interest_coverage_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-2.00",
+          "score": "0"
+        },
+        {
+          "raw_value": "0.00",
+          "score": "10"
+        },
+        {
+          "raw_value": "1.00",
+          "score": "30"
+        },
+        {
+          "raw_value": "2.00",
+          "score": "50"
+        },
+        {
+          "raw_value": "4.00",
+          "score": "75"
+        },
+        {
+          "raw_value": "8.00",
+          "score": "90"
+        },
+        {
+          "raw_value": "15.00",
+          "score": "100"
+        }
+      ]
+    },
+    "minimum_weight_coverage": "0.70",
+    "net_debt_to_ebitda_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-5.00",
+          "score": "0"
+        },
+        {
+          "raw_value": "-4.00",
+          "score": "10"
+        },
+        {
+          "raw_value": "-3.00",
+          "score": "30"
+        },
+        {
+          "raw_value": "-2.00",
+          "score": "55"
+        },
+        {
+          "raw_value": "-1.00",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.00",
+          "score": "95"
+        },
+        {
+          "raw_value": "1.00",
+          "score": "100"
+        }
+      ]
+    },
+    "subfactor_weights": {
+      "debt_to_equity": "0.30",
+      "interest_coverage": "0.30",
+      "net_debt_to_ebitda": "0.40"
+    }
+  },
+  "business_catalyst": {
+    "aggregation_method": "max_event_score_v1",
+    "capacity_change_ratio_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "0",
+          "score": "0"
+        },
+        {
+          "raw_value": "0.05",
+          "score": "20"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "40"
+        },
+        {
+          "raw_value": "0.20",
+          "score": "65"
+        },
+        {
+          "raw_value": "0.50",
+          "score": "90"
+        },
+        {
+          "raw_value": "1.00",
+          "score": "100"
+        }
+      ]
+    },
+    "commercial_commencement_base_score": "80",
+    "event_recency_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-365",
+          "score": "0"
+        },
+        {
+          "raw_value": "-180",
+          "score": "30"
+        },
+        {
+          "raw_value": "-90",
+          "score": "60"
+        },
+        {
+          "raw_value": "-30",
+          "score": "85"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "maximum_event_age_days": 365,
+    "order_value_to_ttm_revenue_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "0",
+          "score": "0"
+        },
+        {
+          "raw_value": "0.02",
+          "score": "20"
+        },
+        {
+          "raw_value": "0.05",
+          "score": "40"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "60"
+        },
+        {
+          "raw_value": "0.25",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.50",
+          "score": "90"
+        },
+        {
+          "raw_value": "1.00",
+          "score": "100"
+        }
+      ]
+    },
+    "regulatory_approval_base_score": "90"
+  },
+  "business_quality": {
+    "margin_code": "operating_margin",
+    "margin_level_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.10",
+          "score": "0"
+        },
+        {
+          "raw_value": "0",
+          "score": "20"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "50"
+        },
+        {
+          "raw_value": "0.20",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.30",
+          "score": "100"
+        }
+      ]
+    },
+    "minimum_weight_coverage": "0.70",
+    "roce_level_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.10",
+          "score": "0"
+        },
+        {
+          "raw_value": "0",
+          "score": "20"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "50"
+        },
+        {
+          "raw_value": "0.20",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.30",
+          "score": "100"
+        }
+      ]
+    },
+    "roe_level_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.10",
+          "score": "0"
+        },
+        {
+          "raw_value": "0",
+          "score": "20"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "50"
+        },
+        {
+          "raw_value": "0.20",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.30",
+          "score": "100"
+        }
+      ]
+    },
+    "subfactor_weights": {
+      "margin_level": "0.20",
+      "roce_level": "0.50",
+      "roe_level": "0.30"
+    }
+  },
+  "cash_flow_quality": {
+    "cfo_conversion_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.50",
+          "score": "0"
+        },
+        {
+          "raw_value": "0",
+          "score": "10"
+        },
+        {
+          "raw_value": "0.50",
+          "score": "40"
+        },
+        {
+          "raw_value": "0.80",
+          "score": "70"
+        },
+        {
+          "raw_value": "1",
+          "score": "90"
+        },
+        {
+          "raw_value": "1.20",
+          "score": "100"
+        },
+        {
+          "raw_value": "2",
+          "score": "100"
+        }
+      ]
+    },
+    "cfo_to_ebitda_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.50",
+          "score": "0"
+        },
+        {
+          "raw_value": "0",
+          "score": "10"
+        },
+        {
+          "raw_value": "0.40",
+          "score": "40"
+        },
+        {
+          "raw_value": "0.70",
+          "score": "70"
+        },
+        {
+          "raw_value": "1",
+          "score": "95"
+        },
+        {
+          "raw_value": "1.20",
+          "score": "100"
+        },
+        {
+          "raw_value": "2",
+          "score": "100"
+        }
+      ]
+    },
+    "minimum_weight_coverage": "0.70",
+    "receivable_days_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-180",
+          "score": "0"
+        },
+        {
+          "raw_value": "-120",
+          "score": "20"
+        },
+        {
+          "raw_value": "-90",
+          "score": "40"
+        },
+        {
+          "raw_value": "-60",
+          "score": "70"
+        },
+        {
+          "raw_value": "-30",
+          "score": "90"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "subfactor_weights": {
+      "cfo_conversion": "0.40",
+      "cfo_to_ebitda": "0.30",
+      "receivable_days": "0.15",
+      "trade_working_capital_burden": "0.15"
+    },
+    "trade_working_capital_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-0.20",
+          "score": "0"
+        },
+        {
+          "raw_value": "-0.10",
+          "score": "25"
+        },
+        {
+          "raw_value": "0",
+          "score": "60"
+        },
+        {
+          "raw_value": "0.05",
+          "score": "80"
+        },
+        {
+          "raw_value": "0.10",
+          "score": "100"
+        }
+      ]
+    }
+  },
+  "component_weights": {
+    "balance_sheet": "0.10",
+    "business_catalyst": "0.20",
+    "business_quality": "0.15",
+    "cash_flow_quality": "0.10",
+    "financial_inflection": "0.25",
+    "low_market_attention": "0.05",
+    "market_structure": "0.05",
+    "valuation": "0.10"
+  },
+  "confidence": {
+    "completeness_weight": "0.25",
+    "evidence_weight": "0.15",
+    "history_weight": "0.20",
+    "maximum_history_observations": 8,
+    "recency_weight": "0.20",
+    "source_reliability_weight": "0.20",
+    "stale_after_days": 180
+  },
+  "eligibility": {
+    "allowed_listing_statuses": [
+      "active"
+    ],
+    "allowed_security_statuses": [
+      "active"
+    ],
+    "allowed_security_types": [
+      "equity"
+    ],
+    "minimum_average_daily_traded_value_inr": "1000000",
+    "minimum_comparable_yoy_observations": 4,
+    "minimum_financial_core_coverage": "0.75",
+    "new_listing_exception_enabled": true
+  },
+  "financial_context": {
+    "filing_scope_priority": [
+      "consolidated",
+      "standalone"
+    ],
+    "provider_dataset_priority": [
+      "11111111-1111-4111-8111-111111111111",
+      "22222222-2222-4222-8222-222222222222"
+    ]
+  },
+  "financial_inflection": {
+    "consistency_window_size": 4,
+    "persistence_threshold": "0.10",
+    "persistence_window_size": 4,
+    "scoring": {
+      "growth_consistency_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "0",
+            "score": "0"
+          },
+          {
+            "raw_value": "0.50",
+            "score": "50"
+          },
+          {
+            "raw_value": "1",
+            "score": "100"
+          }
+        ]
+      },
+      "growth_history_metric_code": "revenue",
+      "growth_persistence_ratio_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "0",
+            "score": "0"
+          },
+          {
+            "raw_value": "0.50",
+            "score": "50"
+          },
+          {
+            "raw_value": "1",
+            "score": "100"
+          }
+        ]
+      },
+      "margin_code": "operating_margin",
+      "margin_expansion_bps_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "-500",
+            "score": "0"
+          },
+          {
+            "raw_value": "0",
+            "score": "40"
+          },
+          {
+            "raw_value": "500",
+            "score": "70"
+          },
+          {
+            "raw_value": "1000",
+            "score": "100"
+          }
+        ]
+      },
+      "minimum_weight_coverage": "0.70",
+      "pat_acceleration_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "-0.30",
+            "score": "0"
+          },
+          {
+            "raw_value": "0",
+            "score": "40"
+          },
+          {
+            "raw_value": "0.20",
+            "score": "70"
+          },
+          {
+            "raw_value": "0.50",
+            "score": "100"
+          }
+        ]
+      },
+      "revenue_acceleration_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "-0.20",
+            "score": "0"
+          },
+          {
+            "raw_value": "0",
+            "score": "40"
+          },
+          {
+            "raw_value": "0.20",
+            "score": "70"
+          },
+          {
+            "raw_value": "0.50",
+            "score": "100"
+          }
+        ]
+      },
+      "roce_improvement_curve": {
+        "breakpoints": [
+          {
+            "raw_value": "-0.05",
+            "score": "0"
+          },
+          {
+            "raw_value": "0",
+            "score": "40"
+          },
+          {
+            "raw_value": "0.05",
+            "score": "70"
+          },
+          {
+            "raw_value": "0.10",
+            "score": "100"
+          }
+        ]
+      },
+      "subfactor_weights": {
+        "growth_consistency": "0.05",
+        "growth_persistence": "0.05",
+        "margin_expansion": "0.20",
+        "pat_acceleration": "0.25",
+        "revenue_acceleration": "0.30",
+        "roce_improvement": "0.15"
+      }
+    }
+  },
+  "market_structure": {
+    "subfactor_weights": {
+      "relative_strength_60_to_benchmark": "0.30",
+      "close_to_sma20": "0.10",
+      "sma20_to_sma60": "0.15",
+      "volatility_ratio_20_to_60": "0.15",
+      "consolidation_range_20": "0.10",
+      "close_times_volume_ratio_20_to_60": "0.10",
+      "average_delivery_percentage_20": "0.10"
+    },
+    "minimum_weight_coverage": "0.70",
+    "relative_strength_60_to_benchmark_curve": {
+      "breakpoints": [
+        {"raw_value": "-0.30", "score": "0"},
+        {"raw_value": "-0.15", "score": "20"},
+        {"raw_value": "0.00", "score": "50"},
+        {"raw_value": "0.10", "score": "65"},
+        {"raw_value": "0.20", "score": "80"},
+        {"raw_value": "0.40", "score": "100"}
+      ]
+    },
+    "close_to_sma20_curve": {
+      "breakpoints": [
+        {"raw_value": "-0.20", "score": "0"},
+        {"raw_value": "-0.10", "score": "20"},
+        {"raw_value": "0.00", "score": "50"},
+        {"raw_value": "0.05", "score": "70"},
+        {"raw_value": "0.10", "score": "85"},
+        {"raw_value": "0.20", "score": "100"}
+      ]
+    },
+    "sma20_to_sma60_curve": {
+      "breakpoints": [
+        {"raw_value": "-0.15", "score": "0"},
+        {"raw_value": "-0.05", "score": "20"},
+        {"raw_value": "0.00", "score": "50"},
+        {"raw_value": "0.05", "score": "70"},
+        {"raw_value": "0.10", "score": "85"},
+        {"raw_value": "0.20", "score": "100"}
+      ]
+    },
+    "volatility_ratio_20_to_60_signal_curve": {
+      "breakpoints": [
+        {"raw_value": "-2.00", "score": "0"},
+        {"raw_value": "-1.50", "score": "20"},
+        {"raw_value": "-1.00", "score": "50"},
+        {"raw_value": "-0.80", "score": "70"},
+        {"raw_value": "-0.60", "score": "85"},
+        {"raw_value": "-0.40", "score": "100"},
+        {"raw_value": "0.00", "score": "100"}
+      ]
+    },
+    "consolidation_range_20_signal_curve": {
+      "breakpoints": [
+        {"raw_value": "-0.50", "score": "0"},
+        {"raw_value": "-0.30", "score": "20"},
+        {"raw_value": "-0.20", "score": "50"},
+        {"raw_value": "-0.12", "score": "70"},
+        {"raw_value": "-0.08", "score": "85"},
+        {"raw_value": "-0.04", "score": "100"},
+        {"raw_value": "0.00", "score": "100"}
+      ]
+    },
+    "close_times_volume_ratio_20_to_60_curve": {
+      "breakpoints": [
+        {"raw_value": "0.00", "score": "0"},
+        {"raw_value": "0.50", "score": "10"},
+        {"raw_value": "0.80", "score": "30"},
+        {"raw_value": "1.00", "score": "50"},
+        {"raw_value": "1.20", "score": "70"},
+        {"raw_value": "1.50", "score": "85"},
+        {"raw_value": "2.00", "score": "100"}
+      ]
+    },
+    "average_delivery_percentage_20_curve": {
+      "breakpoints": [
+        {"raw_value": "0.00", "score": "0"},
+        {"raw_value": "0.20", "score": "20"},
+        {"raw_value": "0.40", "score": "50"},
+        {"raw_value": "0.60", "score": "75"},
+        {"raw_value": "0.80", "score": "90"},
+        {"raw_value": "1.00", "score": "100"}
+      ]
+    }
+  },
+  "valuation": {
+    "subfactor_weights": {
+      "market_cap_to_ttm_pat": "0.30",
+      "market_cap_to_total_equity": "0.15",
+      "market_cap_to_ttm_revenue": "0.10",
+      "simplified_ev_to_ttm_ebitda": "0.30",
+      "simplified_ev_to_ttm_revenue": "0.15"
+    },
+    "minimum_weight_coverage": "0.70",
+    "market_cap_to_ttm_pat_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-75",
+          "score": "0"
+        },
+        {
+          "raw_value": "-50",
+          "score": "10"
+        },
+        {
+          "raw_value": "-35",
+          "score": "25"
+        },
+        {
+          "raw_value": "-25",
+          "score": "40"
+        },
+        {
+          "raw_value": "-18",
+          "score": "60"
+        },
+        {
+          "raw_value": "-12",
+          "score": "75"
+        },
+        {
+          "raw_value": "-10",
+          "score": "80"
+        },
+        {
+          "raw_value": "-8",
+          "score": "90"
+        },
+        {
+          "raw_value": "-4",
+          "score": "100"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "market_cap_to_total_equity_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-10",
+          "score": "0"
+        },
+        {
+          "raw_value": "-6",
+          "score": "20"
+        },
+        {
+          "raw_value": "-4",
+          "score": "40"
+        },
+        {
+          "raw_value": "-2.5",
+          "score": "65"
+        },
+        {
+          "raw_value": "-1.5",
+          "score": "80"
+        },
+        {
+          "raw_value": "-1",
+          "score": "90"
+        },
+        {
+          "raw_value": "-0.5",
+          "score": "100"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "market_cap_to_ttm_revenue_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-15",
+          "score": "0"
+        },
+        {
+          "raw_value": "-10",
+          "score": "20"
+        },
+        {
+          "raw_value": "-6",
+          "score": "40"
+        },
+        {
+          "raw_value": "-3",
+          "score": "65"
+        },
+        {
+          "raw_value": "-2",
+          "score": "75"
+        },
+        {
+          "raw_value": "-1",
+          "score": "90"
+        },
+        {
+          "raw_value": "-0.5",
+          "score": "100"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "simplified_ev_to_ttm_ebitda_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-30",
+          "score": "0"
+        },
+        {
+          "raw_value": "-20",
+          "score": "20"
+        },
+        {
+          "raw_value": "-15",
+          "score": "40"
+        },
+        {
+          "raw_value": "-10",
+          "score": "65"
+        },
+        {
+          "raw_value": "-7",
+          "score": "80"
+        },
+        {
+          "raw_value": "-5",
+          "score": "90"
+        },
+        {
+          "raw_value": "-3",
+          "score": "100"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    },
+    "simplified_ev_to_ttm_revenue_signal_curve": {
+      "breakpoints": [
+        {
+          "raw_value": "-15",
+          "score": "0"
+        },
+        {
+          "raw_value": "-10",
+          "score": "20"
+        },
+        {
+          "raw_value": "-6",
+          "score": "40"
+        },
+        {
+          "raw_value": "-3",
+          "score": "65"
+        },
+        {
+          "raw_value": "-2.5",
+          "score": "75"
+        },
+        {
+          "raw_value": "-1.5",
+          "score": "85"
+        },
+        {
+          "raw_value": "-0.5",
+          "score": "100"
+        },
+        {
+          "raw_value": "0",
+          "score": "100"
+        }
+      ]
+    }
+  }
+}
+

@@ -313,8 +313,8 @@ benchmark, security, interval, cutoff, basis-date, and source lineage already
 carried by the bundle; it performs no PIT reads or feature recomputation.
 Absolute volatility and absolute close-times-volume remain unscored. The
 reserved top-level 5%, confidence, eligibility, and final aggregation are not
-applied. Pure scorer availability is now 0.75 of standard top-level weight,
-while v2 persisted coverage remains 0.60. See
+applied. At that phase, pure scorer availability reached 0.75 of standard
+top-level weight, while v2 persisted coverage remained 0.60. See
 [`market-structure-scoring.md`](market-structure-scoring.md).
 
 Phase 4D-G adds a separate `score_snapshot_v3` boundary. It composes the four
@@ -377,6 +377,19 @@ The immutable in-memory bundle retains event, quantitative-fact, TTM-quarter,
 financial-fact, and source lineage. No schema, market data, FX, AI, provider
 selection, event aggregation, scoring policy, or snapshot changes are added.
 See [`business-event-features.md`](business-event-features.md).
+
+Phase 4D-H adds a pure Business Catalyst scoring boundary over an explicit,
+coherent set of Phase 6C-C bundles. Four types are scoreable: quantified order
+awards, quantified capacity expansions, commercial commencement, and
+regulatory approval. Capex announcements and acquisition agreements remain
+neutral and auditable but unscoreable. Exact event strength is multiplied by a
+versioned recency signal, and `max_event_score_v1` selects one result without
+summing, averaging, or counting duplicate disclosures. The scorer retains the
+full feature bundle and selects neither the event provider nor financial
+provider/scope. It creates no persistence or snapshot version. Pure scorer
+availability is 0.95 of top-level weight, while persisted v3 coverage remains
+0.75 and `final_score` remains null. See
+[`business-catalyst-scoring.md`](business-catalyst-scoring.md).
 
 ## Deployment, auth, and observability
 

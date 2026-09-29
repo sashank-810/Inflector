@@ -97,6 +97,16 @@ Feature `available_at` is calculated from actual participating evidence.
 Phase 6C-C performs no cross-event aggregation, cross-announcement semantic
 deduplication, best/newest-event selection, direction, sentiment, confidence,
 AI/LLM work, persistence, policy lookup, score curve, recency decay, or snapshot
-change. Business Catalyst and Low Market Attention remain absent, V1/V2/V3
-maximum persisted coverage remains 0.25/0.60/0.75, and `final_score` remains
-null.
+change. Business Catalyst and Low Market Attention remain absent from
+V1/V2/V3, maximum persisted coverage remains 0.25/0.60/0.75, and `final_score`
+remains null.
+
+Phase 4D-H consumes these bundles without recomputation. Its pure scorer
+validates the event-time materiality cutoff and exact upstream versions,
+multiplies approved event strength by a configurable recency score, and uses a
+maximum-event aggregation to avoid duplicate-announcement inflation. Only
+order awards, capacity expansions, commercial commencement, and regulatory
+approval are scoreable in v1; capex and acquisition evidence remains neutral.
+The scorer performs no provider selection, financial joins, persistence, or
+top-level weighting. See
+[`business-catalyst-scoring.md`](business-catalyst-scoring.md).

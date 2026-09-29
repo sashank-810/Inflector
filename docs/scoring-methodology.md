@@ -183,7 +183,8 @@ work rather than hidden scoring behavior.
 
 ### Business catalyst (20)
 
-Business Catalyst remains unimplemented. Phase 6A stores only immutable,
+Business Catalyst has a pure v1 component scorer but remains absent from
+persisted snapshot orchestration. Phase 6A stores only immutable,
 source-linked announcement and document metadata and supplies PIT reads; it
 does not create catalyst records or infer direction, evidence confidence,
 recency decay, materiality, sentiment, importance, guidance, or risk. Any
@@ -224,6 +225,20 @@ an exact fraction, and event age is the raw Decimal elapsed time at requested
 are used once; conflicts fail closed. There is no market cap, FX, event-set
 aggregation, direction, confidence, AI, persistence, Business Catalyst policy,
 or score/snapshot effect.
+
+Phase 4D-H scores exactly four event types from complete Phase 6C-C bundles.
+Order awards require `order_value_to_ttm_revenue`; capacity expansions require
+`capacity_change_ratio`; commercial commencement and regulatory approval use
+configurable base strengths. Capex announcements and acquisition agreements
+remain neutral and unscoreable because current deterministic evidence does not
+establish direction or transaction quality. Exact event strength is multiplied
+by a negated-age recency curve inside a configurable 365-day reference window.
+The component is the maximum defined event score, with deterministic lineage
+tie-breaking and no summing, averaging, frequency bonus, provider shopping,
+financial-context selection, confidence multiplication, or top-level 0.20
+application. It persists nothing. Pure scorer availability is therefore 0.95,
+but v3 persisted coverage remains 0.75 and `final_score` remains null. See
+[`business-catalyst-scoring.md`](business-catalyst-scoring.md).
 
 ### Quality, cash flow, and balance sheet (35 combined)
 
