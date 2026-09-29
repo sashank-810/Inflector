@@ -372,6 +372,106 @@ class AnnouncementDocument(Base):
     role: Mapped[str] = mapped_column(String(32), nullable=False)
 
 
+class BusinessEvent(Base):
+    """Immutable neutral event detected from one announcement revision."""
+
+    __tablename__ = "business_events"
+    __table_args__ = (
+        UniqueConstraint(
+            "announcement_id",
+            "event_type",
+            "ruleset_code",
+            "ruleset_semantic_version",
+            name="uq_business_event_announcement_type_ruleset",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    announcement_id: Mapped[UUID] = mapped_column(
+        ForeignKey("announcements.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    event_type: Mapped[str] = mapped_column(String(80), nullable=False)
+    source_event_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    ruleset_code: Mapped[str] = mapped_column(String(80), nullable=False)
+    ruleset_semantic_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    matched_rule_codes_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    detection_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    derived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BusinessEventEvidence(Base):
+    """Exact source span supporting a deterministic business event."""
+
+    __tablename__ = "business_event_evidence"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_event_id",
+            "evidence_fingerprint_sha256",
+            name="uq_business_event_evidence_fingerprint",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    business_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("business_events.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    announcement_id: Mapped[UUID] = mapped_column(
+        ForeignKey("announcements.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    evidence_kind: Mapped[str] = mapped_column(String(48), nullable=False)
+    document_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("documents.id", ondelete="RESTRICT"), nullable=True
+    )
+    document_asset_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("document_assets.id", ondelete="RESTRICT"), nullable=True
+    )
+    text_extraction_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("document_text_extractions.id", ondelete="RESTRICT"), nullable=True
+    )
+    rule_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    rule_semantic_version: Mapped[str] = mapped_column(String(80), nullable=False)
+    start_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    end_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    page_numbers_json: Mapped[list[int]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    page_text_sha256s_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    excerpt_text: Mapped[str] = mapped_column(Text, nullable=False)
+    excerpt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    evidence_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class PriceBar(Base):
     """Append-only daily bar with source provenance and revision timestamps."""
 

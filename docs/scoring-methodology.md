@@ -197,6 +197,13 @@ effect. Acquisition and extraction timestamps do not replace the Phase 6A
 source availability cutoff. Business Catalyst and Low Market Attention remain
 missing, v1/v2/v3 coverage is unchanged, and `final_score` remains null.
 
+Phase 6C-A persists only neutral deterministic BusinessEvent types and exact
+headline/document evidence spans under `business_event_rules_v1`. Event
+existence is not a Catalyst score: there are no amounts, materiality ratios,
+direction, sentiment, confidence, recency policy, top-level weight, or score
+snapshot changes. Business Catalyst and Low Market Attention remain missing;
+V1/V2/V3 coverage and null `final_score` semantics are unchanged.
+
 ### Quality, cash flow, and balance sheet (35 combined)
 
 Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE

@@ -25,7 +25,8 @@ erDiagram
   company ||--o{ announcement : discloses
   announcement ||--o{ announcement_document : relates
   document ||--o{ announcement_document : attaches
-  announcement ||--o{ catalyst : may_create
+  announcement ||--o{ business_event : deterministically_derives
+  business_event ||--|{ business_event_evidence : cites
   announcement ||--o{ risk_flag : may_create
   company ||--o{ feature_snapshot : has
   feature_snapshot ||--o{ feature_value : contains
@@ -63,6 +64,8 @@ erDiagram
 | `announcement_documents` | announcement/document composite identity and structural role | Implemented revision-specific many-to-many attachment set |
 | `document_assets` | document, exact byte hash/object key/size, requested/resolved URI, declared/detected media, retrieval time, status/warnings; unique document + content hash | Implemented immutable Phase 6B attachment bytes |
 | `document_text_extractions` | asset, explicit extractor code/semantic/runtime identity, text object/hash/counts, page map, status/warnings, extraction time; unique asset + extractor identity | Implemented deterministic Phase 6B text metadata |
+| `business_events` | company, optional security, immutable announcement revision, provider dataset, neutral event type, source date/availability, ruleset identity, ordered rule codes, detected status, fingerprint, operational derivation time | Implemented Phase 6C-A deterministic event identity |
+| `business_event_evidence` | event and announcement, headline/document kind, optional document/asset/extraction identity, stable rule identity, exact offsets/pages/page hashes/excerpt hash, source availability, fingerprint | Implemented Phase 6C-A citable evidence |
 | `document_interpretation` | document, task, schema/model/prompt versions, output JSON, confidence, evidence, review state | Planned reviewed AI layer; not implemented |
 
 Phase 6A archives complete incoming provider batches in the existing
@@ -70,9 +73,9 @@ content-addressed raw object store and stores normalized document identity and
 metadata in PostgreSQL, never large PDF/document bytes. A document content
 hash is nullable and means document-byte SHA-256 only when the provider
 actually supplied or calculated it. Phase 6B adds external byte/text objects,
-deterministic extraction metadata, and in-memory citation slices; AI
-interpretation and persisted event evidence remain unimplemented. Every
-normalized announcement and document references a `source_record`.
+deterministic extraction metadata, and in-memory citation slices. Phase 6C-A
+adds neutral deterministic event/evidence rows without AI interpretation.
+Every normalized announcement and document references a `source_record`.
 
 ### Market, benchmarks, ownership, and attention
 
@@ -162,7 +165,7 @@ are request inputs rather than stored policy or application constants.
 | Table | Core columns / constraints | Purpose |
 |---|---|---|
 | `announcements` | company, optional security, provider dataset, unique source record, raw provider category/headline/date/exchange, availability/revision/ingestion timestamps | Implemented Phase 6A source observation |
-| `event_evidence` | parent type/id, source/doc/announcement, excerpt, locator/page, confidence | Planned; not implemented |
+| `business_event_evidence` | neutral BusinessEvent, exact source span and Phase 6A/6B lineage; no confidence or interpretation | Implemented in migration 0013 |
 | `catalyst` | company, source refs, type/direction/materiality, confidence, status, source/time fields, review state | Planned; not implemented |
 | `risk_flag` | company, category, severity, status, confidence, source/time fields, review state | Planned; not implemented |
 | `management_commitment` | company/document, promise text/type, target date/value, status, evidence/confidence | Planned; not implemented |
@@ -185,6 +188,17 @@ numbers, inclusive/exclusive Unicode offsets, and per-page UTF-8 SHA-256
 hashes. Asset retrieval and extraction timestamps are operational audit times;
 the associated Phase 6A Document `available_at` remains model knowledge time.
 See [`document-acquisition-and-text.md`](document-acquisition-and-text.md).
+
+Migration 0013 adds only `business_events` and `business_event_evidence`.
+Multiple matches of one type on one immutable announcement revision collapse to
+one event with multiple evidence rows. Different announcement revisions and
+provider announcement identities stay distinct. Headline evidence reaches the
+Announcement SourceRecord archive; document evidence additionally reaches its
+exact DocumentAsset bytes and explicit successful text extraction.
+`source_available_at` controls knowledge time while `derived_at` remains an
+operational timestamp. No quantitative fact, materiality, direction,
+confidence, catalyst score, or score snapshot is added. See
+[`business-event-primitives.md`](business-event-primitives.md).
 
 ### Features, models, and opportunity scores
 

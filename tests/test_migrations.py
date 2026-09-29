@@ -316,6 +316,7 @@ def test_phase_6b_document_text_upgrade_downgrade_upgrade(tmp_path: Path) -> Non
     finally:
         engine.dispose()
 
+
     command.upgrade(config, "20260928_0012")
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     try:
@@ -371,5 +372,67 @@ def test_phase_6b_document_text_upgrade_downgrade_upgrade(tmp_path: Path) -> Non
     engine = create_engine(f"sqlite:///{database_path.as_posix()}")
     try:
         assert phase6b_tables.issubset(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+
+def test_phase_6ca_business_event_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-6ca-business-events.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    phase6ca_tables = {"business_events", "business_event_evidence"}
+
+    command.upgrade(config, "20260928_0012")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert not phase6ca_tables.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0013")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert phase6ca_tables.issubset(inspector.get_table_names())
+        event_columns = {
+            column["name"]: column for column in inspector.get_columns("business_events")
+        }
+        evidence_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("business_event_evidence")
+        }
+        assert not event_columns["detection_fingerprint_sha256"]["nullable"]
+        assert event_columns["security_id"]["nullable"]
+        assert not evidence_columns["excerpt_sha256"]["nullable"]
+        assert evidence_columns["document_id"]["nullable"]
+        assert {
+            key["referred_table"] for key in inspector.get_foreign_keys("business_events")
+        } == {"companies", "securities", "announcements", "provider_datasets"}
+        assert {
+            key["referred_table"]
+            for key in inspector.get_foreign_keys("business_event_evidence")
+        } == {
+            "business_events",
+            "announcements",
+            "documents",
+            "document_assets",
+            "document_text_extractions",
+        }
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260928_0012")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert not phase6ca_tables.intersection(tables)
+        assert {"document_assets", "document_text_extractions"}.issubset(tables)
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260928_0013")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert phase6ca_tables.issubset(inspect(engine).get_table_names())
     finally:
         engine.dispose()

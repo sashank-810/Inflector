@@ -280,7 +280,7 @@ raw archive provenance, deterministic validation, revision ordering, and PIT
 reads. This phase is source evidence only: it adds no document text, AI,
 catalyst/risk interpretation, or scoring.
 
-### Phase 6B — Document acquisition/text/evidence extraction foundation (acceptance pending)
+### Phase 6B — Document acquisition/text/evidence extraction foundation (complete)
 
 Acquire bounded offline document bytes into immutable content-addressed
 storage, extract deterministic PDF/plain text with explicit runtime identity,
@@ -288,14 +288,22 @@ and expose page/offset citation primitives. Source knowledge time remains the
 Phase 6A availability timestamp. No OCR, AI, interpretation, or scoring enters
 this phase.
 
-### Planned next: Phase 6C — Deterministic Catalyst Event Primitives
+### Phase 6C-A — Deterministic Business Event Detection & Evidence Persistence (acceptance pending)
 
-Derive separately reviewed deterministic event primitives from accepted
-evidence. This remains unimplemented.
+Persist the exact six-type neutral `business_event_rules_v1` output and its
+headline or document/asset/extraction citation lineage. Detection is
+page-local, corrected revisions remain distinct, and one announcement/type has
+one event with multiple evidence spans. No quantities, materiality, direction,
+confidence, AI, scoring policy, or snapshot changes are included.
+
+### Planned next: Phase 6C-B — Deterministic Quantitative Event Facts
+
+Separately review explicit event amounts, capacities, stakes, and dates. Do not
+infer or persist these values in Phase 6C-A.
 
 ### Only after review: Phase 4D-H — Business Catalyst Component Scoring
 
-Add a pure Business Catalyst scorer only after the evidence and primitive
+Add a pure Business Catalyst scorer only after both Phase 6C-A and Phase 6C-B
 contracts are accepted. Do not infer catalyst direction or activate a final
 score before that review.
 

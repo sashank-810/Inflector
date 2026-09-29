@@ -347,6 +347,16 @@ times. No HTTP fetcher, OCR, AI, event classification, score, or snapshot
 change is introduced. See
 [`document-acquisition-and-text.md`](document-acquisition-and-text.md).
 
+Phase 6C-A adds a neutral deterministic derivation boundary after Phase 6B.
+The pure `business_event_rules_v1` engine operates on the immutable headline
+and on each canonical document page independently. Persistence creates one
+`BusinessEvent` per immutable announcement revision/event type/ruleset and any
+number of exact citable evidence spans. Readers apply Phase 6A announcement
+revision selection before exposing events, so corrections can remove or change
+the PIT-visible type without mutating earlier derivations. This boundary adds
+no quantities, materiality, sentiment, confidence, AI, scorer, or snapshot
+version. See [`business-event-primitives.md`](business-event-primitives.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

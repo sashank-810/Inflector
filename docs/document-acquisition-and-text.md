@@ -120,7 +120,11 @@ canonical text, and validated page map.
 `page_evidence` returns an exact page slice. `excerpt_evidence` accepts only
 `0 <= start < end <= character_count`, returns the exact canonical substring,
 and identifies intersecting pages. These are in-memory citable primitives;
-Phase 6B creates no `event_evidence` table.
+Phase 6B itself creates no event table. Phase 6C-A now consumes explicitly
+selected successful text objects and persists neutral, rule-linked
+`business_event_evidence` without changing Phase 6B extraction semantics or
+choosing a hidden extractor. See
+[`business-event-primitives.md`](business-event-primitives.md).
 
 ## Deferred boundaries
 
