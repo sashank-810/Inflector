@@ -99,10 +99,11 @@ lineage. Inputs are validated, not recomputed or flattened.
 
 ## Deliberate boundaries
 
-Phase 4D-H creates no database rows, migration, explanation template, snapshot
-version, or final contribution. It performs no financial or market reads, AI,
-sentiment, confidence adjustment, or cross-event semantic deduplication.
-`score_snapshot_v3` therefore remains capped at 0.75 persisted coverage and
-`final_score` remains null. Pure component scorers now cover 0.95 of standard
-top-level weight; that is scorer availability, not persisted snapshot
-coverage. Low Market Attention remains unimplemented.
+Phase 4D-H itself creates no database rows, migration, explanation template,
+snapshot version, or final contribution. It performs no financial or market
+reads, AI, sentiment, confidence adjustment, or cross-event semantic
+deduplication. Phase 4D-I later adds the separate `score_snapshot_v4`
+orchestration contract, which may persist this exact component score only after
+V3 financial-context selection. It still does not apply a top-level
+contribution or final score. V3 remains capped at 0.75; V4 can reach 0.95. Low
+Market Attention remains unimplemented.

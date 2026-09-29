@@ -10,6 +10,7 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from inflector_core.business_catalyst_scoring import BUSINESS_CATALYST_COMPONENT_VERSION
 from inflector_core.score_audit import audit_fingerprint_sha256
 from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot, Security
 
@@ -35,6 +36,19 @@ V3_COMPONENT_CODES = frozenset(
         "market_structure",
     }
 )
+V4_SNAPSHOT_STATUSES = frozenset(
+    {"ineligible", "implemented_components_unavailable", "partial_component_set"}
+)
+V4_COMPONENT_ORDER = (
+    "financial_inflection",
+    "business_catalyst",
+    "business_quality",
+    "cash_flow_quality",
+    "balance_sheet",
+    "valuation",
+    "market_structure",
+)
+V4_COMPONENT_CODES = frozenset(V4_COMPONENT_ORDER)
 
 
 class ScoreSnapshotIntegrityError(RuntimeError):
@@ -253,13 +267,16 @@ class ScoreSnapshotRepository:
         elif record.algorithm_version == "score_snapshot_v3":
             statuses = V3_SNAPSHOT_STATUSES
             component_codes = V3_COMPONENT_CODES
+        elif record.algorithm_version == "score_snapshot_v4":
+            statuses = V4_SNAPSHOT_STATUSES
+            component_codes = V4_COMPONENT_CODES
         else:
             raise ScoreSnapshotIntegrityError("unsupported persisted snapshot algorithm version")
         if record.snapshot_status not in statuses:
             raise ScoreSnapshotIntegrityError("invalid persisted status for algorithm version")
-        if record.algorithm_version == "score_snapshot_v3":
+        if record.algorithm_version in {"score_snapshot_v3", "score_snapshot_v4"}:
             if record.selected_security_id is None:
-                raise ScoreSnapshotIntegrityError("v3 snapshot requires selected security")
+                raise ScoreSnapshotIntegrityError("v3/v4 snapshot requires selected security")
         elif record.selected_security_id is not None:
             raise ScoreSnapshotIntegrityError("v1/v2 snapshot must not select a security")
         if record.final_score is not None:
@@ -277,6 +294,8 @@ class ScoreSnapshotRepository:
                 raise ScoreSnapshotIntegrityError(
                     "partial persisted component has a final contribution"
                 )
+        if record.algorithm_version == "score_snapshot_v4":
+            ScoreSnapshotRepository._validate_v4_record(record)
         return record
 
     @staticmethod
@@ -290,13 +309,16 @@ class ScoreSnapshotRepository:
         elif value.algorithm_version == "score_snapshot_v3":
             statuses = V3_SNAPSHOT_STATUSES
             component_codes = V3_COMPONENT_CODES
+        elif value.algorithm_version == "score_snapshot_v4":
+            statuses = V4_SNAPSHOT_STATUSES
+            component_codes = V4_COMPONENT_CODES
         else:
             raise ValueError("unsupported score snapshot algorithm version")
         if value.snapshot_status not in statuses:
             raise ValueError("invalid snapshot status for algorithm version")
-        if value.algorithm_version == "score_snapshot_v3":
+        if value.algorithm_version in {"score_snapshot_v3", "score_snapshot_v4"}:
             if value.selected_security_id is None:
-                raise ValueError("v3 snapshot requires selected_security_id")
+                raise ValueError("v3/v4 snapshot requires selected_security_id")
         elif value.selected_security_id is not None:
             raise ValueError("v1/v2 snapshot selected_security_id must be None")
         if value.final_score is not None:
@@ -310,6 +332,74 @@ class ScoreSnapshotRepository:
                 raise ValueError("component code is invalid for snapshot algorithm version")
             if component.final_contribution is not None:
                 raise ValueError("partial snapshot final component contribution must be None")
+        if value.algorithm_version == "score_snapshot_v4":
+            ScoreSnapshotRepository._validate_v4_write(value)
+
+    @staticmethod
+    def _validate_v4_write(value: ScoreSnapshotWrite) -> None:
+        codes = tuple(component.component_code for component in value.components)
+        if len(codes) != len(set(codes)):
+            raise ValueError("v4 component codes must be unique")
+        canonical_codes = tuple(code for code in V4_COMPONENT_ORDER if code in set(codes))
+        if codes != canonical_codes:
+            raise ValueError("v4 components must use canonical component ordering")
+        if value.available_component_codes_json != list(canonical_codes):
+            raise ValueError("v4 available component codes do not match child components")
+        coverage = sum(
+            (component.configured_top_level_weight for component in value.components),
+            Decimal("0"),
+        )
+        if value.top_level_component_weight_coverage != coverage:
+            raise ValueError("v4 top-level coverage does not equal persisted component weights")
+        business_catalyst = next(
+            (
+                component
+                for component in value.components
+                if component.component_code == "business_catalyst"
+            ),
+            None,
+        )
+        if (
+            business_catalyst is not None
+            and business_catalyst.algorithm_version != BUSINESS_CATALYST_COMPONENT_VERSION
+        ):
+            raise ValueError("v4 business catalyst component has an invalid algorithm version")
+        if value.fingerprint_payload_json.get("algorithm_version") != value.algorithm_version:
+            raise ValueError("v4 fingerprint payload algorithm version mismatch")
+
+    @staticmethod
+    def _validate_v4_record(record: ScoreSnapshot) -> None:
+        codes = tuple(component.component_code for component in record.components)
+        if len(codes) != len(set(codes)):
+            raise ScoreSnapshotIntegrityError("v4 persisted component codes are not unique")
+        canonical_codes = [code for code in V4_COMPONENT_ORDER if code in set(codes)]
+        if record.available_component_codes_json != canonical_codes:
+            raise ScoreSnapshotIntegrityError(
+                "v4 available component codes do not match persisted components"
+            )
+        coverage = sum(
+            (component.configured_top_level_weight for component in record.components),
+            Decimal("0"),
+        )
+        if record.top_level_component_weight_coverage != coverage:
+            raise ScoreSnapshotIntegrityError(
+                "v4 top-level coverage does not equal persisted component weights"
+            )
+        business_catalyst = next(
+            (
+                component
+                for component in record.components
+                if component.component_code == "business_catalyst"
+            ),
+            None,
+        )
+        if (
+            business_catalyst is not None
+            and business_catalyst.algorithm_version != BUSINESS_CATALYST_COMPONENT_VERSION
+        ):
+            raise ScoreSnapshotIntegrityError(
+                "v4 business catalyst component has an invalid algorithm version"
+            )
 
     @classmethod
     def _optional_utc(cls, value: datetime | None, field_name: str) -> datetime | None:

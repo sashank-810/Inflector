@@ -183,8 +183,8 @@ work rather than hidden scoring behavior.
 
 ### Business catalyst (20)
 
-Business Catalyst has a pure v1 component scorer but remains absent from
-persisted snapshot orchestration. Phase 6A stores only immutable,
+Business Catalyst has a pure v1 component scorer and a separate V4 partial
+snapshot orchestration path. Phase 6A stores only immutable,
 source-linked announcement and document metadata and supplies PIT reads; it
 does not create catalyst records or infer direction, evidence confidence,
 recency decay, materiality, sentiment, importance, guidance, or risk. Any
@@ -239,6 +239,18 @@ financial-context selection, confidence multiplication, or top-level 0.20
 application. It persists nothing. Pure scorer availability is therefore 0.95,
 but v3 persisted coverage remains 0.75 and `final_score` remains null. See
 [`business-catalyst-scoring.md`](business-catalyst-scoring.md).
+
+Phase 4D-I may persist that exact pure score under `score_snapshot_v4`, but
+only after the unchanged V3 financial-context selection. Business Catalyst and
+Market Structure cannot select the financial provider/scope. Candidate event
+providers are explicit and cannot vary by financial context, while every
+candidate must represent the same PIT event identity set. The component uses
+max-event audit semantics, internal coverage one when defined, and one selected
+event explanation; a valid zero score remains available. Reference V4 maximum
+coverage is `0.95`, with Low Market Attention missing. There is no top-level
+renormalization, 0.20 contribution, confidence multiplication, or final score.
+V1/V2/V3 remain immutable. See
+[`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).
 
 ### Quality, cash flow, and balance sheet (35 combined)
 

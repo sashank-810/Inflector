@@ -391,6 +391,20 @@ availability is 0.95 of top-level weight, while persisted v3 coverage remains
 0.75 and `final_score` remains null. See
 [`business-catalyst-scoring.md`](business-catalyst-scoring.md).
 
+Phase 4D-I adds a new, isolated `score_snapshot_v4` orchestration boundary.
+The unchanged V3 provider-first/scope-priority selector chooses the financial
+context before either Market Structure or Business Catalyst is evaluated.
+Business Catalyst candidates bind one explicit event provider and a coherent
+PIT event set to each financial context; neither catalyst score nor coverage
+can influence accounting-source selection. The selected-context score is
+persisted in canonical top-level order with one selected-event explanation and
+a V4-only union of announcement, document, byte/text, event, quantitative,
+financial, and market lineage. Operational acquisition/derivation times do not
+enter semantic fingerprints. Maximum V4 coverage is 0.95; Low Market Attention
+and all final scores/contributions remain absent. V1/V2/V3 payloads and
+fingerprints remain unchanged. See
+[`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -156,3 +156,17 @@ These are coverage values, not final scores. All three versions retain null
 lineage extends the manifest to financial facts, market bars, benchmark bars,
 corporate actions, their source provenance, and participating algorithms,
 without leaking evidence between component manifests.
+
+Phase 4D-I adds the distinct `score_snapshot_v4` contract documented in
+[`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).
+It preserves V3 financial selection and evaluates Business Catalyst afterward
+for the selected provider/scope only. Available children use canonical order:
+Financial Inflection, Business Catalyst, Business Quality, Cash-Flow Quality,
+Balance Sheet, Valuation, and Market Structure. Standard maximum V4 coverage is
+`0.95`; Low Market Attention remains missing. V4 still has no final score,
+final contributions, top-level renormalization, or confidence multiplication.
+
+V4 extends only its own lineage union with announcement, document, asset,
+extraction, event/evidence, quantitative derivation/fact, and event-time TTM
+provenance. The older V1/V2/V3 manifest and fingerprint payloads do not gain
+empty V4 fields and remain byte-stable on exact replay.

@@ -123,12 +123,14 @@ class BusinessCatalystComponentScore:
 class BusinessCatalystComponentScorer:
     """Score explicit Phase 6C-C event bundles without reads or recomputation."""
 
-    def score(
+    def validate_evidence(
         self,
         *,
         evidence: tuple[BusinessEventFeatureBundle, ...],
         policy: InflectionScoringPolicy,
-    ) -> BusinessCatalystComponentScore:
+    ) -> None:
+        """Validate a complete context without selecting or scoring an event."""
+
         if not evidence:
             raise ValueError("business catalyst evidence must not be empty")
         scoring = policy.business_catalyst
@@ -139,16 +141,10 @@ class BusinessCatalystComponentScorer:
 
         first = evidence[0]
         cutoff = _aware_utc(first.as_of, "bundle as_of")
-        company_id = first.company_id
-        event_provider_dataset_id = first.provider_dataset_id
-        financial_provider_dataset_id = first.financial_provider_dataset_id
-        filing_scope = first.filing_scope
-        if not filing_scope.strip():
+        if not first.filing_scope.strip():
             raise ValueError("filing_scope must be non-empty")
-
         event_ids: set[UUID] = set()
         security_ids: set[UUID] = set()
-        event_scores: list[BusinessCatalystEventScore] = []
         for bundle in evidence:
             if bundle.business_event_id in event_ids:
                 raise ValueError("business_event_id must be unique across evidence")
@@ -157,17 +153,40 @@ class BusinessCatalystComponentScorer:
                 security_ids.add(bundle.security_id)
             if len(security_ids) > 1:
                 raise ValueError("business catalyst evidence has mixed security identities")
-            if bundle.company_id != company_id:
+            if bundle.company_id != first.company_id:
                 raise ValueError("business catalyst evidence has mixed companies")
-            if bundle.provider_dataset_id != event_provider_dataset_id:
+            if bundle.provider_dataset_id != first.provider_dataset_id:
                 raise ValueError("business catalyst evidence has mixed event providers")
-            if bundle.financial_provider_dataset_id != financial_provider_dataset_id:
+            if bundle.financial_provider_dataset_id != first.financial_provider_dataset_id:
                 raise ValueError("business catalyst evidence has mixed financial providers")
-            if bundle.filing_scope != filing_scope:
+            if bundle.filing_scope != first.filing_scope:
                 raise ValueError("business catalyst evidence has mixed filing scopes")
             if _aware_utc(bundle.as_of, "bundle as_of") != cutoff:
                 raise ValueError("business catalyst evidence has mixed as_of cutoffs")
             self._validate_bundle(bundle, cutoff)
+
+    def score(
+        self,
+        *,
+        evidence: tuple[BusinessEventFeatureBundle, ...],
+        policy: InflectionScoringPolicy,
+    ) -> BusinessCatalystComponentScore:
+        self.validate_evidence(evidence=evidence, policy=policy)
+        scoring = policy.business_catalyst
+        assert scoring is not None
+
+        first = evidence[0]
+        cutoff = _aware_utc(first.as_of, "bundle as_of")
+        company_id = first.company_id
+        event_provider_dataset_id = first.provider_dataset_id
+        financial_provider_dataset_id = first.financial_provider_dataset_id
+        filing_scope = first.filing_scope
+
+        security_ids: set[UUID] = set()
+        event_scores: list[BusinessCatalystEventScore] = []
+        for bundle in evidence:
+            if bundle.security_id is not None:
+                security_ids.add(bundle.security_id)
             event_scores.append(self._score_event(bundle, scoring, cutoff))
 
         ordered_scores = tuple(

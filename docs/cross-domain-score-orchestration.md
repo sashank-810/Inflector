@@ -85,3 +85,17 @@ close-times-volume proxy is not wired into eligibility. Confidence does not
 gate or multiply any score. V3 does not activate a final score, implement
 Business Catalyst or Low Market Attention, infer sector benchmarks, or alter
 v1/v2 fingerprints.
+
+## V4 extension
+
+Phase 4D-I adds a separate `score_snapshot_v4` path; it does not change this V3
+contract. V4 reuses the exact V3 financial-context selector, then evaluates
+Market Structure and Business Catalyst only after selection. Neither can make
+a financial context selectable. Business Catalyst candidates bind one explicit
+event provider to one financial provider/scope and must preserve the same event
+identity set across contexts.
+
+V4 inserts Business Catalyst in canonical top-level order after Financial
+Inflection. Maximum reference coverage becomes `0.95`, while Low Market
+Attention remains missing and all final scores/contributions remain null. See
+[`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).

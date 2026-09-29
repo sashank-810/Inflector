@@ -312,20 +312,30 @@ revenue denominators to event source availability, and calculate raw event age
 at the requested cutoff. No market cap, FX, provider selection, cross-event
 aggregation, AI, scoring policy, persistence, or snapshot change is included.
 
-### Phase 4D-H — Business Catalyst Component Scoring (acceptance pending)
+### Phase 4D-H — Business Catalyst Component Scoring (complete)
 
 Add an optional versioned policy and pure max-event scorer over explicit
 Phase 6C-C bundles. Orders and capacity expansions require quantified strength;
 commercial commencement and regulatory approval use configurable base
 strength. Capex and acquisitions remain neutral and unscoreable. This phase
-does not persist the component, apply its 0.20 top-level weight, or activate a
-final score.
+does not itself persist the component, apply its 0.20 top-level weight, or
+activate a final score.
+
+### Phase 4D-I — Business Catalyst Cross-Domain Snapshot Orchestration (acceptance pending)
+
+Add the immutable `score_snapshot_v4` path without changing V1/V2/V3. Reuse
+V3 financial-context selection exactly, then evaluate Business Catalyst only
+for the selected provider/scope and an explicit coherent event provider/set.
+Persist the exact component score, one selected-event explanation, and complete
+V4-only evidence lineage. Maximum standard coverage is `0.95`; Low Market
+Attention, final contributions, top-level renormalization, and `final_score`
+remain absent.
 
 ### Planned after separate review
 
-Review Business Catalyst cross-domain snapshot orchestration separately from
-the Low Market Attention evidence foundation. Do not infer attention from
-existing activity, delivery, price, market-cap, or event evidence.
+Review the Low Market Attention evidence foundation separately. Do not infer
+attention from existing activity, delivery, price, market-cap, or event
+evidence. Final Opportunity Score activation also requires separate review.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

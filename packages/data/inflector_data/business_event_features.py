@@ -136,6 +136,7 @@ class BusinessEventFeatureBundle:
     acquisition_stake_fraction: BusinessEventFeatureValue
     event_time_ttm_revenue: TrailingTwelveMonthValue | None
     algorithm_version: str
+    quantitative_derivation: PointInTimeBusinessEventQuantitativeDerivation | None = None
 
 
 class BusinessEventFeaturePrimitives:
@@ -287,6 +288,7 @@ class BusinessEventFeaturePrimitives:
             acquisition_stake_fraction=acquisition_stake,
             event_time_ttm_revenue=ttm_revenue,
             algorithm_version=BUSINESS_EVENT_FEATURE_BUNDLE_VERSION,
+            quantitative_derivation=quantitative_derivation,
         )
 
     @staticmethod
