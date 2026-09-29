@@ -120,3 +120,9 @@ no top-level 20% weight, creates no snapshot version, and changes no existing
 snapshot. V1/V2/V3 maximum persisted coverage remains 0.25/0.60/0.75,
 Business Catalyst and Low Market Attention remain absent, and `final_score`
 remains null.
+
+Phase 6C-C consumes these persisted observations without rescanning source
+text. It resolves semantically equivalent repetitions without summing, fails
+closed on conflicts, and derives only non-persisted event-time revenue ratios,
+explicit capacity-change ratios, acquisition stake, and request-time event
+age. See [`business-event-features.md`](business-event-features.md).

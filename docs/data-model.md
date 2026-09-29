@@ -220,6 +220,14 @@ the controlled unambiguous formats. Source availability remains announcement
 knowledge time and `derived_at` is operational. See
 [`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
 
+Phase 6C-C adds no table or migration. `BusinessEventFeatureBundle`,
+`BusinessEventFeatureValue`, and `ResolvedQuantitativeObservation` are immutable
+in-memory read models. They retain the selected BusinessEvent, all supporting
+quantitative fact views, and event-time TTM quarter/fact/source lineage. The
+financial cutoff is the event's `source_available_at`; the request cutoff is
+used only for raw event age. See
+[`business-event-features.md`](business-event-features.md).
+
 ### Features, models, and opportunity scores
 
 | Table | Core columns / constraints | Purpose |

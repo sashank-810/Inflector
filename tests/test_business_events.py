@@ -27,11 +27,16 @@ from inflector_core.business_event_rules import (
     BusinessEventRuleMatch,
 )
 from inflector_core.document_processing import FetchedDocument
+from inflector_core.providers import ProviderMetadata
 from inflector_data.announcement_pit import PointInTimeAnnouncementReader
 from inflector_data.archive import LocalRawObjectStore
 from inflector_data.business_event_detection import (
     BusinessEventDetectionService,
     BusinessEventIntegrityError,
+)
+from inflector_data.business_event_features import (
+    BusinessEventFeaturePrimitives,
+    ResolvedQuantitativeObservation,
 )
 from inflector_data.business_event_pit import PointInTimeBusinessEventReader
 from inflector_data.business_event_quantitative import (
@@ -53,6 +58,11 @@ from inflector_data.document_text import (
     DocumentTextReader,
     PointInTimeDocumentText,
 )
+from inflector_data.period_normalization import FiscalQuarterNormalizer
+from inflector_data.pit import PointInTimeFinancialReader
+from inflector_data.providers import CSVFinancialsProvider, CSVUniverseProvider
+from inflector_data.service import IngestionService
+from inflector_data.ttm import TrailingTwelveMonthNormalizer
 from inflector_database.business_event_quantitative_repository import (
     BusinessEventQuantitativeRepository,
 )
@@ -77,6 +87,7 @@ from inflector_database.models import (
 T1 = datetime(2028, 1, 8, 10, tzinfo=UTC)
 T2 = datetime(2028, 1, 8, 12, tzinfo=UTC)
 DERIVED = datetime(2028, 2, 1, 9, tzinfo=UTC)
+FIXTURES = Path(__file__).parent / "fixtures"
 
 
 def _foundation(session: Session) -> tuple[Company, ProviderDataset, IngestionRun]:
@@ -1264,3 +1275,132 @@ def test_quantitative_same_version_semantic_drift_fails_closed(
         BusinessEventQuantitativeDerivationService(
             BusinessEventQuantitativeRepository(session), store
         ).derive(event=event, ruleset=ChangedRuleset(), derived_at=DERIVED)
+
+
+def test_full_event_feature_pipeline_uses_event_time_ttm_and_preserves_lineage(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    service = IngestionService(session, store)
+    universe_metadata = ProviderMetadata(
+        "event_feature_universe", "csv", "universe", "synthetic-development-only"
+    )
+    financial_metadata = ProviderMetadata(
+        "event_feature_financials", "csv", "financials", "synthetic-development-only"
+    )
+    service.ingest_universe(
+        CSVUniverseProvider(
+            FIXTURES / "universe_synthetic.csv", universe_metadata, DERIVED
+        )
+    )
+    service.ingest_financials(
+        CSVFinancialsProvider(
+            FIXTURES / "business_event_feature_financials_synthetic.csv",
+            financial_metadata,
+            DERIVED,
+        )
+    )
+    service.ingest_financials(
+        CSVFinancialsProvider(
+            FIXTURES / "business_event_feature_financials_restatement_synthetic.csv",
+            financial_metadata,
+            datetime(2028, 3, 1, tzinfo=UTC),
+        )
+    )
+    company = session.scalar(
+        select(Company).where(Company.legal_name == "Aurora Fabrication Limited")
+    )
+    financial_dataset_id = session.scalar(
+        select(ProviderDataset.id)
+        .join(DataProvider)
+        .where(
+            DataProvider.code == financial_metadata.provider_code,
+            ProviderDataset.code == financial_metadata.dataset_code,
+        )
+    )
+    assert company is not None and financial_dataset_id is not None
+
+    event_provider = DataProvider(
+        code=f"event_feature_announcements_{uuid4().hex}",
+        provider_type="synthetic",
+        licence_name="synthetic-development-only",
+    )
+    session.add(event_provider)
+    session.flush()
+    event_dataset = ProviderDataset(
+        provider_id=event_provider.id,
+        code="announcements",
+        licence_class="synthetic-development-only",
+        redistributable=False,
+    )
+    session.add(event_dataset)
+    session.flush()
+    event_run = IngestionRun(
+        provider_dataset_id=event_dataset.id,
+        status="completed",
+        started_at=T1,
+        finished_at=T2,
+    )
+    session.add(event_run)
+    session.flush()
+    disclosure = "Fictional Engineering Limited has received an order worth ₹250 crore."
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=event_dataset,
+        run=event_run,
+        external_id="EVENT-FEATURE-PIPELINE",
+        headline="Fictional operational disclosure",
+        available_at=T1,
+        document_texts=(disclosure,),
+    )
+    announcement = _selected(
+        session,
+        dataset=event_dataset,
+        external_id="EVENT-FEATURE-PIPELINE",
+        as_of=T1,
+    )
+    _detect(session, announcement, _texts(session, store, announcement))
+    event = _pit_event(session, announcement, "order_award")
+    _derive_quant(session, store, event)
+    quantitative = PointInTimeBusinessEventQuantitativeReader(session).facts_for_event(
+        event=event,
+        ruleset_code=BUSINESS_EVENT_QUANT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_QUANT_RULESET_VERSION,
+    )
+    assert quantitative is not None
+
+    ttm_normalizer = TrailingTwelveMonthNormalizer(
+        FiscalQuarterNormalizer(PointInTimeFinancialReader(session))
+    )
+    later_ttms = ttm_normalizer.ttm_series_as_of(
+        provider_dataset_id=financial_dataset_id,
+        company_id=company.id,
+        filing_scope="standalone",
+        metric_code="revenue",
+        as_of=datetime(2028, 3, 1, tzinfo=UTC),
+    )
+    assert later_ttms[-1].value == Decimal("9000000000")
+
+    bundle = BusinessEventFeaturePrimitives(ttm_normalizer).features_as_of(
+        event=event,
+        quantitative_derivation=quantitative,
+        financial_provider_dataset_id=financial_dataset_id,
+        filing_scope="standalone",
+        as_of=datetime(2028, 3, 1, tzinfo=UTC),
+    )
+    assert bundle.materiality_financial_cutoff == T1
+    assert bundle.event_time_ttm_revenue is not None
+    assert bundle.event_time_ttm_revenue.value == Decimal("10000000000")
+    assert bundle.order_value_to_ttm_revenue.value == Decimal("0.25")
+    assert len(bundle.event_time_ttm_revenue.lineage) == 4
+    assert all(
+        component.quarter.lineage[0].fact.source_record.raw_object_key
+        for component in bundle.event_time_ttm_revenue.lineage
+    )
+    observation = bundle.order_value_to_ttm_revenue.evidence[0]
+    assert isinstance(observation, ResolvedQuantitativeObservation)
+    assert observation.value == Decimal("2500000000")
+    assert observation.facts == quantitative.facts
+    assert bundle.order_value_to_ttm_revenue.available_at == T1

@@ -100,5 +100,12 @@ narrow explicit quantitative observations from these exact evidence spans;
 see [`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
 Only after separate acceptance may Phase 4D-H review Business Catalyst scoring.
 
+Phase 6C-C subsequently evaluates one PIT-selected event at a time. Its
+non-persisted feature bundle resolves only the attached Phase 6C-B facts,
+anchors financial denominators to the event's `source_available_at`, and keeps
+requested-cutoff event age separate. It does not change Phase 6C-A event
+identity or correction selection. See
+[`business-event-features.md`](business-event-features.md).
+
 V1/V2/V3 maximum persisted coverage remains 0.25/0.60/0.75, Business Catalyst
 and Low Market Attention remain missing, and `final_score` remains null.

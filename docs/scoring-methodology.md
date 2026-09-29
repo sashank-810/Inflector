@@ -214,6 +214,17 @@ materiality or capacity arithmetic, aggregation, direction, sentiment,
 confidence, AI, Business Catalyst policy, or score effect. V1/V2/V3 coverage
 and null `final_score` semantics remain unchanged.
 
+Phase 6C-C adds non-persisted feature primitives, not a score. Order, capex,
+and acquisition consideration may be divided only by the latest valid PIT TTM
+revenue known at the event's `source_available_at`; later filings and
+restatements do not backfill old event materiality. Capacity change uses only
+explicit compatible normalized observations, acquisition stake is carried as
+an exact fraction, and event age is the raw Decimal elapsed time at requested
+`as_of` with no decay. Equivalent duplicate observations retain all lineage and
+are used once; conflicts fail closed. There is no market cap, FX, event-set
+aggregation, direction, confidence, AI, persistence, Business Catalyst policy,
+or score/snapshot effect.
+
 ### Quality, cash flow, and balance sheet (35 combined)
 
 Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE

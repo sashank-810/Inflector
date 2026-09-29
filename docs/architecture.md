@@ -368,6 +368,16 @@ financial join, FX conversion, materiality arithmetic, direction, confidence,
 AI, scorer, or snapshot change is introduced. See
 [`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
 
+Phase 6C-C is a read-only feature boundary over one selected event. Equivalent
+quantitative observations resolve by exact normalized semantics without
+summing; conflicts remain unavailable. Materiality denominators come only from
+the caller-declared provider/scope's latest PIT `ttm_v1` revenue at the event's
+source availability time, while raw event age uses the later requested cutoff.
+The immutable in-memory bundle retains event, quantitative-fact, TTM-quarter,
+financial-fact, and source lineage. No schema, market data, FX, AI, provider
+selection, event aggregation, scoring policy, or snapshot changes are added.
+See [`business-event-features.md`](business-event-features.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

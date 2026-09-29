@@ -1,0 +1,2 @@
+external_id,company_legal_name,filing_external_id,filing_type,filing_scope,is_restatement,period_kind,period_start,period_end,fiscal_year,fiscal_quarter,is_ytd,metric_code,reported_value,reported_unit,reported_scale,reported_currency,published_at,available_at,revision_at
+EVENT-FEATURE-REV-Q4-2027,Aurora Fabrication Limited,EVENT-FEATURE-Q4-2027-R,results,standalone,true,quarter,2027-10-01,2027-12-31,2027,4,false,revenue,150,INR,crore,INR,2028-02-01T12:00:00Z,2028-02-01T12:00:00Z,2028-02-01T12:00:00Z

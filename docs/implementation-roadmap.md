@@ -296,7 +296,7 @@ page-local, corrected revisions remain distinct, and one announcement/type has
 one event with multiple evidence spans. No quantities, materiality, direction,
 confidence, AI, scoring policy, or snapshot changes are included.
 
-### Phase 6C-B — Deterministic Quantitative Event Facts (acceptance pending)
+### Phase 6C-B — Deterministic Quantitative Event Facts (complete)
 
 Extract controlled explicit event amounts, capacities, stakes, and commercial
 commencement dates only from accepted Phase 6C-A evidence spans. Persist an
@@ -304,9 +304,17 @@ immutable derivation even when it contains zero facts. Values are source
 observations, not summed totals or materiality; there is no FX, financial join,
 AI, direction, score, or snapshot change.
 
+### Phase 6C-C — Business Event Materiality & Recency Feature Primitives (acceptance pending)
+
+Produce a non-persisted bundle for one PIT-selected event. Resolve equivalent
+quantitative observations without summing, fail closed on conflicts, anchor
+revenue denominators to event source availability, and calculate raw event age
+at the requested cutoff. No market cap, FX, provider selection, cross-event
+aggregation, AI, scoring policy, persistence, or snapshot change is included.
+
 ### Only after review: Phase 4D-H — Business Catalyst Component Scoring
 
-Add a pure Business Catalyst scorer only after Phase 6C-B is accepted. Do not
+Add a pure Business Catalyst scorer only after Phase 6C-C is accepted. Do not
 infer catalyst direction or activate a final score before that review.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
