@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from dataclasses import replace
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from hashlib import sha256
 from pathlib import Path
 from uuid import UUID, uuid4
@@ -12,6 +13,12 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from inflector_core.business_event_quantitative_rules import (
+    BUSINESS_EVENT_QUANT_RULESET_CODE,
+    BUSINESS_EVENT_QUANT_RULESET_VERSION,
+    BusinessEventQuantitativeMatch,
+    BusinessEventQuantitativeRuleEngine,
+)
 from inflector_core.business_event_rules import (
     BUSINESS_EVENT_RULESET_CODE,
     BUSINESS_EVENT_RULESET_VERSION,
@@ -27,6 +34,13 @@ from inflector_data.business_event_detection import (
     BusinessEventIntegrityError,
 )
 from inflector_data.business_event_pit import PointInTimeBusinessEventReader
+from inflector_data.business_event_quantitative import (
+    BusinessEventQuantitativeDerivationService,
+    BusinessEventQuantitativeIntegrityError,
+)
+from inflector_data.business_event_quantitative_pit import (
+    PointInTimeBusinessEventQuantitativeReader,
+)
 from inflector_data.document_extractors import PlainTextExtractor
 from inflector_data.document_fetchers import MockDocumentFetcher
 from inflector_data.document_services import (
@@ -39,12 +53,17 @@ from inflector_data.document_text import (
     DocumentTextReader,
     PointInTimeDocumentText,
 )
+from inflector_database.business_event_quantitative_repository import (
+    BusinessEventQuantitativeRepository,
+)
 from inflector_database.business_event_repository import BusinessEventRepository
 from inflector_database.models import (
     Announcement,
     AnnouncementDocument,
     BusinessEvent,
     BusinessEventEvidence,
+    BusinessEventQuantitativeDerivation,
+    BusinessEventQuantitativeFact,
     Company,
     DataProvider,
     Document,
@@ -782,3 +801,466 @@ def test_ruleset_identity_and_exact_vocabulary() -> None:
         "acquisition_agreement",
         "regulatory_approval",
     )
+
+
+def _pit_event(session: Session, announcement, event_type: str):
+    events = PointInTimeBusinessEventReader(session).events_for_announcement(
+        announcement=announcement,
+        ruleset_code=BUSINESS_EVENT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_RULESET_VERSION,
+    )
+    return next(event for event in events if event.event_type == event_type)
+
+
+def _derive_quant(session: Session, store: LocalRawObjectStore, event):
+    return BusinessEventQuantitativeDerivationService(
+        BusinessEventQuantitativeRepository(session), store
+    ).derive(event=event, derived_at=DERIVED)
+
+
+@pytest.mark.parametrize(
+    ("text", "value", "scale", "currency", "normalized"),
+    (
+        ("order worth ₹250 crore", "250", "crore", "INR", "2500000000"),
+        ("order valued at INR 1,250 crore", "1250", "crore", "INR", "12500000000"),
+        ("contract value of Rs. 75 lakh", "75", "lakh", "INR", "7500000"),
+        ("purchase order of INR 10 million", "10", "million", "INR", "10000000"),
+        ("contract valued at USD 10 million", "10", "million", "USD", "10000000"),
+        ("order worth INR 12,34,567", "1234567", "unit", "INR", "1234567"),
+        ("order worth INR 1,234,567", "1234567", "unit", "INR", "1234567"),
+    ),
+)
+def test_quantitative_order_money_is_exact_decimal(
+    text: str, value: str, scale: str, currency: str, normalized: str
+) -> None:
+    matches = BusinessEventQuantitativeRuleEngine().match(
+        event_type="order_award", text=text
+    )
+    assert len(matches) == 1
+    match = matches[0]
+    assert match.fact_code == "order_value"
+    assert match.reported_value == Decimal(value)
+    assert match.reported_scale == scale
+    assert match.reported_currency == currency
+    assert match.normalized_value == Decimal(normalized)
+    assert match.normalized_unit == "currency_major"
+    assert text[match.local_start_offset : match.local_end_offset] == match.raw_text
+
+
+@pytest.mark.parametrize(
+    "text",
+    (
+        "Company received an order. Its total order book is ₹5,000 crore.",
+        "Company received an order. Company revenue is ₹500 crore.",
+        "potential order of ₹100 crore",
+        "order worth approximately ₹100 crore",
+        "order worth ₹100-120 crore",
+        "order worth INR 1,23,4,567",
+    ),
+)
+def test_quantitative_order_money_rejects_unrelated_ambiguous_or_malformed_values(
+    text: str,
+) -> None:
+    assert BusinessEventQuantitativeRuleEngine().match(
+        event_type="order_award", text=text
+    ) == ()
+
+
+def test_quantitative_capex_values_and_negatives() -> None:
+    engine = BusinessEventQuantitativeRuleEngine()
+    first = engine.match(event_type="capex_announcement", text="approved capex of ₹500 crore")
+    second = engine.match(
+        event_type="capex_announcement",
+        text="capital expenditure plan of INR 2.5 billion",
+    )
+    assert first[0].normalized_value == Decimal("5000000000")
+    assert second[0].normalized_value == Decimal("2500000000.0")
+    for text in (
+        "historical capital expenditure was ₹500 crore",
+        "capex may be approximately ₹500 crore",
+        "approved proposal unrelated to capex worth ₹500 crore",
+    ):
+        assert engine.match(event_type="capex_announcement", text=text) == ()
+
+
+@pytest.mark.parametrize(
+    ("text", "before", "after", "unit"),
+    (
+        ("increase capacity from 1 MTPA to 1.5 MTPA", "1000000", "1500000.0", "tonnes_per_annum"),
+        (
+            "capacity will increase from 1000 KTPA to 1.5 MTPA",
+            "1000000",
+            "1500000.0",
+            "tonnes_per_annum",
+        ),
+        ("expanded capacity from 100 MW to 150 MW", "100", "150", "megawatt"),
+        ("capacity increased from 1 GW to 1500 MW", "1000", "1500", "megawatt"),
+    ),
+)
+def test_quantitative_capacity_pairs_normalize_without_derived_delta(
+    text: str, before: str, after: str, unit: str
+) -> None:
+    matches = BusinessEventQuantitativeRuleEngine().match(
+        event_type="capacity_expansion", text=text
+    )
+    assert [value.fact_code for value in matches] == ["capacity_before", "capacity_after"]
+    assert matches[0].normalized_value == Decimal(before)
+    assert matches[1].normalized_value == Decimal(after)
+    assert {value.normalized_unit for value in matches} == {unit}
+    assert all(value.fact_code != "additional_capacity" for value in matches)
+
+
+def test_quantitative_capacity_additional_is_explicit_and_incompatible_pair_is_rejected() -> None:
+    engine = BusinessEventQuantitativeRuleEngine()
+    first = engine.match(
+        event_type="capacity_expansion", text="additional capacity of 500 KTPA"
+    )
+    second = engine.match(
+        event_type="capacity_expansion", text="capacity expansion by 50 MW"
+    )
+    assert first[0].fact_code == "additional_capacity"
+    assert first[0].normalized_value == Decimal("500000")
+    assert second[0].normalized_value == Decimal("50")
+    assert engine.match(
+        event_type="capacity_expansion", text="increase capacity from 1 MTPA to 100 MW"
+    ) == ()
+
+
+def test_quantitative_acquisition_consideration_and_stake() -> None:
+    engine = BusinessEventQuantitativeRuleEngine()
+    matches = engine.match(
+        event_type="acquisition_agreement",
+        text="agreed to acquire a 51% stake for a consideration of ₹250 crore",
+    )
+    by_code = {value.fact_code: value for value in matches}
+    assert by_code["acquisition_stake_fraction"].reported_value == Decimal("51")
+    assert by_code["acquisition_stake_fraction"].normalized_value == Decimal("0.51")
+    assert by_code["acquisition_consideration"].normalized_value == Decimal("2500000000")
+    assert engine.match(
+        event_type="acquisition_agreement", text="agreed to acquire a 101% stake"
+    ) == ()
+
+
+@pytest.mark.parametrize(
+    "raw",
+    ("15 September 2026", "15 Sep 2026", "September 15, 2026", "Sep 15, 2026", "2026-09-15"),
+)
+def test_quantitative_commencement_dates_are_strict(raw: str) -> None:
+    text = f"commercial production commenced on {raw}"
+    matches = BusinessEventQuantitativeRuleEngine().match(
+        event_type="commercial_commencement", text=text
+    )
+    assert len(matches) == 1
+    assert matches[0].date_value == date(2026, 9, 15)
+    assert matches[0].raw_text == raw
+    assert matches[0].reported_value is None
+
+
+@pytest.mark.parametrize("raw", ("15/09/2026", "09/15/2026", "next month", "Q3 FY27"))
+def test_quantitative_commencement_dates_reject_ambiguous_formats(raw: str) -> None:
+    assert BusinessEventQuantitativeRuleEngine().match(
+        event_type="commercial_commencement",
+        text=f"commercial production commenced on {raw}",
+    ) == ()
+
+
+def test_full_document_pipeline_produces_citable_order_value(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+    disclosure = "Fictional Engineering Limited has received an order worth ₹250 crore."
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="QUANT-PIPELINE",
+        headline="Fictional operational disclosure",
+        available_at=T1,
+        document_texts=(disclosure,),
+    )
+    announcement = _selected(session, dataset=dataset, external_id="QUANT-PIPELINE", as_of=T1)
+    _detect(session, announcement, _texts(session, store, announcement))
+    event = _pit_event(session, announcement, "order_award")
+    result = _derive_quant(session, store, event)
+    reread = PointInTimeBusinessEventQuantitativeReader(session).facts_for_event(
+        event=event,
+        ruleset_code=BUSINESS_EVENT_QUANT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_QUANT_RULESET_VERSION,
+    )
+    assert result.available_fact_codes == ("order_value",)
+    assert reread is not None and len(reread.facts) == 1
+    fact = reread.facts[0]
+    assert fact.reported_value == Decimal("250")
+    assert fact.reported_scale == "crore"
+    assert fact.reported_currency == "INR"
+    assert fact.normalized_value == Decimal("2500000000")
+    assert fact.normalized_unit == "currency_major"
+    assert fact.raw_text == "₹250 crore"
+    assert disclosure[fact.start_offset : fact.end_offset] == fact.raw_text
+    assert fact.source_available_at == T1
+    assert reread.source_available_at == T1
+    assert reread.derived_at == DERIVED
+
+
+def test_zero_fact_derivation_persists_and_is_idempotent(session: Session, tmp_path: Path) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="ZERO-FACT",
+        headline="Fictional Engineering Limited has received an order.",
+        available_at=T1,
+    )
+    announcement = _selected(session, dataset=dataset, external_id="ZERO-FACT", as_of=T1)
+    _detect(session, announcement)
+    event = _pit_event(session, announcement, "order_award")
+    first = _derive_quant(session, store, event)
+    second = _derive_quant(session, store, event)
+    assert first.created and not second.created
+    assert first.id == second.id
+    assert first.derivation_fingerprint_sha256 == second.derivation_fingerprint_sha256
+    assert first.facts == second.facts == ()
+    assert session.scalar(
+        select(func.count()).select_from(BusinessEventQuantitativeDerivation)
+    ) == 1
+    assert session.scalar(select(func.count()).select_from(BusinessEventQuantitativeFact)) == 0
+
+
+def test_quantity_outside_event_evidence_context_is_intentionally_invisible(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="NO-WHOLE-DOCUMENT",
+        headline="Neutral disclosure",
+        available_at=T1,
+        document_texts=("Company has received an order.\nValue: INR 500 crore.",),
+    )
+    announcement = _selected(
+        session, dataset=dataset, external_id="NO-WHOLE-DOCUMENT", as_of=T1
+    )
+    _detect(session, announcement, _texts(session, store, announcement))
+    event = _pit_event(session, announcement, "order_award")
+    result = _derive_quant(session, store, event)
+    assert result.facts == ()
+
+
+def test_cross_evidence_equal_values_remain_independent_observations(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+    text = "Company has received an order worth ₹250 crore."
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="REPEATED-VALUE",
+        headline=text,
+        available_at=T1,
+        document_texts=(text,),
+    )
+    announcement = _selected(session, dataset=dataset, external_id="REPEATED-VALUE", as_of=T1)
+    _detect(session, announcement, _texts(session, store, announcement))
+    event = _pit_event(session, announcement, "order_award")
+    result = _derive_quant(session, store, event)
+    assert len(result.facts) == 2
+    facts = list(session.scalars(select(BusinessEventQuantitativeFact)))
+    assert {fact.normalized_value for fact in facts} == {Decimal("2500000000")}
+    assert len({fact.business_event_evidence_id for fact in facts}) == 2
+
+
+def test_multiple_explicit_order_values_are_observations_not_a_total() -> None:
+    matches = BusinessEventQuantitativeRuleEngine().match(
+        event_type="order_award",
+        text="order worth ₹100 crore and contract worth ₹200 crore",
+    )
+    assert [value.normalized_value for value in matches] == [
+        Decimal("1000000000"),
+        Decimal("2000000000"),
+    ]
+
+
+def test_quantitative_corrections_change_remove_or_empty_only_selected_revision(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="VALUE-CHANGE",
+        headline="Company has received an order worth ₹100 crore.",
+        available_at=T1,
+    )
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="VALUE-CHANGE",
+        headline="Company has received an order worth ₹120 crore.",
+        available_at=T2,
+    )
+    original = _selected(session, dataset=dataset, external_id="VALUE-CHANGE", as_of=T1)
+    corrected = _selected(session, dataset=dataset, external_id="VALUE-CHANGE", as_of=T2)
+    _detect(session, original)
+    _detect(session, corrected)
+    original_event = _pit_event(session, original, "order_award")
+    corrected_event = _pit_event(session, corrected, "order_award")
+    _derive_quant(session, store, original_event)
+    _derive_quant(session, store, corrected_event)
+    quant_reader = PointInTimeBusinessEventQuantitativeReader(session)
+    original_facts = quant_reader.facts_for_event(
+        event=original_event,
+        ruleset_code=BUSINESS_EVENT_QUANT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_QUANT_RULESET_VERSION,
+    )
+    corrected_facts = quant_reader.facts_for_event(
+        event=corrected_event,
+        ruleset_code=BUSINESS_EVENT_QUANT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_QUANT_RULESET_VERSION,
+    )
+    assert original_facts is not None and corrected_facts is not None
+    assert original_facts.facts[0].normalized_value == Decimal("1000000000")
+    assert corrected_facts.facts[0].normalized_value == Decimal("1200000000")
+
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="VALUE-REMOVED",
+        headline="Company has received an order worth ₹100 crore.",
+        available_at=T1,
+    )
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="VALUE-REMOVED",
+        headline="Company has received an order.",
+        available_at=T2,
+    )
+    value_old = _selected(session, dataset=dataset, external_id="VALUE-REMOVED", as_of=T1)
+    value_new = _selected(session, dataset=dataset, external_id="VALUE-REMOVED", as_of=T2)
+    _detect(session, value_old)
+    _detect(session, value_new)
+    value_old_event = _pit_event(session, value_old, "order_award")
+    value_new_event = _pit_event(session, value_new, "order_award")
+    _derive_quant(session, store, value_old_event)
+    empty = _derive_quant(session, store, value_new_event)
+    assert empty.facts == ()
+
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="EVENT-REMOVED",
+        headline="Company has received an order worth ₹100 crore.",
+        available_at=T1,
+    )
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="EVENT-REMOVED",
+        headline="Company issued a general operational update.",
+        available_at=T2,
+    )
+    removed_old = _selected(session, dataset=dataset, external_id="EVENT-REMOVED", as_of=T1)
+    removed_new = _selected(session, dataset=dataset, external_id="EVENT-REMOVED", as_of=T2)
+    _detect(session, removed_old)
+    assert _detect(session, removed_new) == ()
+    removed_event = _pit_event(session, removed_old, "order_award")
+    _derive_quant(session, store, removed_event)
+    assert PointInTimeBusinessEventReader(session).events_for_announcement(
+        announcement=removed_new,
+        ruleset_code=BUSINESS_EVENT_RULESET_CODE,
+        ruleset_semantic_version=BUSINESS_EVENT_RULESET_VERSION,
+    ) == ()
+    assert session.scalar(
+        select(func.count()).select_from(BusinessEventQuantitativeDerivation)
+    ) == 5
+
+
+def test_quantitative_same_version_semantic_drift_fails_closed(
+    session: Session, tmp_path: Path
+) -> None:
+    store = LocalRawObjectStore(tmp_path / "objects")
+    company, dataset, run = _foundation(session)
+    _add_announcement(
+        session,
+        store,
+        company=company,
+        dataset=dataset,
+        run=run,
+        external_id="QUANT-IMMUTABLE",
+        headline="Company has received an order worth ₹100 crore",
+        available_at=T1,
+    )
+    announcement = _selected(session, dataset=dataset, external_id="QUANT-IMMUTABLE", as_of=T1)
+    _detect(session, announcement)
+    event = _pit_event(session, announcement, "order_award")
+    _derive_quant(session, store, event)
+
+    class ChangedRuleset:
+        ruleset_code = BUSINESS_EVENT_QUANT_RULESET_CODE
+        ruleset_semantic_version = BUSINESS_EVENT_QUANT_RULESET_VERSION
+
+        def match(
+            self, *, event_type: str, text: str
+        ) -> tuple[BusinessEventQuantitativeMatch, ...]:
+            del event_type
+            start = text.index("₹100 crore")
+            return (
+                BusinessEventQuantitativeMatch(
+                    fact_code="order_value",
+                    fact_kind="monetary",
+                    rule_code="changed_without_version_bump_v1",
+                    rule_semantic_version="business_event_quantitative_rule_v1",
+                    local_start_offset=start,
+                    local_end_offset=start + len("₹100 crore"),
+                    raw_text="₹100 crore",
+                    reported_value=Decimal("100"),
+                    reported_scale="crore",
+                    reported_unit=None,
+                    reported_currency="INR",
+                    normalized_value=Decimal("1000000000"),
+                    normalized_unit="currency_major",
+                    date_value=None,
+                    warnings=(),
+                ),
+            )
+
+    with pytest.raises(BusinessEventQuantitativeIntegrityError, match="different derivation"):
+        BusinessEventQuantitativeDerivationService(
+            BusinessEventQuantitativeRepository(session), store
+        ).derive(event=event, ruleset=ChangedRuleset(), derived_at=DERIVED)

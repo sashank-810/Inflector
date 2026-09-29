@@ -357,6 +357,17 @@ the PIT-visible type without mutating earlier derivations. This boundary adds
 no quantities, materiality, sentiment, confidence, AI, scorer, or snapshot
 version. See [`business-event-primitives.md`](business-event-primitives.md).
 
+Phase 6C-B adds a second deterministic derivation boundary that consumes only
+persisted Phase 6C-A evidence excerpts. The pure
+`business_event_quantitative_rules_v1` parser emits exact monetary, capacity,
+stake-fraction, or commencement-date observations into an immutable derivation
+envelope; an empty envelope is persisted when no supported quantity exists.
+Exact source offsets, raw-text hashes, event/evidence fingerprints, and
+reported/normalized values preserve attribution. No whole-document rescan,
+financial join, FX conversion, materiality arithmetic, direction, confidence,
+AI, scorer, or snapshot change is introduced. See
+[`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -472,6 +472,88 @@ class BusinessEventEvidence(Base):
     )
 
 
+class BusinessEventQuantitativeDerivation(Base):
+    """Immutable quantitative-rule outcome, including an explicit empty outcome."""
+
+    __tablename__ = "business_event_quantitative_derivations"
+    __table_args__ = (
+        UniqueConstraint(
+            "business_event_id",
+            "ruleset_code",
+            "ruleset_semantic_version",
+            name="uq_business_event_quant_derivation_identity",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    business_event_id: Mapped[UUID] = mapped_column(
+        ForeignKey("business_events.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    ruleset_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    ruleset_semantic_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    source_available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    available_fact_codes_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    derivation_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    derived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class BusinessEventQuantitativeFact(Base):
+    """Exact quantitative observation from one accepted event-evidence span."""
+
+    __tablename__ = "business_event_quantitative_facts"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    derivation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("business_event_quantitative_derivations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    business_event_evidence_id: Mapped[UUID] = mapped_column(
+        ForeignKey("business_event_evidence.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    fact_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    fact_kind: Mapped[str] = mapped_column(String(32), nullable=False)
+    rule_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    rule_semantic_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    start_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    end_offset: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    raw_text: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_text_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    reported_value: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    reported_scale: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    reported_unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    reported_currency: Mapped[str | None] = mapped_column(String(3), nullable=True)
+    normalized_value: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    normalized_unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    date_value: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    warnings_json: Mapped[list[str]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    fact_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, unique=True, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class PriceBar(Base):
     """Append-only daily bar with source provenance and revision timestamps."""
 

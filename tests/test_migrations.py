@@ -436,3 +436,69 @@ def test_phase_6ca_business_event_upgrade_downgrade_upgrade(tmp_path: Path) -> N
         assert phase6ca_tables.issubset(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+def test_phase_6cb_quantitative_facts_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-6cb-quantitative-facts.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+    phase6cb_tables = {
+        "business_event_quantitative_derivations",
+        "business_event_quantitative_facts",
+    }
+
+    command.upgrade(config, "20260928_0013")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert not phase6cb_tables.intersection(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260929_0014")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert phase6cb_tables.issubset(inspector.get_table_names())
+        derivation_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("business_event_quantitative_derivations")
+        }
+        fact_columns = {
+            column["name"]: column
+            for column in inspector.get_columns("business_event_quantitative_facts")
+        }
+        assert not derivation_columns["available_fact_codes_json"]["nullable"]
+        assert not derivation_columns["derivation_fingerprint_sha256"]["nullable"]
+        assert fact_columns["reported_value"]["nullable"]
+        assert fact_columns["date_value"]["nullable"]
+        assert {
+            key["referred_table"]
+            for key in inspector.get_foreign_keys(
+                "business_event_quantitative_derivations"
+            )
+        } == {"business_events"}
+        assert {
+            key["referred_table"]
+            for key in inspector.get_foreign_keys("business_event_quantitative_facts")
+        } == {
+            "business_event_quantitative_derivations",
+            "business_event_evidence",
+        }
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260928_0013")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        tables = set(inspect(engine).get_table_names())
+        assert not phase6cb_tables.intersection(tables)
+        assert {"business_events", "business_event_evidence"}.issubset(tables)
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260929_0014")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert phase6cb_tables.issubset(inspect(engine).get_table_names())
+    finally:
+        engine.dispose()

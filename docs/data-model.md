@@ -27,6 +27,8 @@ erDiagram
   document ||--o{ announcement_document : attaches
   announcement ||--o{ business_event : deterministically_derives
   business_event ||--|{ business_event_evidence : cites
+  business_event ||--o| business_event_quantitative_derivation : quantifies
+  business_event_quantitative_derivation ||--o{ business_event_quantitative_fact : contains
   announcement ||--o{ risk_flag : may_create
   company ||--o{ feature_snapshot : has
   feature_snapshot ||--o{ feature_value : contains
@@ -66,6 +68,8 @@ erDiagram
 | `document_text_extractions` | asset, explicit extractor code/semantic/runtime identity, text object/hash/counts, page map, status/warnings, extraction time; unique asset + extractor identity | Implemented deterministic Phase 6B text metadata |
 | `business_events` | company, optional security, immutable announcement revision, provider dataset, neutral event type, source date/availability, ruleset identity, ordered rule codes, detected status, fingerprint, operational derivation time | Implemented Phase 6C-A deterministic event identity |
 | `business_event_evidence` | event and announcement, headline/document kind, optional document/asset/extraction identity, stable rule identity, exact offsets/pages/page hashes/excerpt hash, source availability, fingerprint | Implemented Phase 6C-A citable evidence |
+| `business_event_quantitative_derivations` | event, quantitative ruleset identity, source availability, ordered available fact codes/warnings, semantic fingerprint, operational derivation time; unique event + ruleset | Implemented Phase 6C-B processing envelope, including zero-fact outcomes |
+| `business_event_quantitative_facts` | derivation/evidence identity, controlled fact/kind and rule identity, exact absolute span/raw hash, exact reported and normalized values or date, source availability, warnings, fingerprint | Implemented Phase 6C-B source observations |
 | `document_interpretation` | document, task, schema/model/prompt versions, output JSON, confidence, evidence, review state | Planned reviewed AI layer; not implemented |
 
 Phase 6A archives complete incoming provider batches in the existing
@@ -75,6 +79,8 @@ hash is nullable and means document-byte SHA-256 only when the provider
 actually supplied or calculated it. Phase 6B adds external byte/text objects,
 deterministic extraction metadata, and in-memory citation slices. Phase 6C-A
 adds neutral deterministic event/evidence rows without AI interpretation.
+Phase 6C-B adds only quantitative derivation/fact metadata tied to those exact
+evidence spans; it stores no materiality or score.
 Every normalized announcement and document references a `source_record`.
 
 ### Market, benchmarks, ownership, and attention
@@ -166,6 +172,8 @@ are request inputs rather than stored policy or application constants.
 |---|---|---|
 | `announcements` | company, optional security, provider dataset, unique source record, raw provider category/headline/date/exchange, availability/revision/ingestion timestamps | Implemented Phase 6A source observation |
 | `business_event_evidence` | neutral BusinessEvent, exact source span and Phase 6A/6B lineage; no confidence or interpretation | Implemented in migration 0013 |
+| `business_event_quantitative_derivations` | immutable ruleset processing outcome for one event, including empty results | Implemented in migration 0014 |
+| `business_event_quantitative_facts` | exact supported money/capacity/fraction/date source observation linked to one event-evidence span | Implemented in migration 0014 |
 | `catalyst` | company, source refs, type/direction/materiality, confidence, status, source/time fields, review state | Planned; not implemented |
 | `risk_flag` | company, category, severity, status, confidence, source/time fields, review state | Planned; not implemented |
 | `management_commitment` | company/document, promise text/type, target date/value, status, evidence/confidence | Planned; not implemented |
@@ -199,6 +207,18 @@ exact DocumentAsset bytes and explicit successful text extraction.
 operational timestamp. No quantitative fact, materiality, direction,
 confidence, catalyst score, or score snapshot is added. See
 [`business-event-primitives.md`](business-event-primitives.md).
+
+Migration 0014 adds only `business_event_quantitative_derivations` and
+`business_event_quantitative_facts`. Extraction is restricted to persisted
+Phase 6C-A evidence excerpts. A derivation exists even with zero facts, and a
+same-version recomputation must reproduce its fingerprint. Supported facts are
+exact source observations rather than totals: repeated evidence is not summed
+or cross-evidence deduplicated. Monetary normalization uses exact Decimal scale
+multiplication without FX; compatible capacity units normalize without deriving
+deltas; stake percentages normalize to fractions; commencement dates use only
+the controlled unambiguous formats. Source availability remains announcement
+knowledge time and `derived_at` is operational. See
+[`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
 
 ### Features, models, and opportunity scores
 

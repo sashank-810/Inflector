@@ -204,6 +204,16 @@ direction, sentiment, confidence, recency policy, top-level weight, or score
 snapshot changes. Business Catalyst and Low Market Attention remain missing;
 V1/V2/V3 coverage and null `final_score` semantics are unchanged.
 
+Phase 6C-B derives only exact quantitative source observations from persisted
+Phase 6C-A evidence excerpts under `business_event_quantitative_rules_v1`.
+Supported observations are order/capex/acquisition consideration, controlled
+capacity before/after/additional values, acquisition stake fraction, and an
+explicit commercial-commencement date. Empty derivations are persisted. There
+is no whole-document rescan, FX conversion, financial-statement join,
+materiality or capacity arithmetic, aggregation, direction, sentiment,
+confidence, AI, Business Catalyst policy, or score effect. V1/V2/V3 coverage
+and null `final_score` semantics remain unchanged.
+
 ### Quality, cash flow, and balance sheet (35 combined)
 
 Phase 4D-A Business Quality currently evaluates only current ROCE level, ROE

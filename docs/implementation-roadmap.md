@@ -288,7 +288,7 @@ and expose page/offset citation primitives. Source knowledge time remains the
 Phase 6A availability timestamp. No OCR, AI, interpretation, or scoring enters
 this phase.
 
-### Phase 6C-A — Deterministic Business Event Detection & Evidence Persistence (acceptance pending)
+### Phase 6C-A — Deterministic Business Event Detection & Evidence Persistence (complete)
 
 Persist the exact six-type neutral `business_event_rules_v1` output and its
 headline or document/asset/extraction citation lineage. Detection is
@@ -296,16 +296,18 @@ page-local, corrected revisions remain distinct, and one announcement/type has
 one event with multiple evidence spans. No quantities, materiality, direction,
 confidence, AI, scoring policy, or snapshot changes are included.
 
-### Planned next: Phase 6C-B — Deterministic Quantitative Event Facts
+### Phase 6C-B — Deterministic Quantitative Event Facts (acceptance pending)
 
-Separately review explicit event amounts, capacities, stakes, and dates. Do not
-infer or persist these values in Phase 6C-A.
+Extract controlled explicit event amounts, capacities, stakes, and commercial
+commencement dates only from accepted Phase 6C-A evidence spans. Persist an
+immutable derivation even when it contains zero facts. Values are source
+observations, not summed totals or materiality; there is no FX, financial join,
+AI, direction, score, or snapshot change.
 
 ### Only after review: Phase 4D-H — Business Catalyst Component Scoring
 
-Add a pure Business Catalyst scorer only after both Phase 6C-A and Phase 6C-B
-contracts are accepted. Do not infer catalyst direction or activate a final
-score before that review.
+Add a pure Business Catalyst scorer only after Phase 6C-B is accepted. Do not
+infer catalyst direction or activate a final score before that review.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

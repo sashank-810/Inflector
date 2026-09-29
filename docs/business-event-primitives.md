@@ -91,13 +91,14 @@ visible after its availability time.
 
 ## Deliberate boundaries
 
-Phase 6C-A extracts no monetary values, order values, capex values, capacities,
-stake percentages, target/effective dates, or management guidance. It computes
-no materiality, event strength, direction, sentiment, or confidence. It uses no
-LLM, embeddings, OCR, summarizer, or classifier and changes no scoring policy or
-snapshot. Phase 6C-B will separately review quantitative event facts. Only
-after both evidence phases are accepted may Phase 4D-H review Business Catalyst
-scoring.
+Phase 6C-A itself extracts no monetary values, order values, capex values,
+capacities, stake percentages, target/effective dates, or management guidance.
+It computes no materiality, event strength, direction, sentiment, or
+confidence. It uses no LLM, embeddings, OCR, summarizer, or classifier and
+changes no scoring policy or snapshot. Phase 6C-B now separately derives only
+narrow explicit quantitative observations from these exact evidence spans;
+see [`business-event-quantitative-facts.md`](business-event-quantitative-facts.md).
+Only after separate acceptance may Phase 4D-H review Business Catalyst scoring.
 
 V1/V2/V3 maximum persisted coverage remains 0.25/0.60/0.75, Business Catalyst
 and Low Market Attention remain missing, and `final_score` remains null.
