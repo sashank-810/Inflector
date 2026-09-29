@@ -405,6 +405,16 @@ and all final scores/contributions remain absent. V1/V2/V3 payloads and
 fingerprints remain unchanged. See
 [`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).
 
+Phase 6D-A adds an independent external-attention source boundary. Provider
+batches are archived before append-only normalization into explicit
+news-mention windows or analyst-coverage snapshots. Provider dataset, scope,
+methodology, definition hash, and company/security identity remain explicit;
+mandatory source availability drives PIT reads and operational timestamps do
+not. Corrections resolve first by external ID and then by economic measurement
+identity. Market activity and BusinessEvents are deliberately absent from this
+domain. No attention feature, AI, policy, score, snapshot change, or final score
+is introduced. See [`attention-evidence.md`](attention-evidence.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -15,6 +15,8 @@ from inflector_core.providers import (
     AnnouncementDocumentRecord,
     AnnouncementProvider,
     AnnouncementRecord,
+    AttentionDataProvider,
+    AttentionObservationRecord,
     BenchmarkBarRecord,
     BenchmarkDataProvider,
     CorporateActionProvider,
@@ -31,6 +33,7 @@ from inflector_core.providers import (
 )
 from inflector_data.announcements import validate_announcement
 from inflector_data.archive import ArchivedRawObject, RawObjectStore
+from inflector_data.attention import validate_attention
 from inflector_data.corporate_actions import validate_corporate_action
 from inflector_data.financials import METRICS, normalize_financial, validate_financial
 from inflector_data.validation import (
@@ -42,6 +45,7 @@ from inflector_data.validation import (
 from inflector_database.ingestion_repository import IngestionRepository
 from inflector_database.models import (
     Announcement,
+    AttentionObservation,
     BenchmarkBar,
     CorporateAction,
     FinancialFact,
@@ -100,6 +104,9 @@ class IngestionService:
     def ingest_announcements(self, provider: AnnouncementProvider) -> IngestionResult:
         return self._ingest_announcements(provider.fetch_announcements())
 
+    def ingest_attention_data(self, provider: AttentionDataProvider) -> IngestionResult:
+        return self._ingest_attention(provider.fetch_attention_data())
+
     def _start(
         self,
         batch: ProviderBatch[UniverseRecord]
@@ -107,7 +114,8 @@ class IngestionService:
         | ProviderBatch[BenchmarkBarRecord]
         | ProviderBatch[FinancialRecord]
         | ProviderBatch[CorporateActionRecord]
-        | ProviderBatch[AnnouncementRecord],
+        | ProviderBatch[AnnouncementRecord]
+        | ProviderBatch[AttentionObservationRecord],
     ) -> tuple[ProviderDataset, IngestionRun, ArchivedRawObject]:
         """Archive durably before committing the audit run that references its processing."""
 
@@ -176,7 +184,8 @@ class IngestionService:
         | IngestionEnvelope[BenchmarkBarRecord]
         | IngestionEnvelope[FinancialRecord]
         | IngestionEnvelope[CorporateActionRecord]
-        | IngestionEnvelope[AnnouncementRecord],
+        | IngestionEnvelope[AnnouncementRecord]
+        | IngestionEnvelope[AttentionObservationRecord],
         dataset_id: UUID,
         run_id: UUID,
         raw: ArchivedRawObject,
@@ -777,6 +786,113 @@ class IngestionService:
             self._failed(run.id, counters, error)
             raise
 
+    def _ingest_attention(
+        self, batch: ProviderBatch[AttentionObservationRecord]
+    ) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if envelope.record.parse_errors else "parsed",
+                )
+                issues = validate_attention(
+                    envelope.record,
+                    available_at=envelope.available_at,
+                )
+                company = (
+                    self._repository.company_by_legal_name(envelope.record.company_legal_name)
+                    if envelope.record.company_legal_name
+                    else None
+                )
+                security = (
+                    self._repository.security_by_isin(envelope.record.security_isin)
+                    if envelope.record.security_isin
+                    else None
+                )
+                if envelope.record.company_legal_name and company is None:
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_company",
+                            "company legal name is not in the canonical universe",
+                        )
+                    )
+                if envelope.record.security_isin and security is None:
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_security",
+                            "security ISIN is not in the canonical universe",
+                        )
+                    )
+                company_id = company.id if company is not None else None
+                if company_id is None and security is not None:
+                    company_id = security.company_id
+                if company_id is not None and security is not None:
+                    if security.company_id != company_id:
+                        issues.append(
+                            ValidationIssue(
+                                "attention_company_security_mismatch",
+                                "attention company and security identities disagree",
+                            )
+                        )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                assert company_id is not None and envelope.available_at is not None
+                security_id = security.id if security is not None else None
+                existing_by_source = self._repository.attention_by_external_id(
+                    dataset_id=dataset.id,
+                    external_id=envelope.external_record_id,
+                )
+                existing_by_identity = self._repository.attention_by_economic_identity(
+                    dataset_id=dataset.id,
+                    company_id=company_id,
+                    security_id=security_id,
+                    record=envelope.record,
+                )
+                existing = {item.id: item for item in existing_by_source + existing_by_identity}
+                if existing and not self._attention_later(tuple(existing.values()), envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_attention_revision",
+                                (
+                                    "changed attention evidence lacks a strictly later "
+                                    "availability or revision time"
+                                ),
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                self._repository.add_attention_observation(
+                    company_id=company_id,
+                    security_id=security_id,
+                    dataset_id=dataset.id,
+                    source_id=source.id,
+                    record=envelope.record,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                source.validation_status = "accepted"
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
     def _document_source(
         self,
         *,
@@ -834,6 +950,25 @@ class IngestionService:
                 IngestionService._utc(announcement.revision_at or announcement.available_at),
             )
             for announcement in existing
+        )
+        return new_order > previous_order
+
+    @staticmethod
+    def _attention_later(
+        existing: Sequence[AttentionObservation],
+        envelope: IngestionEnvelope[AttentionObservationRecord],
+    ) -> bool:
+        assert envelope.available_at is not None
+        new_order = (
+            IngestionService._utc(envelope.available_at),
+            IngestionService._utc(envelope.revision_at or envelope.available_at),
+        )
+        previous_order = max(
+            (
+                IngestionService._utc(observation.available_at),
+                IngestionService._utc(observation.revision_at or observation.available_at),
+            )
+            for observation in existing
         )
         return new_order > previous_order
 

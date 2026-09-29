@@ -502,3 +502,54 @@ def test_phase_6cb_quantitative_facts_upgrade_downgrade_upgrade(tmp_path: Path) 
         assert phase6cb_tables.issubset(inspect(engine).get_table_names())
     finally:
         engine.dispose()
+
+
+def test_phase_6da_attention_upgrade_downgrade_upgrade(tmp_path: Path) -> None:
+    database_path = tmp_path / "phase-6da-attention.db"
+    config = Config("alembic.ini")
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database_path.as_posix()}")
+
+    command.upgrade(config, "20260929_0014")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert "attention_observations" not in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260929_0015")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        inspector = inspect(engine)
+        assert "attention_observations" in inspector.get_table_names()
+        columns = {
+            column["name"]: column
+            for column in inspector.get_columns("attention_observations")
+        }
+        assert columns["security_id"]["nullable"]
+        assert not columns["available_at"]["nullable"]
+        assert not columns["reported_count"]["nullable"]
+        assert {
+            key["referred_table"]
+            for key in inspector.get_foreign_keys("attention_observations")
+        } == {"companies", "securities", "provider_datasets", "source_records"}
+        assert any(
+            constraint["column_names"] == ["source_record_id"]
+            for constraint in inspector.get_unique_constraints("attention_observations")
+        )
+    finally:
+        engine.dispose()
+
+    command.downgrade(config, "20260929_0014")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert "attention_observations" not in inspect(engine).get_table_names()
+        assert "business_event_quantitative_facts" in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()
+
+    command.upgrade(config, "20260929_0015")
+    engine = create_engine(f"sqlite:///{database_path.as_posix()}")
+    try:
+        assert "attention_observations" in inspect(engine).get_table_names()
+    finally:
+        engine.dispose()

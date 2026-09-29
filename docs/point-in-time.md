@@ -100,3 +100,15 @@ the instant reader's exact-endpoint API returns only one common stored period
 identity and fails closed on FY/Q ambiguity. Market-cap corrections and
 financial restatements therefore revise derived ratios only once their source
 evidence becomes PIT-visible. See [`valuation-features.md`](valuation-features.md).
+
+## External attention PIT evidence
+
+Phase 6D-A uses only accepted SourceRecords whose explicit observation
+`available_at` is at or before the aware requested cutoff. The reader first
+resolves provider-external-ID revisions and then metric-specific economic
+corrections. News identities contain exact windows; analyst identities contain
+the economic snapshot date. Ambiguous same-position changed observations fail
+closed. Provider, scope, methodology, definition hash, and company-level versus
+explicit-security selection are all required, so evidence is never blended.
+Current security/listing status, retrieval time, and coverage status do not
+alter selection. See [`attention-evidence.md`](attention-evidence.md).

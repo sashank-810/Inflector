@@ -227,6 +227,49 @@ class DataQualityIssue(Base):
     )
 
 
+class AttentionObservation(Base):
+    """Append-only provider-reported external attention measurement."""
+
+    __tablename__ = "attention_observations"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"),
+        nullable=False,
+        unique=True,
+    )
+    metric_code: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    reported_count: Mapped[int] = mapped_column(BigInteger, nullable=False)
+    reported_unit: Mapped[str] = mapped_column(String(32), nullable=False)
+    scope_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    methodology_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    measurement_definition_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    coverage_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    observation_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
+    window_start_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    window_end_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    available_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class Announcement(Base):
     """Append-only public announcement metadata with immutable source provenance."""
 

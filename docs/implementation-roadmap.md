@@ -321,7 +321,7 @@ strength. Capex and acquisitions remain neutral and unscoreable. This phase
 does not itself persist the component, apply its 0.20 top-level weight, or
 activate a final score.
 
-### Phase 4D-I — Business Catalyst Cross-Domain Snapshot Orchestration (acceptance pending)
+### Phase 4D-I — Business Catalyst Cross-Domain Snapshot Orchestration (complete)
 
 Add the immutable `score_snapshot_v4` path without changing V1/V2/V3. Reuse
 V3 financial-context selection exactly, then evaluate Business Catalyst only
@@ -331,11 +331,21 @@ V4-only evidence lineage. Maximum standard coverage is `0.95`; Low Market
 Attention, final contributions, top-level renormalization, and `final_score`
 remain absent.
 
+### Phase 6D-A — External Attention Evidence Foundation (acceptance pending)
+
+Add provider-neutral, append-only news-mention and analyst-coverage count
+observations with archive-first provenance, explicit provider scope and
+methodology identity, mandatory source availability, correction-safe economic
+identities, and explicit PIT readers. Market activity and BusinessEvents are
+not attention evidence. This phase adds no attention feature, policy, score,
+snapshot version, final contribution, or final score.
+
 ### Planned after separate review
 
-Review the Low Market Attention evidence foundation separately. Do not infer
-attention from existing activity, delivery, price, market-cap, or event
-evidence. Final Opportunity Score activation also requires separate review.
+Phase 6D-B may define Low Market Attention feature primitives over this exact
+evidence. A pure scorer and snapshot/final-score activation each require their
+own later review. Do not infer attention from activity, delivery, price,
+market-cap, or event evidence.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

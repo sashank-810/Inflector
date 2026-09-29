@@ -155,6 +155,25 @@ class AnnouncementRecord:
     parse_errors: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True, slots=True)
+class AttentionObservationRecord:
+    """Provider-neutral external-attention measurement without interpretation."""
+
+    company_legal_name: str | None
+    security_isin: str | None
+    metric_code: str | None
+    reported_count: int | None
+    reported_unit: str | None
+    scope_code: str | None
+    methodology_version: str | None
+    measurement_definition_sha256: str | None
+    coverage_status: str | None
+    observation_date: date | None
+    window_start_at: datetime | None
+    window_end_at: datetime | None
+    parse_errors: tuple[str, ...] = ()
+
+
 def corporate_action_event_anchor(
     action_type: str | None, ex_date: date | None, effective_date: date | None
 ) -> date | None:
@@ -266,5 +285,14 @@ class AnnouncementProvider(Protocol):
 
     def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
         """Return one provider-neutral announcement batch."""
+
+        ...
+
+
+class AttentionDataProvider(Protocol):
+    """Provider port for explicit external-attention observations."""
+
+    def fetch_attention_data(self) -> ProviderBatch[AttentionObservationRecord]:
+        """Return one provider-neutral external-attention batch."""
 
         ...

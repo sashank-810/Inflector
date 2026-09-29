@@ -228,6 +228,15 @@ financial cutoff is the event's `source_available_at`; the request cutoff is
 used only for raw event age. See
 [`business-event-features.md`](business-event-features.md).
 
+Migration 0015 adds only `attention_observations`. Each immutable row belongs
+to one company, optional coherent security, explicit provider dataset, and one
+unique accepted `SourceRecord`. It stores the controlled count metric/unit,
+provider scope and methodology, measurement-definition SHA-256, coverage
+status, metric-specific economic date/window, mandatory source `available_at`,
+optional `revision_at`, and operational `ingested_at`. Raw payloads remain in
+the existing object archive; no score, feature, sentiment, direction, or
+confidence column is introduced. See [`attention-evidence.md`](attention-evidence.md).
+
 ### Features, models, and opportunity scores
 
 | Table | Core columns / constraints | Purpose |

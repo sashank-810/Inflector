@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 from inflector_core.providers import (
     AnnouncementDocumentRecord,
     AnnouncementRecord,
+    AttentionObservationRecord,
     BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
@@ -22,6 +23,7 @@ from inflector_core.providers import (
 from inflector_database.models import (
     Announcement,
     AnnouncementDocument,
+    AttentionObservation,
     BenchmarkBar,
     BenchmarkSeries,
     Company,
@@ -412,6 +414,109 @@ class IngestionRepository:
         self.session.add(announcement)
         self.session.flush()
         return announcement
+
+    def attention_by_external_id(
+        self, *, dataset_id: UUID, external_id: str
+    ) -> list[AttentionObservation]:
+        """Return accepted immutable revisions for one provider record ID."""
+
+        return list(
+            self.session.scalars(
+                select(AttentionObservation)
+                .join(SourceRecord, AttentionObservation.source_record_id == SourceRecord.id)
+                .where(
+                    AttentionObservation.provider_dataset_id == dataset_id,
+                    SourceRecord.external_record_id == external_id,
+                    SourceRecord.validation_status == "accepted",
+                )
+            )
+        )
+
+    def attention_by_economic_identity(
+        self,
+        *,
+        dataset_id: UUID,
+        company_id: UUID,
+        security_id: UUID | None,
+        record: AttentionObservationRecord,
+    ) -> list[AttentionObservation]:
+        """Return accepted revisions for one provider-local measurement identity."""
+
+        assert record.metric_code is not None
+        assert record.scope_code is not None
+        assert record.methodology_version is not None
+        assert record.measurement_definition_sha256 is not None
+        statement = (
+            select(AttentionObservation)
+            .join(SourceRecord, AttentionObservation.source_record_id == SourceRecord.id)
+            .where(
+                AttentionObservation.provider_dataset_id == dataset_id,
+                AttentionObservation.company_id == company_id,
+                AttentionObservation.metric_code == record.metric_code,
+                AttentionObservation.scope_code == record.scope_code,
+                AttentionObservation.methodology_version == record.methodology_version,
+                AttentionObservation.measurement_definition_sha256
+                == record.measurement_definition_sha256.lower(),
+                SourceRecord.validation_status == "accepted",
+            )
+        )
+        statement = statement.where(
+            AttentionObservation.security_id.is_(None)
+            if security_id is None
+            else AttentionObservation.security_id == security_id
+        )
+        if record.metric_code == "news_mentions_count":
+            statement = statement.where(
+                AttentionObservation.window_start_at == record.window_start_at,
+                AttentionObservation.window_end_at == record.window_end_at,
+            )
+        else:
+            statement = statement.where(
+                AttentionObservation.observation_date == record.observation_date
+            )
+        return list(self.session.scalars(statement))
+
+    def add_attention_observation(
+        self,
+        *,
+        company_id: UUID,
+        security_id: UUID | None,
+        dataset_id: UUID,
+        source_id: UUID,
+        record: AttentionObservationRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> AttentionObservation:
+        """Persist one validated immutable external-attention observation."""
+
+        assert record.metric_code is not None
+        assert record.reported_count is not None
+        assert record.reported_unit is not None
+        assert record.scope_code is not None
+        assert record.methodology_version is not None
+        assert record.measurement_definition_sha256 is not None
+        assert record.coverage_status is not None
+        observation = AttentionObservation(
+            company_id=company_id,
+            security_id=security_id,
+            provider_dataset_id=dataset_id,
+            source_record_id=source_id,
+            metric_code=record.metric_code,
+            reported_count=record.reported_count,
+            reported_unit=record.reported_unit,
+            scope_code=record.scope_code,
+            methodology_version=record.methodology_version,
+            measurement_definition_sha256=record.measurement_definition_sha256.lower(),
+            coverage_status=record.coverage_status,
+            observation_date=record.observation_date,
+            window_start_at=record.window_start_at,
+            window_end_at=record.window_end_at,
+            available_at=available_at,
+            revision_at=revision_at,
+        )
+        self.session.add(observation)
+        self.session.flush()
+        return observation
 
     def add_document(
         self,

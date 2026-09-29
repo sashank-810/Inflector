@@ -165,3 +165,20 @@ Source `available_at`, asset `retrieved_at`, and extraction `extracted_at` are
 distinct. PIT eligibility continues to use only the Phase 6A source time. No
 OCR, AI, catalyst inference, event-evidence persistence, or scoring occurs.
 See [`document-acquisition-and-text.md`](document-acquisition-and-text.md).
+
+## External attention evidence (Phase 6D-A)
+
+Attention ingestion reuses the archive-first provider batch and SourceRecord
+transaction. Its database-free record supports exactly news-mention counts
+over explicit windows and analyst-coverage counts on explicit observation
+dates. Mock and CSV adapters are available for fictional fixtures; no live HTTP
+provider or web scraper exists.
+
+Accepted records require a non-negative integer count in unit `count`, an
+explicit provider scope, methodology, definition hash, coverage status, and
+provider/source `available_at`. Retrieval, ingestion, window end, and analyst
+observation dates never supply a missing knowledge time. Changed source content
+is appended only at a strictly later semantic revision position, including
+corrections delivered under a new external ID for the same economic identity.
+Provider, methodology, scope, and definition-hash series remain isolated.
+See [`attention-evidence.md`](attention-evidence.md).

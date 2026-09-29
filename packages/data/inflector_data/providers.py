@@ -5,7 +5,7 @@ from __future__ import annotations
 import csv
 import json
 from dataclasses import dataclass
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from decimal import Decimal, InvalidOperation
 from hashlib import sha256
 from io import StringIO
@@ -14,6 +14,7 @@ from pathlib import Path
 from inflector_core.providers import (
     AnnouncementDocumentRecord,
     AnnouncementRecord,
+    AttentionObservationRecord,
     BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
@@ -54,6 +55,11 @@ def _optional_date(value: str, errors: list[str], field_name: str) -> date | Non
     except ValueError:
         errors.append(f"invalid_{field_name}")
         return None
+
+
+def _optional_utc_datetime(value: str, errors: list[str], field_name: str) -> datetime | None:
+    parsed = _optional_datetime(value, errors, field_name)
+    return None if parsed is None else parsed.astimezone(UTC)
 
 
 def _optional_decimal(value: str, errors: list[str], field_name: str) -> Decimal | None:
@@ -472,6 +478,79 @@ class CSVAnnouncementProvider:
 
 
 @dataclass(frozen=True, slots=True)
+class CSVAttentionDataProvider:
+    """Development CSV adapter for explicit provider attention measurements."""
+
+    path: Path
+    metadata: ProviderMetadata
+    retrieved_at: datetime
+
+    def fetch_attention_data(self) -> ProviderBatch[AttentionObservationRecord]:
+        raw_payload = self.path.read_bytes()
+        records: list[IngestionEnvelope[AttentionObservationRecord]] = []
+        for index, row in enumerate(
+            csv.DictReader(StringIO(raw_payload.decode("utf-8-sig"))), start=2
+        ):
+            errors: list[str] = []
+            reported_count = _optional_int(row.get("reported_count", ""), errors, "reported_count")
+            observation_date = _optional_date(
+                row.get("observation_date", ""), errors, "observation_date"
+            )
+            window_start_at = _optional_utc_datetime(
+                row.get("window_start_at", ""), errors, "window_start_at"
+            )
+            window_end_at = _optional_utc_datetime(
+                row.get("window_end_at", ""), errors, "window_end_at"
+            )
+            reported_at = _optional_utc_datetime(row.get("reported_at", ""), errors, "reported_at")
+            published_at = _optional_utc_datetime(
+                row.get("published_at", ""), errors, "published_at"
+            )
+            available_at = _optional_utc_datetime(
+                row.get("available_at", ""), errors, "available_at"
+            )
+            revision_at = _optional_utc_datetime(row.get("revision_at", ""), errors, "revision_at")
+            record = AttentionObservationRecord(
+                company_legal_name=row.get("company_legal_name") or None,
+                security_isin=row.get("security_isin") or None,
+                metric_code=row.get("metric_code") or None,
+                reported_count=reported_count,
+                reported_unit=row.get("reported_unit") or None,
+                scope_code=row.get("scope_code") or None,
+                methodology_version=row.get("methodology_version") or None,
+                measurement_definition_sha256=(row.get("measurement_definition_sha256") or None),
+                coverage_status=row.get("coverage_status") or None,
+                observation_date=observation_date,
+                window_start_at=window_start_at,
+                window_end_at=window_end_at,
+                parse_errors=tuple(errors),
+            )
+            source_uri = row.get("source_uri") or f"file://{self.path.name}"
+            records.append(
+                IngestionEnvelope(
+                    provider=self.metadata,
+                    external_record_id=row.get("external_record_id") or f"row-{index}",
+                    source_uri=source_uri,
+                    raw_payload_reference=f"row-{index}",
+                    content_sha256=_row_hash(row),
+                    retrieved_at=self.retrieved_at,
+                    record=record,
+                    reported_at=reported_at,
+                    published_at=published_at,
+                    available_at=available_at,
+                    revision_at=revision_at,
+                )
+            )
+        return ProviderBatch(
+            self.metadata,
+            f"file://{self.path.name}",
+            raw_payload,
+            self.retrieved_at,
+            tuple(records),
+        )
+
+
+@dataclass(frozen=True, slots=True)
 class MockUniverseProvider:
     """In-memory universe provider for orchestration tests."""
 
@@ -528,4 +607,14 @@ class MockAnnouncementProvider:
     batch: ProviderBatch[AnnouncementRecord]
 
     def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
+        return self.batch
+
+
+@dataclass(frozen=True, slots=True)
+class MockAttentionDataProvider:
+    """In-memory attention provider for deterministic orchestration tests."""
+
+    batch: ProviderBatch[AttentionObservationRecord]
+
+    def fetch_attention_data(self) -> ProviderBatch[AttentionObservationRecord]:
         return self.batch

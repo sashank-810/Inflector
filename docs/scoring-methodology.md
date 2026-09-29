@@ -322,6 +322,14 @@ holdings, coverage/news/search proxies, and other approved observations. Low
 activity, low delivery, or small market capitalization is not reclassified as
 Low Market Attention, and illiquidity is not rewarded.
 
+Phase 6D-A now provides source evidence only for two externally reported count
+metrics: news mentions and analyst coverage. Complete, partial, and unknown
+coverage—and missing versus reported zero—remain distinct data states. Neither
+raw market activity nor BusinessEvent/announcement counts are substituted.
+There is no Low Market Attention feature or scoring policy, no `snapshot_v5`,
+and no final score. V4 maximum persisted coverage remains `0.95`. See
+[`attention-evidence.md`](attention-evidence.md).
+
 ## Risk gates and confidence
 
 Critical unresolved data-quality issues exclude a company. Configurable hard
