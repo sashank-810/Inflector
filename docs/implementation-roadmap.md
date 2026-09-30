@@ -275,7 +275,7 @@ values as strings, and retain persisted partial-state and explanation audit
 semantics. Add no scoring, mutation, migration, current-state reinterpretation,
 or frontend implementation.
 
-### Phase 5B — Company Research Context, History & Audit Read API (acceptance pending)
+### Phase 5B — Company Research Context, History & Audit Read API (complete)
 
 Add V5-only discovery of every explicit company/security/configuration
 context, exact-context semantic snapshot history, neutral display-only Decimal
