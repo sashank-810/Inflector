@@ -254,11 +254,13 @@ a final score.
 Implement only separately approved Business Catalyst and Low Attention
 component policies. Neither v1 nor v2 fabricates them.
 
-### Phase 4E — final Opportunity Score activation
+### Phase 4E — final Opportunity Score activation (fulfilled by Phase 4D-K)
 
-Aggregate a final score only after sufficient approved top-level scorers exist,
-with separately reviewed top-level weighting, eligibility orchestration, risk
-caps, and activation policy.
+All eight deterministic top-level scorers now exist with complete configured
+weight coverage of `1.00`. Phase 4D-K implemented and accepted
+`score_snapshot_v5`, which activates the final Opportunity Score only for
+complete positive-weight coverage, without top-level renormalization. A missing
+required component leaves `final_score` null, so this roadmap goal is fulfilled.
 
 **Exit gate:** scores are deterministic, auditable, versioned, and explainable.
 
@@ -358,13 +360,19 @@ higher, while missing, partial, unknown, stale, or mismatched evidence stays
 unavailable. Pure scorer coverage reaches `1.00`, but there is no persistence,
 top-level contribution, snapshot v5, or final score.
 
-### Phase 4D-K — Final Snapshot / Opportunity Score Activation (acceptance pending)
+### Phase 4D-K — Final Snapshot / Opportunity Score Activation (complete)
 
 Add immutable `score_snapshot_v5`, persist policy-bound Low Market Attention
 after unchanged financial-context selection, and activate exact Decimal
 top-level contributions only for complete weight coverage. Missing components
 remain null without renormalization; valid zero scores remain available. V1-V4
 stay immutable, and the existing schema requires no migration.
+
+**Core deterministic scoring milestone:** the eight-component Opportunity
+Score engine is complete, with exact Decimal aggregation, immutable PIT/audit
+lineage, `score_snapshot_v5`, and final-score activation. This does not mean the
+whole product is complete; research/dashboard UX, production providers,
+empirical calibration/backtesting, alerts, and hardening remain later work.
 
 ### Planned after separate review
 
