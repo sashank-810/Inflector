@@ -1,9 +1,9 @@
 # External attention evidence
 
 Phase 6D-A establishes an append-only, provider-neutral source domain for
-external attention measurements. It stops at normalized evidence and
-point-in-time reads. It does not decide whether attention is low, favorable,
-or scoreable.
+external attention measurements. Phase 6D-B now derives neutral, non-persisted
+feature primitives from exact PIT-selected series. Neither phase decides
+whether attention is low, favorable, or scoreable.
 
 ## V1 vocabulary and semantics
 
@@ -85,12 +85,25 @@ analyst API chooses the greatest eligible economic `observation_date`, never
 the smallest count, largest count, coverage status, or retrieval time.
 Coverage status is returned unchanged and has no selection priority.
 
+## Non-persisted feature boundary
+
+Phase 6D-B callers supply exact news and analyst provider/scope/methodology/
+definition identities, company/security mode, cutoff, news window, and analyst
+date bound. Only complete observations expose their count as an exact Decimal;
+complete zero remains zero, while partial, unknown, and missing remain distinct.
+Coverage is interpreted only after correction-safe PIT selection, so the
+feature layer never falls back to an older complete observation. News duration
+and age are exact elapsed Decimal days, while analyst age is a calendar-date
+difference. Every feature retains its selected observation and raw-archive
+lineage. See [`attention-features.md`](attention-features.md).
+
 ## Deliberate boundaries
 
 Market price, volume, delivery, turnover, and market capitalization are trading
 activity, not external attention evidence. Announcement, filing, document,
 BusinessEvent, and catalyst counts are also not attention evidence. V1 has no
-search, social, ownership, sentiment, AI, feature, curve, score, snapshot, or
-final-score behavior. `score_snapshot_v4` therefore remains the latest
+search, social, ownership, sentiment, AI, scoring curve, score, snapshot, or
+final-score behavior. Its features are runtime-only source representations.
+`score_snapshot_v4` therefore remains the latest
 persisted contract with maximum coverage `0.95`; Low Market Attention remains
 missing and `final_score` remains null.

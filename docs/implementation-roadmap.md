@@ -331,7 +331,7 @@ V4-only evidence lineage. Maximum standard coverage is `0.95`; Low Market
 Attention, final contributions, top-level renormalization, and `final_score`
 remain absent.
 
-### Phase 6D-A — External Attention Evidence Foundation (acceptance pending)
+### Phase 6D-A — External Attention Evidence Foundation (complete)
 
 Add provider-neutral, append-only news-mention and analyst-coverage count
 observations with archive-first provenance, explicit provider scope and
@@ -340,12 +340,21 @@ identities, and explicit PIT readers. Market activity and BusinessEvents are
 not attention evidence. This phase adds no attention feature, policy, score,
 snapshot version, final contribution, or final score.
 
+### Phase 6D-B — Low Market Attention Feature Primitives (acceptance pending)
+
+Derive non-persisted complete counts and raw temporal metadata from exact
+caller-selected attention series. Preserve complete-zero, missing,
+partial/unknown coverage, correction selection, provider/methodology/security
+isolation, and full SourceRecord/archive lineage. Add no freshness policy,
+market or event normalization, peer ranking, AI, score, migration, snapshot,
+or final score.
+
 ### Planned after separate review
 
-Phase 6D-B may define Low Market Attention feature primitives over this exact
-evidence. A pure scorer and snapshot/final-score activation each require their
-own later review. Do not infer attention from activity, delivery, price,
-market-cap, or event evidence.
+Phase 4D-J may define a Low Market Attention pure component scorer. Phase 4D-K
+may separately review final snapshot / Opportunity Score activation. Do not
+infer attention from activity, delivery, price, market-cap, or event evidence,
+and do not activate either future phase here.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

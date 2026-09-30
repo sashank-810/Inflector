@@ -112,3 +112,11 @@ closed. Provider, scope, methodology, definition hash, and company-level versus
 explicit-security selection are all required, so evidence is never blended.
 Current security/listing status, retrieval time, and coverage status do not
 alter selection. See [`attention-evidence.md`](attention-evidence.md).
+
+Phase 6D-B constructs features only after this correction selection. A newer
+partial or unknown correction therefore makes the count unavailable; it never
+causes fallback to an older complete revision. Feature availability remains
+the selected observation's `available_at`. News ages use the requested aware
+cutoff and exact window end; analyst age uses the cutoff's UTC calendar date
+against the economic observation date. Retrieval and ingestion timestamps do
+not participate. See [`attention-features.md`](attention-features.md).

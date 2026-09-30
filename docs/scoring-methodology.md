@@ -326,9 +326,19 @@ Phase 6D-A now provides source evidence only for two externally reported count
 metrics: news mentions and analyst coverage. Complete, partial, and unknown
 coverage—and missing versus reported zero—remain distinct data states. Neither
 raw market activity nor BusinessEvent/announcement counts are substituted.
-There is no Low Market Attention feature or scoring policy, no `snapshot_v5`,
-and no final score. V4 maximum persisted coverage remains `0.95`. See
+That evidence phase introduced no Low Market Attention feature or scoring
+policy, no `snapshot_v5`, and no final score. V4 maximum persisted coverage
+remains `0.95`. See
 [`attention-evidence.md`](attention-evidence.md).
+
+Phase 6D-B exposes only neutral runtime features: complete counts, exact news
+window duration and age, and calendar-day analyst snapshot age. It applies no
+freshness threshold, provider fallback, peer normalization, cross-metric
+arithmetic, or interpretation. Partial and unknown counts remain unavailable
+with their evidence; complete zero stays zero and missing stays missing. There
+is still no Low Market Attention policy or score, no `snapshot_v5`, and no
+final score. V4 maximum persisted coverage remains `0.95`. See
+[`attention-features.md`](attention-features.md).
 
 ## Risk gates and confidence
 

@@ -415,6 +415,16 @@ identity. Market activity and BusinessEvents are deliberately absent from this
 domain. No attention feature, AI, policy, score, snapshot change, or final score
 is introduced. See [`attention-evidence.md`](attention-evidence.md).
 
+Phase 6D-B adds a read-only feature boundary over that PIT reader. Callers
+provide exact news and analyst series identities, explicit company/security
+mode, exact news window, analyst bound, and aware cutoff. Complete counts,
+including zero, become Decimal primitives; partial/unknown counts remain
+unavailable but retain their evidence and temporal metadata. News duration and
+age use exact Decimal elapsed time, and analyst age uses calendar days. There
+is no provider fallback, persistence, market or event normalization, peer
+ranking, AI, policy, score, migration, or snapshot change. See
+[`attention-features.md`](attention-features.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot
