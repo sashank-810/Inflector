@@ -83,27 +83,133 @@ class OpportunityScoreReadRepository:
             .limit(limit)
             .offset(offset)
         )
-        records = tuple(
-            self._record(tuple(row)) for row in self._session.execute(statement)
-        )
+        records = tuple(self._record(tuple(row)) for row in self._session.execute(statement))
         return records, total or 0
 
     def get(self, snapshot_id: UUID) -> OpportunityScoreReadRecord | None:
+        statement = self._base_statement(include_explanations=True).where(
+            ScoreSnapshot.id == snapshot_id,
+            ScoreSnapshot.algorithm_version == OPPORTUNITY_SCORE_SNAPSHOT_VERSION,
+        )
+        row = self._session.execute(statement).one_or_none()
+        return None if row is None else self._record(tuple(row))
+
+    def company_exists(self, company_id: UUID) -> bool:
+        return bool(
+            self._session.scalar(
+                select(func.count()).select_from(Company).where(Company.id == company_id)
+            )
+        )
+
+    def list_company_contexts(
+        self,
+        *,
+        company_id: UUID,
+        model_family: str,
+        limit: int,
+        offset: int,
+    ) -> tuple[tuple[OpportunityScoreReadRecord, ...], int]:
+        ranked = self._ranked_snapshot_ids(
+            model_family=model_family,
+            configuration_checksum_sha256=None,
+            company_id=company_id,
+        )
+        latest_ids = select(ranked.c.snapshot_id).where(ranked.c.latest_rank == 1)
+        filters = [ScoreSnapshot.id.in_(latest_ids)]
+        total = self._session.scalar(
+            select(func.count()).select_from(ScoreSnapshot).where(*filters)
+        )
         statement = (
-            self._base_statement(include_explanations=True)
+            self._base_statement(include_explanations=False)
+            .where(*filters)
+            .order_by(
+                Security.isin.asc(),
+                ScoringConfiguration.checksum_sha256.asc(),
+                ScoringConfiguration.id.asc(),
+                ScoreSnapshot.snapshot_fingerprint_sha256.asc(),
+            )
+            .limit(limit)
+            .offset(offset)
+        )
+        records = tuple(self._record(tuple(row)) for row in self._session.execute(statement))
+        return records, total or 0
+
+    def list_context_history(
+        self,
+        *,
+        company_id: UUID,
+        model_family: str,
+        security_id: UUID,
+        scoring_configuration_id: UUID,
+        limit: int,
+        offset: int,
+    ) -> tuple[
+        tuple[OpportunityScoreReadRecord, ...],
+        int,
+        tuple[OpportunityScoreReadRecord, ...],
+    ]:
+        filters = (
+            ScoreSnapshot.algorithm_version == OPPORTUNITY_SCORE_SNAPSHOT_VERSION,
+            ScoreSnapshot.company_id == company_id,
+            ScoreSnapshot.selected_security_id == security_id,
+            ScoreSnapshot.scoring_configuration_id == scoring_configuration_id,
+            Security.company_id == company_id,
+            ModelVersion.model_family == model_family,
+            ScoringConfiguration.model_version_id == ModelVersion.id,
+        )
+        total = self._session.scalar(
+            select(func.count())
+            .select_from(ScoreSnapshot)
+            .join(Security, ScoreSnapshot.selected_security_id == Security.id)
+            .join(ModelVersion, ScoreSnapshot.model_version_id == ModelVersion.id)
+            .join(
+                ScoringConfiguration,
+                ScoreSnapshot.scoring_configuration_id == ScoringConfiguration.id,
+            )
+            .where(*filters)
+        )
+        ordering = self._history_ordering()
+        page_statement = (
+            self._base_statement(include_explanations=False)
+            .where(*filters)
+            .order_by(*ordering)
+            .limit(limit)
+            .offset(offset)
+        )
+        comparison_statement = (
+            self._base_statement(include_explanations=False)
+            .where(*filters)
+            .order_by(*ordering)
+            .limit(2)
+        )
+        page = tuple(self._record(tuple(row)) for row in self._session.execute(page_statement))
+        latest_two = tuple(
+            self._record(tuple(row)) for row in self._session.execute(comparison_statement)
+        )
+        return page, total or 0, latest_two
+
+    def get_v5_audit_snapshot(self, snapshot_id: UUID) -> ScoreSnapshot | None:
+        component_loader = selectinload(ScoreSnapshot.components).options(
+            raiseload(ScoreComponent.explanations)
+        )
+        snapshot = self._session.scalar(
+            select(ScoreSnapshot)
             .where(
                 ScoreSnapshot.id == snapshot_id,
                 ScoreSnapshot.algorithm_version == OPPORTUNITY_SCORE_SNAPSHOT_VERSION,
             )
+            .options(component_loader)
         )
-        row = self._session.execute(statement).one_or_none()
-        return None if row is None else self._record(tuple(row))
+        if snapshot is None:
+            return None
+        return self._integrity.validate_persisted_snapshot(snapshot)
 
     @staticmethod
     def _ranked_snapshot_ids(
         *,
         model_family: str,
         configuration_checksum_sha256: str | None,
+        company_id: UUID | None = None,
     ):
         filters = [
             ScoreSnapshot.algorithm_version == OPPORTUNITY_SCORE_SNAPSHOT_VERSION,
@@ -111,9 +217,10 @@ class OpportunityScoreReadRepository:
         ]
         if configuration_checksum_sha256 is not None:
             filters.append(
-                ScoreSnapshot.configuration_checksum_sha256
-                == configuration_checksum_sha256.lower()
+                ScoreSnapshot.configuration_checksum_sha256 == configuration_checksum_sha256.lower()
             )
+        if company_id is not None:
+            filters.append(ScoreSnapshot.company_id == company_id)
         return (
             select(
                 ScoreSnapshot.id.label("snapshot_id"),
@@ -136,6 +243,15 @@ class OpportunityScoreReadRepository:
             .join(ModelVersion, ScoreSnapshot.model_version_id == ModelVersion.id)
             .where(*filters)
             .subquery()
+        )
+
+    @staticmethod
+    def _history_ordering() -> tuple[ColumnElement[Any], ...]:
+        return (
+            ScoreSnapshot.knowledge_cutoff.desc(),
+            ScoreSnapshot.ending_fiscal_year.desc(),
+            ScoreSnapshot.ending_fiscal_quarter.desc(),
+            ScoreSnapshot.snapshot_fingerprint_sha256.asc(),
         )
 
     @staticmethod

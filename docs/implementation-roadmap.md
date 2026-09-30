@@ -275,8 +275,17 @@ values as strings, and retain persisted partial-state and explanation audit
 semantics. Add no scoring, mutation, migration, current-state reinterpretation,
 or frontend implementation.
 
-Planned only after separate review: Phase 5B company research-page backend and
-deeper audit reads.
+### Phase 5B — Company Research Context, History & Audit Read API (acceptance pending)
+
+Add V5-only discovery of every explicit company/security/configuration
+context, exact-context semantic snapshot history, neutral display-only Decimal
+changes, and bounded reads over the persisted audit union. Preserve
+anti-score-shopping, immutable historical evidence, current-status
+independence, and fail-closed integrity validation. Add no scoring, writes,
+migration, provider work, or frontend.
+
+Planned only after separate review: Phase 5C — Research Queue / Company
+Research Frontend.
 
 1. Build dark desktop-first dashboard, explorer filters, company research page,
    score explanations, inflection radar, and watchlist/notes.

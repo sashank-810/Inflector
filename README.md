@@ -103,6 +103,10 @@ a company to view its canonical identity, ISIN, securities, and listings.
 | `GET /api/v1/companies/{company_id}` | Company with securities and dated exchange listings |
 | `GET /api/v1/opportunity-scores?model_family=inflector_v1` | V5 research queue; `model_family` is required |
 | `GET /api/v1/opportunity-scores/{snapshot_id}` | Immutable V5 Opportunity Score detail and explanations |
+| `GET /api/v1/companies/{company_id}/research-contexts` | Explicit V5 security/configuration contexts for a model family |
+| `GET /api/v1/companies/{company_id}/opportunity-score-history` | Exact-context semantic V5 history and display change |
+| `GET /api/v1/opportunity-scores/{snapshot_id}/audit` | Bounded persisted audit category and algorithm index |
+| `GET /api/v1/opportunity-scores/{snapshot_id}/audit/{category}` | Paginated stored lineage for one typed audit category |
 
 ## Validation
 

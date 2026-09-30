@@ -74,3 +74,14 @@ use no current-time default and issue no writes.
 
 Phase 5A adds no frontend, migration, alert, backtest, provider, AI, ranking
 formula, or investment recommendation.
+
+## Phase 5B company research reads
+
+Phase 5B preserves both Phase 5A endpoints and their response semantics. It
+adds explicit company research-context discovery, exact-context semantic V5
+history with neutral display-only changes, and bounded audit-union category
+reads. No backend default/best context is selected. History never uses
+`created_at`, and same-cutoff ties use the persisted fingerprint. Audit reads
+return stored manifests rather than live evidence, with a typed set of 14
+categories and no wholesale top-level manifest dump. See
+[`company-research-read-api.md`](company-research-read-api.md).

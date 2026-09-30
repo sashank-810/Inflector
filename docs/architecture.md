@@ -459,6 +459,18 @@ snapshot input/fingerprint blobs. No scoring, provider selection, write,
 migration, or frontend behavior enters this boundary. See
 [`opportunity-score-read-api.md`](opportunity-score-read-api.md).
 
+Phase 5B extends that repository/service boundary with company-scoped context
+discovery, exact-context history, and V5 audit reads. Context discovery reuses
+the accepted semantic window ordering and never selects among securities or
+configurations by score. History loads components in bounded batches and
+computes only exact display differences between the globally latest two
+persisted snapshots; pagination cannot change the comparison. The deep-audit
+path validates and pages the selected snapshot's stored union across 14 typed
+categories while reading algorithm identities from that historical manifest,
+not current constants. It performs no evidence joins, archive access, writes,
+clock reads, current-status gating, scoring, or frontend work. See
+[`company-research-read-api.md`](company-research-read-api.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

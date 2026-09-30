@@ -3,8 +3,20 @@
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import cast
 from uuid import UUID
 
+from inflector_api.company_research_schemas import (
+    CompanyResearchContextListResponse,
+    CompanyResearchContextRead,
+    OpportunityAuditCategory,
+    OpportunityAuditCategoryCountRead,
+    OpportunityComponentChangeRead,
+    OpportunityScoreAuditCategoryResponse,
+    OpportunityScoreAuditSummaryRead,
+    OpportunityScoreChangeRead,
+    OpportunityScoreHistoryResponse,
+)
 from inflector_api.opportunity_score_schemas import (
     OpportunityCompanyRead,
     OpportunityComponentDetailRead,
@@ -21,7 +33,8 @@ from inflector_api.opportunity_score_schemas import (
     OpportunityScoringConfigurationRead,
     OpportunitySecurityRead,
 )
-from inflector_database.models import ScoreComponent, ScoreExplanation
+from inflector_api.services import CompanyNotFoundError
+from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot
 from inflector_database.opportunity_score_read_repository import (
     OpportunityScoreReadRecord,
     OpportunityScoreReadRepository,
@@ -32,11 +45,15 @@ from inflector_database.opportunity_score_read_repository import (
 from inflector_database.opportunity_score_read_repository import (
     OpportunityScoreStatus as RepositoryStatus,
 )
-from inflector_database.score_repository import V5_COMPONENT_ORDER
+from inflector_database.score_repository import V5_COMPONENT_ORDER, ScoreSnapshotIntegrityError
 
 
 class OpportunityScoreNotFoundError(Exception):
     """Raised when a UUID is absent or does not identify a V5 snapshot."""
+
+
+class OpportunityResearchContextNotFoundError(Exception):
+    """Raised when an exact company/security/configuration V5 context is absent."""
 
 
 class OpportunityScoreService:
@@ -98,30 +115,180 @@ class OpportunityScoreService:
                 configuration_version=record.scoring_configuration.configuration_version,
                 status=record.scoring_configuration.status,
                 checksum_sha256=record.scoring_configuration.checksum_sha256,
-                effective_from=self._optional_utc(
-                    record.scoring_configuration.effective_from
-                ),
+                effective_from=self._optional_utc(record.scoring_configuration.effective_from),
                 effective_to=self._optional_utc(record.scoring_configuration.effective_to),
             ),
             components=[
-                self._component_detail(component)
-                for component in self._ordered_components(record)
+                self._component_detail(component) for component in self._ordered_components(record)
             ],
+        )
+
+    def list_company_contexts(
+        self,
+        *,
+        company_id: UUID,
+        model_family: str,
+        limit: int,
+        offset: int,
+    ) -> CompanyResearchContextListResponse:
+        if not self._repository.company_exists(company_id):
+            raise CompanyNotFoundError(str(company_id))
+        records, total = self._repository.list_company_contexts(
+            company_id=company_id,
+            model_family=model_family,
+            limit=limit,
+            offset=offset,
+        )
+        return CompanyResearchContextListResponse(
+            items=[
+                CompanyResearchContextRead(
+                    company_id=company_id,
+                    security=self._security(record),
+                    model_version=self._model_version(record),
+                    scoring_configuration=self._scoring_configuration(record),
+                    latest_snapshot=self._queue_item(record),
+                )
+                for record in records
+            ],
+            total=total,
+            limit=limit,
+            offset=offset,
+        )
+
+    def list_context_history(
+        self,
+        *,
+        company_id: UUID,
+        model_family: str,
+        security_id: UUID,
+        scoring_configuration_id: UUID,
+        limit: int,
+        offset: int,
+    ) -> OpportunityScoreHistoryResponse:
+        records, total, latest_two = self._repository.list_context_history(
+            company_id=company_id,
+            model_family=model_family,
+            security_id=security_id,
+            scoring_configuration_id=scoring_configuration_id,
+            limit=limit,
+            offset=offset,
+        )
+        if total == 0:
+            raise OpportunityResearchContextNotFoundError(
+                f"{company_id}/{security_id}/{scoring_configuration_id}"
+            )
+        return OpportunityScoreHistoryResponse(
+            items=[self._queue_item(record) for record in records],
+            total=total,
+            limit=limit,
+            offset=offset,
+            latest_change=(
+                self._change(latest_two[0], latest_two[1]) if len(latest_two) == 2 else None
+            ),
+        )
+
+    def audit_summary(self, snapshot_id: UUID) -> OpportunityScoreAuditSummaryRead:
+        snapshot = self._audit_snapshot(snapshot_id)
+        union = self._audit_union(snapshot)
+        return OpportunityScoreAuditSummaryRead(
+            snapshot_id=snapshot.id,
+            snapshot_fingerprint_sha256=snapshot.snapshot_fingerprint_sha256,
+            algorithm_version=snapshot.algorithm_version,
+            curve_algorithm_version=cast(str, union["curve_algorithm_version"]),
+            opportunity_score_aggregation_version=cast(
+                str, union["opportunity_score_aggregation_version"]
+            ),
+            component_algorithm_versions=cast(
+                list[dict[str, object]], union["component_algorithm_versions"]
+            ),
+            phase3_algorithm_versions=cast(
+                list[dict[str, object]], union["phase3_algorithm_versions"]
+            ),
+            categories=[
+                OpportunityAuditCategoryCountRead(
+                    category=category,
+                    count=len(cast(list[dict[str, object]], union[category.value])),
+                )
+                for category in OpportunityAuditCategory
+            ],
+        )
+
+    def audit_category(
+        self,
+        *,
+        snapshot_id: UUID,
+        category: OpportunityAuditCategory,
+        limit: int,
+        offset: int,
+    ) -> OpportunityScoreAuditCategoryResponse:
+        snapshot = self._audit_snapshot(snapshot_id)
+        union = self._audit_union(snapshot)
+        values = cast(list[dict[str, object]], union[category.value])
+        return OpportunityScoreAuditCategoryResponse(
+            snapshot_id=snapshot.id,
+            snapshot_fingerprint_sha256=snapshot.snapshot_fingerprint_sha256,
+            category=category,
+            items=values[offset : offset + limit],
+            total=len(values),
+            limit=limit,
+            offset=offset,
         )
 
     def _queue_item(self, record: OpportunityScoreReadRecord) -> OpportunityScoreQueueItemRead:
         return OpportunityScoreQueueItemRead(
             **self._summary(record).model_dump(),
             components=[
-                self._component_summary(component)
-                for component in self._ordered_components(record)
+                self._component_summary(component) for component in self._ordered_components(record)
             ],
+        )
+
+    def _security(self, record: OpportunityScoreReadRecord) -> OpportunitySecurityRead:
+        security = record.security
+        return OpportunitySecurityRead(
+            security_id=security.id,
+            isin=security.isin,
+            security_type=security.security_type,
+            security_status=security.status,
+            listings=[
+                OpportunityListingRead(
+                    id=listing.id,
+                    exchange=listing.exchange,
+                    symbol=listing.symbol,
+                    valid_from=listing.valid_from,
+                    valid_to=listing.valid_to,
+                    status=listing.status,
+                )
+                for listing in record.listings
+            ],
+        )
+
+    def _model_version(self, record: OpportunityScoreReadRecord) -> OpportunityModelVersionRead:
+        value = record.model_version
+        return OpportunityModelVersionRead(
+            id=value.id,
+            model_family=value.model_family,
+            semantic_version=value.semantic_version,
+            git_sha=value.git_sha,
+            status=value.status,
+        )
+
+    def _scoring_configuration(
+        self, record: OpportunityScoreReadRecord
+    ) -> OpportunityScoringConfigurationRead:
+        value = record.scoring_configuration
+        return OpportunityScoringConfigurationRead(
+            id=value.id,
+            configuration_name=value.configuration_name,
+            configuration_version=value.configuration_version,
+            status=value.status,
+            checksum_sha256=value.checksum_sha256,
+            effective_from=self._optional_utc(value.effective_from),
+            effective_to=self._optional_utc(value.effective_to),
         )
 
     def _summary(self, record: OpportunityScoreReadRecord) -> OpportunityScoreSummaryRead:
         snapshot = record.snapshot
         company = record.company
-        security = record.security
         return OpportunityScoreSummaryRead(
             company=OpportunityCompanyRead(
                 company_id=company.id,
@@ -130,23 +297,7 @@ class OpportunityScoreService:
                 sector=company.sector,
                 industry=company.industry,
             ),
-            security=OpportunitySecurityRead(
-                security_id=security.id,
-                isin=security.isin,
-                security_type=security.security_type,
-                security_status=security.status,
-                listings=[
-                    OpportunityListingRead(
-                        id=listing.id,
-                        exchange=listing.exchange,
-                        symbol=listing.symbol,
-                        valid_from=listing.valid_from,
-                        valid_to=listing.valid_to,
-                        status=listing.status,
-                    )
-                    for listing in record.listings
-                ],
-            ),
+            security=self._security(record),
             snapshot_id=snapshot.id,
             algorithm_version=snapshot.algorithm_version,
             snapshot_status=OpportunityScoreStatus(snapshot.snapshot_status),
@@ -162,20 +313,14 @@ class OpportunityScoreService:
             final_score=snapshot.final_score,
             confidence=snapshot.confidence,
             financial_core_coverage=snapshot.financial_core_coverage,
-            top_level_component_weight_coverage=(
-                snapshot.top_level_component_weight_coverage
-            ),
-            available_component_codes=self._strings(
-                snapshot.available_component_codes_json
-            ),
+            top_level_component_weight_coverage=(snapshot.top_level_component_weight_coverage),
+            available_component_codes=self._strings(snapshot.available_component_codes_json),
             missing_component_codes=self._strings(snapshot.missing_component_codes_json),
             snapshot_fingerprint_sha256=snapshot.snapshot_fingerprint_sha256,
             created_at=self._utc(snapshot.created_at),
         )
 
-    def _ordered_components(
-        self, record: OpportunityScoreReadRecord
-    ) -> tuple[ScoreComponent, ...]:
+    def _ordered_components(self, record: OpportunityScoreReadRecord) -> tuple[ScoreComponent, ...]:
         rank = {code: index for index, code in enumerate(V5_COMPONENT_ORDER)}
         return tuple(
             sorted(
@@ -184,9 +329,7 @@ class OpportunityScoreService:
             )
         )
 
-    def _component_summary(
-        self, component: ScoreComponent
-    ) -> OpportunityComponentSummaryRead:
+    def _component_summary(self, component: ScoreComponent) -> OpportunityComponentSummaryRead:
         if component.score is None:
             raise AssertionError("integrity-checked V5 component has no score")
         return OpportunityComponentSummaryRead(
@@ -231,6 +374,117 @@ class OpportunityScoreService:
             direction=value.direction,
             evidence_manifest=value.evidence_manifest_json,
         )
+
+    def _change(
+        self,
+        current: OpportunityScoreReadRecord,
+        comparison: OpportunityScoreReadRecord,
+    ) -> OpportunityScoreChangeRead:
+        current_snapshot = current.snapshot
+        comparison_snapshot = comparison.snapshot
+        current_components = {
+            component.component_code: component for component in current_snapshot.components
+        }
+        comparison_components = {
+            component.component_code: component for component in comparison_snapshot.components
+        }
+        component_changes: list[OpportunityComponentChangeRead] = []
+        for code in V5_COMPONENT_ORDER:
+            current_component = current_components.get(code)
+            comparison_component = comparison_components.get(code)
+            current_score = None if current_component is None else current_component.score
+            comparison_score = None if comparison_component is None else comparison_component.score
+            if current_component is None and comparison_component is not None:
+                availability_change = "removed"
+            elif current_component is not None and comparison_component is None:
+                availability_change = "added"
+            else:
+                availability_change = "unchanged"
+            component_changes.append(
+                OpportunityComponentChangeRead(
+                    component_code=code,
+                    current_score=current_score,
+                    comparison_score=comparison_score,
+                    score_delta=(
+                        current_score - comparison_score
+                        if current_score is not None and comparison_score is not None
+                        else None
+                    ),
+                    current_available=current_component is not None,
+                    comparison_available=comparison_component is not None,
+                    availability_change=availability_change,
+                )
+            )
+        return OpportunityScoreChangeRead(
+            current_snapshot_id=current_snapshot.id,
+            comparison_snapshot_id=comparison_snapshot.id,
+            current_status=OpportunityScoreStatus(current_snapshot.snapshot_status),
+            comparison_status=OpportunityScoreStatus(comparison_snapshot.snapshot_status),
+            status_changed=(
+                current_snapshot.snapshot_status != comparison_snapshot.snapshot_status
+            ),
+            final_score_delta=(
+                current_snapshot.final_score - comparison_snapshot.final_score
+                if current_snapshot.final_score is not None
+                and comparison_snapshot.final_score is not None
+                else None
+            ),
+            confidence_delta=current_snapshot.confidence - comparison_snapshot.confidence,
+            coverage_delta=(
+                current_snapshot.top_level_component_weight_coverage
+                - comparison_snapshot.top_level_component_weight_coverage
+            ),
+            newly_available_component_codes=[
+                code
+                for code in V5_COMPONENT_ORDER
+                if code in current_components and code not in comparison_components
+            ],
+            newly_missing_component_codes=[
+                code
+                for code in V5_COMPONENT_ORDER
+                if code not in current_components and code in comparison_components
+            ],
+            component_changes=component_changes,
+        )
+
+    def _audit_snapshot(self, snapshot_id: UUID) -> ScoreSnapshot:
+        snapshot = self._repository.get_v5_audit_snapshot(snapshot_id)
+        if snapshot is None:
+            raise OpportunityScoreNotFoundError(str(snapshot_id))
+        return snapshot
+
+    @staticmethod
+    def _audit_union(snapshot: ScoreSnapshot) -> dict[str, object]:
+        manifest = snapshot.input_manifest_json
+        if not isinstance(manifest, dict):
+            raise ScoreSnapshotIntegrityError("v5 audit manifest is not an object")
+        union = manifest.get("union")
+        if not isinstance(union, dict):
+            raise ScoreSnapshotIntegrityError("v5 audit union is not an object")
+        for category in OpportunityAuditCategory:
+            values = union.get(category.value)
+            if not isinstance(values, list) or any(not isinstance(item, dict) for item in values):
+                raise ScoreSnapshotIntegrityError(
+                    f"v5 audit category {category.value} is malformed"
+                )
+        for key in ("component_algorithm_versions", "phase3_algorithm_versions"):
+            values = union.get(key)
+            if not isinstance(values, list) or any(not isinstance(item, dict) for item in values):
+                raise ScoreSnapshotIntegrityError(f"v5 audit {key} is malformed")
+        curve_version = union.get("curve_algorithm_version")
+        aggregation_version = union.get("opportunity_score_aggregation_version")
+        payload_aggregation = snapshot.fingerprint_payload_json.get(
+            "opportunity_score_aggregation_version"
+        )
+        if not isinstance(curve_version, str) or not curve_version:
+            raise ScoreSnapshotIntegrityError("v5 audit curve version is malformed")
+        if (
+            not isinstance(aggregation_version, str)
+            or not aggregation_version
+            or aggregation_version != payload_aggregation
+        ):
+            raise ScoreSnapshotIntegrityError("v5 audit aggregation version is malformed")
+        return cast(dict[str, object], union)
 
     @staticmethod
     def _strings(values: list[object]) -> list[str]:
