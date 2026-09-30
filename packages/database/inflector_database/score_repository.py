@@ -291,6 +291,11 @@ class ScoreSnapshotRepository:
         )
         return tuple(self._validated(record) for record in records)
 
+    def validate_persisted_snapshot(self, record: ScoreSnapshot) -> ScoreSnapshot:
+        """Apply the versioned immutable integrity contract to an already-read row."""
+
+        return self._validated(record)
+
     def validate_security_company(self, security_id: UUID, company_id: UUID) -> None:
         security = self._session.get(Security, security_id)
         if security is None:

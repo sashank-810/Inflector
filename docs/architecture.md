@@ -445,6 +445,20 @@ null and is never renormalized. The reference score is `70.675`. Existing
 columns are sufficient, so there is no migration. See
 [`opportunity-score-activation.md`](opportunity-score-activation.md).
 
+Phase 5A adds a read-only product boundary over persisted V5 snapshots. A
+dedicated SQLAlchemy read repository selects the latest semantic cutoff for
+each explicit company/security/configuration context inside the required model
+family, validates every record through the existing immutable snapshot
+integrity path, and eagerly loads bounded identity/component relationships.
+The application service maps those records into explicit Pydantic queue and
+detail contracts with exact Decimal strings. Newer partial evidence is never
+replaced by an older higher score; current status and current time do not
+reinterpret historical eligibility. The detail resource exposes persisted
+component explanations and evidence manifests without exposing the full
+snapshot input/fingerprint blobs. No scoring, provider selection, write,
+migration, or frontend behavior enters this boundary. See
+[`opportunity-score-read-api.md`](opportunity-score-read-api.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

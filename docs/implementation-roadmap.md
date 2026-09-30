@@ -266,6 +266,18 @@ required component leaves `final_score` null, so this roadmap goal is fulfilled.
 
 ## Phase 5 — research dashboard
 
+### Phase 5A — Opportunity Score Read API & Research Queue Foundation (acceptance pending)
+
+Expose a read-only, V5-only research queue and snapshot-detail API. Require an
+explicit model family, preserve configuration and security contexts, select
+the latest semantic cutoff without score shopping, serialize exact Decimal
+values as strings, and retain persisted partial-state and explanation audit
+semantics. Add no scoring, mutation, migration, current-state reinterpretation,
+or frontend implementation.
+
+Planned only after separate review: Phase 5B company research-page backend and
+deeper audit reads.
+
 1. Build dark desktop-first dashboard, explorer filters, company research page,
    score explanations, inflection radar, and watchlist/notes.
 2. Include loading, empty, error, freshness, confidence, source, and exclusion

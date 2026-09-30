@@ -101,6 +101,8 @@ a company to view its canonical identity, ISIN, securities, and listings.
 | `GET /health` | API and database connectivity status |
 | `GET /api/v1/companies?limit=50&offset=0` | Paginated canonical company identity list |
 | `GET /api/v1/companies/{company_id}` | Company with securities and dated exchange listings |
+| `GET /api/v1/opportunity-scores?model_family=inflector_v1` | V5 research queue; `model_family` is required |
+| `GET /api/v1/opportunity-scores/{snapshot_id}` | Immutable V5 Opportunity Score detail and explanations |
 
 ## Validation
 
