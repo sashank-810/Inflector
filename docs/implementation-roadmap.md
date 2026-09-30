@@ -266,7 +266,7 @@ required component leaves `final_score` null, so this roadmap goal is fulfilled.
 
 ## Phase 5 — research dashboard
 
-### Phase 5A — Opportunity Score Read API & Research Queue Foundation (acceptance pending)
+### Phase 5A — Opportunity Score Read API & Research Queue Foundation (complete)
 
 Expose a read-only, V5-only research queue and snapshot-detail API. Require an
 explicit model family, preserve configuration and security contexts, select
