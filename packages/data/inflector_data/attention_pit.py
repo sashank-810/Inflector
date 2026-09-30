@@ -319,6 +319,13 @@ class PointInTimeAttentionReader:
                 raw_payload_reference=source.raw_payload_reference,
                 content_sha256=source.content_sha256,
                 validation_status=source.validation_status,
+                provider_dataset_id=source.provider_dataset_id,
+                raw_content_sha256=source.raw_content_sha256,
+                reported_at=self._as_utc_or_none(source.reported_at),
+                published_at=self._as_utc_or_none(source.published_at),
+                available_at=self._as_utc_or_none(source.available_at),
+                revision_at=self._as_utc_or_none(source.revision_at),
+                parse_status=source.parse_status,
             ),
         )
 

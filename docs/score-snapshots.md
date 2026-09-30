@@ -170,3 +170,18 @@ V4 extends only its own lineage union with announcement, document, asset,
 extraction, event/evidence, quantitative derivation/fact, and event-time TTM
 provenance. The older V1/V2/V3 manifest and fingerprint payloads do not gain
 empty V4 fields and remain byte-stable on exact replay.
+
+Phase 4D-K adds the separate `score_snapshot_v5` contract documented in
+[`opportunity-score-activation.md`](opportunity-score-activation.md). V5 uses
+the exact eight-component top-level order and evaluates Low Market Attention
+only after unchanged financial-context selection. A final score exists only
+when all positive-weight components are present and exact weight coverage is
+`1`; missing evidence is never top-level-renormalized. Complete V5 components
+persist exact `score × configured weight` contributions, while every partial,
+ineligible, or no-context snapshot keeps contributions and `final_score` null.
+A valid component score of zero remains available. The reference final score
+is exactly `70.675`.
+
+V5 has its own attention-aware manifest and fingerprint path. V1 through V4
+retain their statuses, ordering, manifests, fingerprints, and null final-score
+semantics. No schema migration is required.

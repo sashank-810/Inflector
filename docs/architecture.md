@@ -435,6 +435,16 @@ snapshot change. Pure scorer coverage reaches 1.00, but persisted V4 remains
 0.95 with a null final score. See
 [`low-market-attention-scoring.md`](low-market-attention-scoring.md).
 
+Phase 4D-K adds an isolated `score_snapshot_v5` orchestration and persistence
+boundary. V3 financial-context selection remains authoritative; Business
+Catalyst, Market Structure, and Low Market Attention run only after selection.
+V5 adds a semantic attention lineage union without changing V1-V4 manifests.
+Only a complete exact weight-coverage set activates Decimal top-level
+contributions and `opportunity_score_weighted_sum_v1`; partial evidence stays
+null and is never renormalized. The reference score is `70.675`. Existing
+columns are sufficient, so there is no migration. See
+[`opportunity-score-activation.md`](opportunity-score-activation.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

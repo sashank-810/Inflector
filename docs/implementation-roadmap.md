@@ -349,7 +349,7 @@ isolation, and full SourceRecord/archive lineage. Add no freshness policy,
 market or event normalization, peer ranking, AI, score, migration, snapshot,
 or final score.
 
-### Phase 4D-J — Low Market Attention Pure Component Scoring (acceptance pending)
+### Phase 4D-J — Low Market Attention Pure Component Scoring (complete)
 
 Add an optional, series-bound pure scorer over Phase 6D-B features. Require a
 deterministic aligned news window and latest analyst snapshot; treat temporal
@@ -358,11 +358,18 @@ higher, while missing, partial, unknown, stale, or mismatched evidence stays
 unavailable. Pure scorer coverage reaches `1.00`, but there is no persistence,
 top-level contribution, snapshot v5, or final score.
 
+### Phase 4D-K — Final Snapshot / Opportunity Score Activation (acceptance pending)
+
+Add immutable `score_snapshot_v5`, persist policy-bound Low Market Attention
+after unchanged financial-context selection, and activate exact Decimal
+top-level contributions only for complete weight coverage. Missing components
+remain null without renormalization; valid zero scores remain available. V1-V4
+stay immutable, and the existing schema requires no migration.
+
 ### Planned after separate review
 
-Phase 4D-K may separately review final snapshot / Opportunity Score activation.
-Do not infer attention from activity, delivery, price, market-cap, or event
-evidence, and do not activate that future phase here.
+Alerts, empirical calibration/backtesting, and production attention-provider
+work remain separate later phases.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

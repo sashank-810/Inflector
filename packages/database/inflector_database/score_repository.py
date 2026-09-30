@@ -1,7 +1,8 @@
-"""Immutable persistence boundary for versioned partial score audits."""
+"""Immutable persistence boundary for versioned score audits."""
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
 from decimal import Decimal
@@ -10,8 +11,17 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from inflector_core.balance_sheet_scoring import BALANCE_SHEET_COMPONENT_VERSION
 from inflector_core.business_catalyst_scoring import BUSINESS_CATALYST_COMPONENT_VERSION
-from inflector_core.score_audit import audit_fingerprint_sha256
+from inflector_core.business_quality_scoring import BUSINESS_QUALITY_COMPONENT_VERSION
+from inflector_core.cash_flow_quality_scoring import CASH_FLOW_QUALITY_COMPONENT_VERSION
+from inflector_core.component_scoring import FINANCIAL_INFLECTION_COMPONENT_VERSION
+from inflector_core.low_market_attention_scoring import (
+    LOW_MARKET_ATTENTION_COMPONENT_VERSION,
+)
+from inflector_core.market_structure_scoring import MARKET_STRUCTURE_COMPONENT_VERSION
+from inflector_core.score_audit import audit_fingerprint_sha256, canonical_audit_value
+from inflector_core.valuation_scoring import VALUATION_COMPONENT_VERSION
 from inflector_database.models import ScoreComponent, ScoreExplanation, ScoreSnapshot, Security
 
 V1_SNAPSHOT_STATUSES = frozenset(
@@ -49,6 +59,36 @@ V4_COMPONENT_ORDER = (
     "market_structure",
 )
 V4_COMPONENT_CODES = frozenset(V4_COMPONENT_ORDER)
+V5_SNAPSHOT_STATUSES = frozenset(
+    {
+        "ineligible",
+        "implemented_components_unavailable",
+        "partial_component_set",
+        "final_score_available",
+    }
+)
+V5_COMPONENT_ORDER = (
+    "financial_inflection",
+    "business_catalyst",
+    "business_quality",
+    "cash_flow_quality",
+    "balance_sheet",
+    "valuation",
+    "market_structure",
+    "low_market_attention",
+)
+V5_COMPONENT_CODES = frozenset(V5_COMPONENT_ORDER)
+V5_COMPONENT_ALGORITHM_VERSIONS = {
+    "financial_inflection": FINANCIAL_INFLECTION_COMPONENT_VERSION,
+    "business_catalyst": BUSINESS_CATALYST_COMPONENT_VERSION,
+    "business_quality": BUSINESS_QUALITY_COMPONENT_VERSION,
+    "cash_flow_quality": CASH_FLOW_QUALITY_COMPONENT_VERSION,
+    "balance_sheet": BALANCE_SHEET_COMPONENT_VERSION,
+    "valuation": VALUATION_COMPONENT_VERSION,
+    "market_structure": MARKET_STRUCTURE_COMPONENT_VERSION,
+    "low_market_attention": LOW_MARKET_ATTENTION_COMPONENT_VERSION,
+}
+V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION = "opportunity_score_weighted_sum_v1"
 
 
 class ScoreSnapshotIntegrityError(RuntimeError):
@@ -168,7 +208,11 @@ class ScoreSnapshotRepository:
             input_manifest_json=value.input_manifest_json,
             fingerprint_payload_json=value.fingerprint_payload_json,
             snapshot_fingerprint_sha256=fingerprint,
-            final_score=None,
+            final_score=(
+                value.final_score
+                if value.algorithm_version == "score_snapshot_v5"
+                else None
+            ),
             algorithm_version=value.algorithm_version,
         )
         self._session.add(record)
@@ -181,7 +225,11 @@ class ScoreSnapshotRepository:
                 unit=component_value.unit,
                 configured_top_level_weight=component_value.configured_top_level_weight,
                 subfactor_weight_coverage=component_value.subfactor_weight_coverage,
-                final_contribution=None,
+                final_contribution=(
+                    component_value.final_contribution
+                    if value.algorithm_version == "score_snapshot_v5"
+                    else None
+                ),
                 available_at=self._optional_utc(
                     component_value.available_at, "component available_at"
                 ),
@@ -270,15 +318,30 @@ class ScoreSnapshotRepository:
         elif record.algorithm_version == "score_snapshot_v4":
             statuses = V4_SNAPSHOT_STATUSES
             component_codes = V4_COMPONENT_CODES
+        elif record.algorithm_version == "score_snapshot_v5":
+            statuses = V5_SNAPSHOT_STATUSES
+            component_codes = V5_COMPONENT_CODES
         else:
             raise ScoreSnapshotIntegrityError("unsupported persisted snapshot algorithm version")
         if record.snapshot_status not in statuses:
             raise ScoreSnapshotIntegrityError("invalid persisted status for algorithm version")
-        if record.algorithm_version in {"score_snapshot_v3", "score_snapshot_v4"}:
+        if record.algorithm_version in {
+            "score_snapshot_v3",
+            "score_snapshot_v4",
+            "score_snapshot_v5",
+        }:
             if record.selected_security_id is None:
-                raise ScoreSnapshotIntegrityError("v3/v4 snapshot requires selected security")
+                raise ScoreSnapshotIntegrityError("v3/v4/v5 snapshot requires selected security")
         elif record.selected_security_id is not None:
             raise ScoreSnapshotIntegrityError("v1/v2 snapshot must not select a security")
+        if record.algorithm_version == "score_snapshot_v5":
+            for component in record.components:
+                if component.component_code not in component_codes:
+                    raise ScoreSnapshotIntegrityError(
+                        "persisted component is invalid for snapshot algorithm version"
+                    )
+            ScoreSnapshotRepository._validate_v5_record(record)
+            return record
         if record.final_score is not None:
             raise ScoreSnapshotIntegrityError("partial persisted snapshot has a final score")
         if record.snapshot_status != "partial_component_set" and record.components:
@@ -312,15 +375,28 @@ class ScoreSnapshotRepository:
         elif value.algorithm_version == "score_snapshot_v4":
             statuses = V4_SNAPSHOT_STATUSES
             component_codes = V4_COMPONENT_CODES
+        elif value.algorithm_version == "score_snapshot_v5":
+            statuses = V5_SNAPSHOT_STATUSES
+            component_codes = V5_COMPONENT_CODES
         else:
             raise ValueError("unsupported score snapshot algorithm version")
         if value.snapshot_status not in statuses:
             raise ValueError("invalid snapshot status for algorithm version")
-        if value.algorithm_version in {"score_snapshot_v3", "score_snapshot_v4"}:
+        if value.algorithm_version in {
+            "score_snapshot_v3",
+            "score_snapshot_v4",
+            "score_snapshot_v5",
+        }:
             if value.selected_security_id is None:
-                raise ValueError("v3/v4 snapshot requires selected_security_id")
+                raise ValueError("v3/v4/v5 snapshot requires selected_security_id")
         elif value.selected_security_id is not None:
             raise ValueError("v1/v2 snapshot selected_security_id must be None")
+        if value.algorithm_version == "score_snapshot_v5":
+            for component in value.components:
+                if component.component_code not in component_codes:
+                    raise ValueError("component code is invalid for snapshot algorithm version")
+            ScoreSnapshotRepository._validate_v5_write(value)
+            return
         if value.final_score is not None:
             raise ValueError("partial snapshot final_score must be None")
         if value.snapshot_status != "partial_component_set" and value.components:
@@ -400,6 +476,242 @@ class ScoreSnapshotRepository:
             raise ScoreSnapshotIntegrityError(
                 "v4 business catalyst component has an invalid algorithm version"
             )
+
+    @staticmethod
+    def _validate_v5_write(value: ScoreSnapshotWrite) -> None:
+        codes = tuple(component.component_code for component in value.components)
+        if len(codes) != len(set(codes)):
+            raise ValueError("v5 component codes must be unique")
+        canonical_codes = tuple(code for code in V5_COMPONENT_ORDER if code in set(codes))
+        if codes != canonical_codes:
+            raise ValueError("v5 components must use canonical component ordering")
+        if value.available_component_codes_json != list(canonical_codes):
+            raise ValueError("v5 available component codes do not match child components")
+        ScoreSnapshotRepository._validate_v5_code_partition(
+            available=list(canonical_codes),
+            missing=value.missing_component_codes_json,
+            fingerprint_payload=value.fingerprint_payload_json,
+            error_type=ValueError,
+        )
+        coverage = sum(
+            (component.configured_top_level_weight for component in value.components),
+            Decimal("0"),
+        )
+        if value.top_level_component_weight_coverage != coverage:
+            raise ValueError("v5 top-level coverage does not equal persisted component weights")
+        for component in value.components:
+            ScoreSnapshotRepository._validate_v5_component(
+                component,
+                error_type=ValueError,
+            )
+        ScoreSnapshotRepository._validate_v5_state(
+            status=value.snapshot_status,
+            coverage=value.top_level_component_weight_coverage,
+            available=value.available_component_codes_json,
+            missing=value.missing_component_codes_json,
+            final_score=value.final_score,
+            components=value.components,
+            error_type=ValueError,
+        )
+        ScoreSnapshotRepository._validate_v5_fingerprint_state(
+            fingerprint_payload=value.fingerprint_payload_json,
+            final_score=value.final_score,
+            components=value.components,
+            error_type=ValueError,
+        )
+        if value.fingerprint_payload_json.get("algorithm_version") != value.algorithm_version:
+            raise ValueError("v5 fingerprint payload algorithm version mismatch")
+
+    @staticmethod
+    def _validate_v5_record(record: ScoreSnapshot) -> None:
+        rank = {code: index for index, code in enumerate(V5_COMPONENT_ORDER)}
+        record.components.sort(key=lambda component: rank.get(component.component_code, 999))
+        codes = tuple(component.component_code for component in record.components)
+        if len(codes) != len(set(codes)):
+            raise ScoreSnapshotIntegrityError("v5 persisted component codes are not unique")
+        canonical_codes = tuple(code for code in V5_COMPONENT_ORDER if code in set(codes))
+        if codes != canonical_codes:
+            raise ScoreSnapshotIntegrityError(
+                "v5 persisted components do not use canonical ordering"
+            )
+        if record.available_component_codes_json != list(canonical_codes):
+            raise ScoreSnapshotIntegrityError(
+                "v5 available component codes do not match persisted components"
+            )
+        ScoreSnapshotRepository._validate_v5_code_partition(
+            available=list(canonical_codes),
+            missing=record.missing_component_codes_json,
+            fingerprint_payload=record.fingerprint_payload_json,
+            error_type=ScoreSnapshotIntegrityError,
+        )
+        coverage = sum(
+            (component.configured_top_level_weight for component in record.components),
+            Decimal("0"),
+        )
+        if record.top_level_component_weight_coverage != coverage:
+            raise ScoreSnapshotIntegrityError(
+                "v5 top-level coverage does not equal persisted component weights"
+            )
+        for component in record.components:
+            ScoreSnapshotRepository._validate_v5_component(
+                component,
+                error_type=ScoreSnapshotIntegrityError,
+            )
+        ScoreSnapshotRepository._validate_v5_state(
+            status=record.snapshot_status,
+            coverage=record.top_level_component_weight_coverage,
+            available=record.available_component_codes_json,
+            missing=record.missing_component_codes_json,
+            final_score=record.final_score,
+            components=tuple(record.components),
+            error_type=ScoreSnapshotIntegrityError,
+        )
+        ScoreSnapshotRepository._validate_v5_fingerprint_state(
+            fingerprint_payload=record.fingerprint_payload_json,
+            final_score=record.final_score,
+            components=tuple(record.components),
+            error_type=ScoreSnapshotIntegrityError,
+        )
+
+    @staticmethod
+    def _validate_v5_code_partition(
+        *,
+        available: Sequence[object],
+        missing: Sequence[object],
+        fingerprint_payload: dict[str, object],
+        error_type: type[Exception],
+    ) -> None:
+        if len(missing) != len(set(missing)) or any(
+            code not in V5_COMPONENT_CODES for code in missing
+        ):
+            raise error_type("v5 missing component codes are invalid")
+        canonical_missing = [code for code in V5_COMPONENT_ORDER if code in set(missing)]
+        if missing != canonical_missing:
+            raise error_type("v5 missing component codes are not canonically ordered")
+        state = fingerprint_payload.get("final_score_state")
+        if not isinstance(state, dict):
+            raise error_type("v5 fingerprint omits final score state")
+        required = state.get("required_positive_weight_component_codes")
+        if not isinstance(required, list):
+            raise error_type("v5 fingerprint omits required component codes")
+        canonical_required = [code for code in V5_COMPONENT_ORDER if code in set(required)]
+        if required != canonical_required or len(required) != len(set(required)):
+            raise error_type("v5 required component codes are invalid")
+        if set(available).intersection(missing) or set(available).union(missing) != set(
+            required
+        ):
+            raise error_type("v5 available and missing codes do not partition requirements")
+
+    @staticmethod
+    def _validate_v5_component(component: object, *, error_type: type[Exception]) -> None:
+        code = getattr(component, "component_code")
+        score = getattr(component, "score")
+        unit = getattr(component, "unit")
+        weight = getattr(component, "configured_top_level_weight")
+        subfactor_coverage = getattr(component, "subfactor_weight_coverage")
+        algorithm_version = getattr(component, "algorithm_version")
+        if code not in V5_COMPONENT_CODES:
+            raise error_type("v5 component code is unsupported")
+        if not isinstance(score, Decimal) or not Decimal("0") <= score <= Decimal("100"):
+            raise error_type("v5 component score must be an exact Decimal in [0, 100]")
+        if unit != "score_0_100":
+            raise error_type("v5 component unit must be score_0_100")
+        if not isinstance(weight, Decimal) or weight <= 0:
+            raise error_type("v5 persisted component weight must be positive")
+        if (
+            not isinstance(subfactor_coverage, Decimal)
+            or not Decimal("0") <= subfactor_coverage <= Decimal("1")
+        ):
+            raise error_type("v5 subfactor coverage must be an exact Decimal in [0, 1]")
+        if algorithm_version != V5_COMPONENT_ALGORITHM_VERSIONS[code]:
+            raise error_type("v5 component algorithm version is invalid")
+
+    @staticmethod
+    def _validate_v5_state(
+        *,
+        status: str,
+        coverage: Decimal,
+        available: Sequence[object],
+        missing: Sequence[object],
+        final_score: Decimal | None,
+        components: tuple[object, ...],
+        error_type: type[Exception],
+    ) -> None:
+        contributions = tuple(
+            getattr(component, "final_contribution") for component in components
+        )
+        if status in {"ineligible", "implemented_components_unavailable"}:
+            if components or coverage != 0 or available or final_score is not None:
+                raise error_type("v5 unavailable snapshot contains score components")
+            if any(contribution is not None for contribution in contributions):
+                raise error_type("v5 unavailable snapshot contains final contributions")
+            return
+        if status == "partial_component_set":
+            if not components or not Decimal("0") < coverage < Decimal("1"):
+                raise error_type("v5 partial snapshot has invalid component coverage")
+            if not missing:
+                raise error_type("v5 partial snapshot must retain missing components")
+            if final_score is not None or any(
+                contribution is not None for contribution in contributions
+            ):
+                raise error_type("v5 partial snapshot contains final score values")
+            return
+        if status != "final_score_available":
+            raise error_type("v5 snapshot status is invalid")
+        if coverage != Decimal("1") or missing:
+            raise error_type("v5 final snapshot is not fully covered")
+        if (
+            not isinstance(final_score, Decimal)
+            or not Decimal("0") <= final_score <= Decimal("100")
+        ):
+            raise error_type("v5 final score must be an exact Decimal in [0, 100]")
+        expected_contributions: list[Decimal] = []
+        for component in components:
+            contribution = getattr(component, "final_contribution")
+            expected = getattr(component, "score") * getattr(
+                component, "configured_top_level_weight"
+            )
+            if not isinstance(contribution, Decimal) or contribution != expected:
+                raise error_type("v5 component final contribution is not exact")
+            expected_contributions.append(contribution)
+        if sum(expected_contributions, Decimal("0")) != final_score:
+            raise error_type("v5 final score does not equal exact contribution sum")
+
+    @staticmethod
+    def _validate_v5_fingerprint_state(
+        *,
+        fingerprint_payload: dict[str, object],
+        final_score: Decimal | None,
+        components: tuple[object, ...],
+        error_type: type[Exception],
+    ) -> None:
+        if (
+            fingerprint_payload.get("opportunity_score_aggregation_version")
+            != V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION
+        ):
+            raise error_type("v5 fingerprint aggregation version is invalid")
+        state = fingerprint_payload.get("final_score_state")
+        if not isinstance(state, dict):
+            raise error_type("v5 fingerprint omits final score state")
+        if state.get("aggregation_version") != V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION:
+            raise error_type("v5 final score state aggregation version is invalid")
+        expected_components = canonical_audit_value(
+            [
+                {
+                    "component_code": getattr(component, "component_code"),
+                    "score": getattr(component, "score"),
+                    "configured_top_level_weight": getattr(
+                        component, "configured_top_level_weight"
+                    ),
+                    "final_contribution": getattr(component, "final_contribution"),
+                }
+                for component in components
+            ]
+        )
+        if state.get("components") != expected_components:
+            raise error_type("v5 fingerprint component final state does not match record")
+        if state.get("final_score") != canonical_audit_value(final_score):
+            raise error_type("v5 fingerprint final score state does not match record")
 
     @classmethod
     def _optional_utc(cls, value: datetime | None, field_name: str) -> datetime | None:

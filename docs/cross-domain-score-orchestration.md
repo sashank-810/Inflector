@@ -99,3 +99,17 @@ V4 inserts Business Catalyst in canonical top-level order after Financial
 Inflection. Maximum reference coverage becomes `0.95`, while Low Market
 Attention remains missing and all final scores/contributions remain null. See
 [`business-catalyst-snapshot-orchestration.md`](business-catalyst-snapshot-orchestration.md).
+
+## V5 final activation
+
+Phase 4D-K adds a separate `score_snapshot_v5` path without changing V3 or V4.
+The existing financial/valuation context is still selected first. Business
+Catalyst, Market Structure, and the one explicitly supplied, policy-bound Low
+Market Attention bundle are evaluated only afterward; none can make a context
+selectable.
+
+V5 persists all eight components in canonical top-level order. It activates
+`opportunity_score_weighted_sum_v1` only when every positive-weight component
+is available and exact coverage is `1`. There is no top-level
+renormalization, confidence scaling, or partial weighted total. See
+[`opportunity-score-activation.md`](opportunity-score-activation.md).

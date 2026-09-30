@@ -1,4 +1,4 @@
-"""Versioned orchestration for immutable partial scoring snapshots."""
+"""Versioned orchestration for immutable partial and final scoring snapshots."""
 
 from __future__ import annotations
 
@@ -44,6 +44,12 @@ from inflector_core.component_scoring import (
     FinancialInflectionEvidence,
     FinancialInflectionSubfactorScore,
 )
+from inflector_core.low_market_attention_scoring import (
+    LOW_MARKET_ATTENTION_COMPONENT_VERSION,
+    LOW_MARKET_ATTENTION_SUBFACTOR_ORDER,
+    LowMarketAttentionComponentScore,
+    LowMarketAttentionComponentScorer,
+)
 from inflector_core.market_structure_scoring import (
     MARKET_STRUCTURE_SUBFACTOR_ORDER,
     MarketStructureComponentScore,
@@ -67,6 +73,15 @@ from inflector_core.valuation_scoring import (
     ValuationSubfactorScore,
 )
 from inflector_data.announcement_pit import PointInTimeAnnouncement, PointInTimeDocument
+from inflector_data.attention_features import (
+    ANALYST_COVERAGE_COUNT_FEATURE_VERSION,
+    ANALYST_SNAPSHOT_AGE_DAYS_FEATURE_VERSION,
+    ATTENTION_FEATURE_BUNDLE_VERSION,
+    NEWS_MENTIONS_COUNT_FEATURE_VERSION,
+    NEWS_WINDOW_AGE_DAYS_FEATURE_VERSION,
+    NEWS_WINDOW_DURATION_DAYS_FEATURE_VERSION,
+    AttentionFeatureBundle,
+)
 from inflector_data.business_event_features import BusinessEventFeatureBundle
 from inflector_data.business_event_pit import (
     BusinessEventEvidenceView,
@@ -95,6 +110,8 @@ SCORE_SNAPSHOT_VERSION = "score_snapshot_v1"
 SCORE_SNAPSHOT_FINANCIAL_V2_VERSION = "score_snapshot_v2"
 SCORE_SNAPSHOT_CROSS_DOMAIN_V3_VERSION = "score_snapshot_v3"
 SCORE_SNAPSHOT_BUSINESS_CATALYST_V4_VERSION = "score_snapshot_v4"
+SCORE_SNAPSHOT_OPPORTUNITY_V5_VERSION = "score_snapshot_v5"
+OPPORTUNITY_SCORE_AGGREGATION_VERSION = "opportunity_score_weighted_sum_v1"
 EXPLANATION_TEMPLATE_CODE = "financial_inflection_subfactor_v1"
 IMPLEMENTED_FINANCIAL_COMPONENT_ORDER = (
     "financial_inflection",
@@ -130,6 +147,7 @@ TOP_LEVEL_COMPONENT_ORDER = (
     "market_structure",
     "low_market_attention",
 )
+V5_COMPONENT_ORDER = TOP_LEVEL_COMPONENT_ORDER
 
 COMPONENT_TEMPLATE_CODES = {
     "financial_inflection": "financial_inflection_subfactor_v1",
@@ -183,7 +201,7 @@ class NoActiveScoringConfigurationError(RuntimeError):
 
 
 class ScoreSnapshotOrchestrator:
-    """Resolve policy and persist auditable, non-final versioned snapshots."""
+    """Resolve policy and persist auditable, versioned score snapshots."""
 
     def __init__(
         self,
@@ -199,6 +217,7 @@ class ScoreSnapshotOrchestrator:
         valuation_scorer: ValuationComponentScorer | None = None,
         market_structure_scorer: MarketStructureComponentScorer | None = None,
         business_catalyst_scorer: BusinessCatalystComponentScorer | None = None,
+        low_market_attention_scorer: LowMarketAttentionComponentScorer | None = None,
     ) -> None:
         self._policies = policy_repository
         self._snapshots = snapshot_repository
@@ -215,6 +234,9 @@ class ScoreSnapshotOrchestrator:
         self._market_structure_scorer = market_structure_scorer or MarketStructureComponentScorer()
         self._business_catalyst_scorer = (
             business_catalyst_scorer or BusinessCatalystComponentScorer()
+        )
+        self._low_market_attention_scorer = (
+            low_market_attention_scorer or LowMarketAttentionComponentScorer()
         )
 
     def orchestrate_and_persist(
@@ -1095,6 +1117,401 @@ class ScoreSnapshotOrchestrator:
             )
         )
 
+    def orchestrate_opportunity_score_and_persist(
+        self,
+        *,
+        model_family: str,
+        company_id: UUID,
+        security_id: UUID,
+        ending_fiscal_year: int,
+        ending_fiscal_quarter: int,
+        knowledge_cutoff: datetime,
+        eligibility_inputs: EligibilityInputs,
+        confidence_inputs: ConfidenceInputs,
+        cross_domain_context_candidates: tuple[CrossDomainContextCandidate, ...],
+        business_catalyst_context_candidates: tuple[
+            BusinessCatalystContextCandidate, ...
+        ],
+        market_structure_evidence: MarketStructureFeatureBundle | None,
+        low_market_attention_evidence: AttentionFeatureBundle | None,
+    ) -> PersistedScoreSnapshotResult:
+        """Persist the immutable V5 snapshot and activate only a complete score."""
+
+        cutoff = self._aware_utc(knowledge_cutoff, "knowledge_cutoff")
+        self._snapshots.validate_security_company(security_id, company_id)
+        resolved = self._policies.resolve_active_configuration(
+            model_family=model_family,
+            at=cutoff,
+        )
+        if resolved is None:
+            raise NoActiveScoringConfigurationError(
+                f"no active scoring configuration for {model_family!r}"
+            )
+        if (
+            self._aware_utc(confidence_inputs.knowledge_cutoff, "confidence knowledge_cutoff")
+            != cutoff
+        ):
+            raise ValueError("confidence knowledge cutoff must match orchestration cutoff")
+        if market_structure_evidence is not None:
+            self._validate_market_structure_identity(
+                market_structure_evidence,
+                security_id=security_id,
+                cutoff=cutoff,
+            )
+        if low_market_attention_evidence is not None:
+            self._validate_low_market_attention_identity(
+                low_market_attention_evidence,
+                company_id=company_id,
+                security_id=security_id,
+                cutoff=cutoff,
+            )
+
+        policy = resolved.policy
+        business_candidates = self._business_catalyst_candidates_by_context(
+            business_catalyst_context_candidates,
+            company_id=company_id,
+            security_id=security_id,
+            cutoff=cutoff,
+            policy=policy,
+        )
+        eligibility = self._eligibility.evaluate(eligibility_inputs, policy.eligibility)
+        confidence = self._confidence.evaluate(confidence_inputs, policy.confidence)
+        selected: FinancialContextSelection | None = None
+        selected_components: dict[
+            str,
+            FinancialInflectionComponentScore
+            | BusinessCatalystComponentScore
+            | BusinessQualityComponentScore
+            | CashFlowQualityComponentScore
+            | BalanceSheetComponentScore
+            | ValuationComponentScore
+            | MarketStructureComponentScore
+            | LowMarketAttentionComponentScore,
+        ] = {}
+        attempts: list[dict[str, object]] = []
+
+        if eligibility.eligible:
+            selected, financial_components, attempts = self._score_cross_domain_contexts(
+                candidates=cross_domain_context_candidates,
+                policy=policy,
+                company_id=company_id,
+                security_id=security_id,
+                fiscal_year=ending_fiscal_year,
+                fiscal_quarter=ending_fiscal_quarter,
+                cutoff=cutoff,
+            )
+            selected_components.update(financial_components)
+
+        selected_context_exists = eligibility.eligible and selected is not None
+        market_result, market_attempt = self._attempt_market_structure(
+            evidence=market_structure_evidence,
+            policy=policy,
+            selected_context_exists=selected_context_exists,
+        )
+        if market_result is not None:
+            selected_components["market_structure"] = market_result
+
+        selected_candidate = (
+            self._cross_domain_candidate_for_selection(
+                cross_domain_context_candidates,
+                selected,
+            )
+            if selected is not None
+            else None
+        )
+        valuation_result = selected_components.get("valuation")
+        if isinstance(valuation_result, ValuationComponentScore) and market_result is not None:
+            assert selected_candidate is not None and selected_candidate.valuation is not None
+            assert market_structure_evidence is not None
+            self._validate_cross_market_coherence(
+                selected_candidate.valuation,
+                market_structure_evidence,
+                security_id=security_id,
+                cutoff=cutoff,
+            )
+
+        selected_business_candidate = (
+            business_candidates.get((selected.provider_dataset_id, selected.filing_scope))
+            if selected is not None
+            else None
+        )
+        business_result, business_attempt = self._attempt_business_catalyst(
+            candidate=selected_business_candidate,
+            policy=policy,
+            selected_context_exists=selected_context_exists,
+        )
+        if business_result is not None:
+            selected_components["business_catalyst"] = business_result
+
+        attention_result, attention_attempt = self._attempt_low_market_attention(
+            evidence=low_market_attention_evidence,
+            policy=policy,
+            selected_context_exists=selected_context_exists,
+        )
+        if attention_result is not None:
+            selected_components["low_market_attention"] = attention_result
+
+        if not eligibility.eligible:
+            financial_outcome = "ineligible_not_attempted"
+        elif selected is None:
+            financial_outcome = "no_scoreable_context"
+        else:
+            financial_outcome = "selected"
+
+        valuation_evidence = (
+            selected_candidate.valuation
+            if isinstance(valuation_result, ValuationComponentScore)
+            and selected_candidate is not None
+            else None
+        )
+        market_context = self._market_context_mapping(
+            security_id,
+            market_structure_evidence,
+            valuation_evidence,
+        )
+        business_context = self._business_catalyst_context_mapping(
+            tuple(business_candidates.values()),
+            selected,
+            selected_business_candidate,
+        )
+        attention_context = self._low_market_attention_context_mapping(
+            low_market_attention_evidence
+        )
+        context_resolution = {
+            "financial_context": {
+                "attempts": attempts,
+                "outcome": financial_outcome,
+                "selected": self._selection_mapping(selected) if selected is not None else None,
+            },
+            "market_context": market_context,
+            "market_structure_attempt": market_attempt,
+            "business_catalyst_context": business_context,
+            "business_catalyst_attempt": business_attempt,
+            "low_market_attention_context": attention_context,
+            "low_market_attention_attempt": attention_attempt,
+        }
+
+        component_writes: list[ScoreComponentWrite] = []
+        component_manifests: list[dict[str, object]] = []
+        for code in V5_COMPONENT_ORDER:
+            component = selected_components.get(code)
+            configured_weight = getattr(policy.component_weights, code)
+            if component is None or configured_weight == 0:
+                continue
+            if code in IMPLEMENTED_FINANCIAL_COMPONENT_ORDER:
+                assert isinstance(
+                    component,
+                    (
+                        FinancialInflectionComponentScore,
+                        BusinessQualityComponentScore,
+                        CashFlowQualityComponentScore,
+                        BalanceSheetComponentScore,
+                    ),
+                )
+                component_write, manifest = self._v3_financial_component_write(
+                    code,
+                    component,
+                    configured_weight,
+                )
+            elif code == "business_catalyst":
+                assert isinstance(component, BusinessCatalystComponentScore)
+                component_write, manifest = self._business_catalyst_component_write(
+                    component,
+                    configured_weight,
+                )
+            elif code == "low_market_attention":
+                assert isinstance(component, LowMarketAttentionComponentScore)
+                component_write, manifest = self._low_market_attention_component_write(
+                    component,
+                    configured_weight,
+                )
+            else:
+                assert isinstance(
+                    component,
+                    (ValuationComponentScore, MarketStructureComponentScore),
+                )
+                component_write, manifest = self._cross_domain_component_write(
+                    code,
+                    component,
+                    configured_weight,
+                    security_id=security_id,
+                )
+            component_writes.append(component_write)
+            component_manifests.append(manifest)
+
+        required_codes = [
+            code
+            for code in V5_COMPONENT_ORDER
+            if getattr(policy.component_weights, code) > 0
+        ]
+        available_codes = [
+            code
+            for code in V5_COMPONENT_ORDER
+            if code in selected_components and getattr(policy.component_weights, code) > 0
+        ]
+        missing_codes = [code for code in required_codes if code not in available_codes]
+        top_level_coverage = sum(
+            (getattr(policy.component_weights, code) for code in available_codes),
+            Decimal("0"),
+        )
+        complete = (
+            eligibility.eligible
+            and selected is not None
+            and not missing_codes
+            and top_level_coverage == Decimal("1")
+        )
+        if complete:
+            component_writes = [
+                replace(
+                    component,
+                    final_contribution=(
+                        cast(Decimal, component.score)
+                        * component.configured_top_level_weight
+                    ),
+                )
+                for component in component_writes
+            ]
+            final_score = sum(
+                (
+                    cast(Decimal, component.final_contribution)
+                    for component in component_writes
+                ),
+                Decimal("0"),
+            )
+            status = "final_score_available"
+        else:
+            final_score = None
+            if not eligibility.eligible:
+                status = "ineligible"
+            elif selected is None:
+                status = "implemented_components_unavailable"
+            else:
+                status = "partial_component_set"
+
+        attention_manifest = (
+            self._low_market_attention_lineage_manifest(
+                low_market_attention_evidence,
+                component_algorithm_version=(
+                    attention_result.algorithm_version
+                    if attention_result is not None
+                    else LOW_MARKET_ATTENTION_COMPONENT_VERSION
+                ),
+            )
+            if low_market_attention_evidence is not None
+            else self._empty_attention_lineage_manifest()
+        )
+        input_manifest = {
+            "components": component_manifests,
+            "low_market_attention_attempt": attention_manifest,
+            "union": self._v5_snapshot_union(
+                tuple(component_manifests),
+                attention_manifest,
+            ),
+        }
+
+        eligibility_inputs_json = self._canonical_mapping(eligibility_inputs)
+        confidence_inputs_json = self._canonical_mapping(confidence_inputs)
+        eligibility_result_json = self._canonical_mapping(eligibility)
+        confidence_details_json = self._canonical_mapping(confidence)
+        context_json = self._canonical_dict(context_resolution)
+        input_manifest_json = self._canonical_dict(input_manifest)
+        component_summaries = [component.detail_json for component in component_writes]
+        final_score_state = self._canonical_dict(
+            {
+                "aggregation_version": OPPORTUNITY_SCORE_AGGREGATION_VERSION,
+                "required_positive_weight_component_codes": required_codes,
+                "components": [
+                    {
+                        "component_code": component.component_code,
+                        "score": component.score,
+                        "configured_top_level_weight": (
+                            component.configured_top_level_weight
+                        ),
+                        "final_contribution": component.final_contribution,
+                    }
+                    for component in component_writes
+                ],
+                "final_score": final_score,
+            }
+        )
+        model = resolved.record.model_version
+        fingerprint_payload = self._canonical_dict(
+            {
+                "algorithm_version": SCORE_SNAPSHOT_OPPORTUNITY_V5_VERSION,
+                "opportunity_score_aggregation_version": (
+                    OPPORTUNITY_SCORE_AGGREGATION_VERSION
+                ),
+                "company_id": company_id,
+                "security_id": security_id,
+                "model_version_id": model.id,
+                "model_semantic_identity": {
+                    "model_family": model.model_family,
+                    "semantic_version": model.semantic_version,
+                    "git_sha": model.git_sha,
+                },
+                "scoring_configuration_id": resolved.record.id,
+                "configuration_checksum_sha256": resolved.record.checksum_sha256,
+                "as_of_date": cutoff.date(),
+                "knowledge_cutoff": cutoff,
+                "ending_fiscal_year": ending_fiscal_year,
+                "ending_fiscal_quarter": ending_fiscal_quarter,
+                "eligibility_inputs": eligibility_inputs_json,
+                "eligibility_result": eligibility_result_json,
+                "confidence_inputs": confidence_inputs_json,
+                "confidence_result": confidence_details_json,
+                "selected_financial_context": (
+                    self._selection_mapping(selected) if selected is not None else None
+                ),
+                "market_context": market_context,
+                "business_catalyst_context": business_context,
+                "business_catalyst_attempt": business_attempt,
+                "low_market_attention_context": attention_context,
+                "low_market_attention_attempt": attention_attempt,
+                "context_resolution": context_json,
+                "top_level_component_weight_coverage": top_level_coverage,
+                "available_component_codes": available_codes,
+                "missing_component_codes": missing_codes,
+                "components": component_summaries,
+                "input_manifest": input_manifest_json,
+                "final_score_state": final_score_state,
+            }
+        )
+        return self._snapshots.persist_snapshot(
+            ScoreSnapshotWrite(
+                company_id=company_id,
+                model_version_id=model.id,
+                scoring_configuration_id=resolved.record.id,
+                configuration_checksum_sha256=resolved.record.checksum_sha256,
+                as_of_date=cutoff.date(),
+                knowledge_cutoff=cutoff,
+                ending_fiscal_year=ending_fiscal_year,
+                ending_fiscal_quarter=ending_fiscal_quarter,
+                selected_provider_dataset_id=(
+                    selected.provider_dataset_id if selected is not None else None
+                ),
+                selected_filing_scope=selected.filing_scope if selected is not None else None,
+                selected_security_id=security_id,
+                snapshot_status=status,
+                eligibility_eligible=eligibility.eligible,
+                eligibility_inputs_json=eligibility_inputs_json,
+                eligibility_reasons_json=list(eligibility.reasons),
+                eligibility_warnings_json=list(eligibility.warnings),
+                financial_core_coverage=eligibility.financial_core_coverage,
+                confidence=confidence.confidence,
+                confidence_inputs_json=confidence_inputs_json,
+                confidence_details_json=confidence_details_json,
+                top_level_component_weight_coverage=top_level_coverage,
+                available_component_codes_json=available_codes,
+                missing_component_codes_json=missing_codes,
+                context_resolution_json=context_json,
+                input_manifest_json=input_manifest_json,
+                fingerprint_payload_json=fingerprint_payload,
+                final_score=final_score,
+                algorithm_version=SCORE_SNAPSHOT_OPPORTUNITY_V5_VERSION,
+                components=tuple(component_writes),
+            )
+        )
+
     def _score_financial_contexts(
         self,
         *,
@@ -1465,6 +1882,95 @@ class ScoreSnapshotOrchestrator:
                 "scoreable": scoreable,
                 "warnings": warnings,
             },
+        )
+
+    def _validate_low_market_attention_identity(
+        self,
+        evidence: AttentionFeatureBundle,
+        *,
+        company_id: UUID,
+        security_id: UUID,
+        cutoff: datetime,
+    ) -> None:
+        if evidence.company_id != company_id:
+            raise ValueError("Low Market Attention company does not match orchestration company")
+        if evidence.security_id not in {None, security_id}:
+            raise ValueError("Low Market Attention security does not match orchestration security")
+        if self._aware_utc(evidence.as_of, "Low Market Attention as_of") != cutoff:
+            raise ValueError("Low Market Attention cutoff does not match orchestration cutoff")
+
+    def _attempt_low_market_attention(
+        self,
+        *,
+        evidence: AttentionFeatureBundle | None,
+        policy: InflectionScoringPolicy,
+        selected_context_exists: bool,
+    ) -> tuple[LowMarketAttentionComponentScore | None, dict[str, object]]:
+        policy_configured = policy.low_market_attention is not None
+        top_level_weight = policy.component_weights.low_market_attention
+        result: LowMarketAttentionComponentScore | None = None
+        if not selected_context_exists:
+            warnings = ("financial_context_not_selected",)
+        elif top_level_weight == 0:
+            warnings = ()
+        elif not policy_configured:
+            warnings = ("low_market_attention_scoring_not_configured",)
+        elif evidence is None:
+            warnings = ("low_market_attention_evidence_missing",)
+        else:
+            result = self._low_market_attention_scorer.score(
+                evidence=evidence,
+                policy=policy,
+            )
+            warnings = result.warnings
+        scoreable = result is not None and result.score is not None and top_level_weight > 0
+        return (
+            result if scoreable else None,
+            {
+                "policy_configured": policy_configured,
+                "top_level_weight": top_level_weight,
+                "selected_financial_context_exists": selected_context_exists,
+                "evidence_supplied": evidence is not None,
+                "company_id": evidence.company_id if evidence is not None else None,
+                "security_id": evidence.security_id if evidence is not None else None,
+                "company_level_only": (
+                    evidence.company_level_only if evidence is not None else None
+                ),
+                "news_series": (
+                    self._canonical_mapping(evidence.news_series)
+                    if evidence is not None
+                    else None
+                ),
+                "analyst_series": (
+                    self._canonical_mapping(evidence.analyst_series)
+                    if evidence is not None
+                    else None
+                ),
+                "scoreable": scoreable,
+                "warnings": warnings,
+            },
+        )
+
+    def _low_market_attention_context_mapping(
+        self,
+        evidence: AttentionFeatureBundle | None,
+    ) -> dict[str, object]:
+        if evidence is None:
+            return {"evidence": None}
+        return self._canonical_dict(
+            {
+                "company_id": evidence.company_id,
+                "security_id": evidence.security_id,
+                "company_level_only": evidence.company_level_only,
+                "as_of": evidence.as_of,
+                "news_series": self._canonical_mapping(evidence.news_series),
+                "analyst_series": self._canonical_mapping(evidence.analyst_series),
+                "news_window_start_at": evidence.news_window_start_at,
+                "news_window_end_at": evidence.news_window_end_at,
+                "analyst_observation_on_or_before": (
+                    evidence.analyst_observation_on_or_before
+                ),
+            }
         )
 
     def _business_catalyst_context_mapping(
@@ -2179,6 +2685,117 @@ class ScoreSnapshotOrchestrator:
                 warnings_json=list(component.warnings),
                 detail_json=detail,
                 explanations=(explanation,),
+            ),
+            manifest,
+        )
+
+    def _low_market_attention_component_write(
+        self,
+        component: LowMarketAttentionComponentScore,
+        configured_top_level_weight: Decimal,
+    ) -> tuple[ScoreComponentWrite, dict[str, object]]:
+        if component.score is None:
+            raise AssertionError("only scoreable Low Market Attention components may persist")
+        manifest = self._low_market_attention_lineage_manifest(
+            component.evidence,
+            component_algorithm_version=component.algorithm_version,
+        )
+        subfactor_by_code = {item.code: item for item in component.subfactors}
+        explanations = tuple(
+            ScoreExplanationWrite(
+                factor_code=code,
+                rank=rank,
+                raw_value=subfactor_by_code[code].raw_value,
+                raw_unit=subfactor_by_code[code].raw_unit,
+                normalized_score=subfactor_by_code[code].normalized_score,
+                configured_weight=subfactor_by_code[code].configured_weight,
+                effective_weight=subfactor_by_code[code].effective_weight,
+                component_contribution=subfactor_by_code[code].contribution,
+                input_available_at=subfactor_by_code[code].input_available_at,
+                evidence_type="AttentionFeatureValue",
+                template_code="low_market_attention_subfactor_v1",
+                direction=None,
+                evidence_manifest_json=self._canonical_dict(
+                    {
+                        **manifest,
+                        "factor_code": code,
+                        "feature": {
+                            "code": subfactor_by_code[code].evidence.code,
+                            "value": subfactor_by_code[code].evidence.value,
+                            "unit": subfactor_by_code[code].evidence.unit,
+                            "available_at": (
+                                subfactor_by_code[code].evidence.available_at
+                            ),
+                            "warnings": subfactor_by_code[code].evidence.warnings,
+                            "algorithm_version": (
+                                subfactor_by_code[code].evidence.algorithm_version
+                            ),
+                        },
+                    }
+                ),
+            )
+            for rank, code in enumerate(LOW_MARKET_ATTENTION_SUBFACTOR_ORDER, start=1)
+            if code in subfactor_by_code
+        )
+        detail = self._canonical_dict(
+            {
+                "component_code": "low_market_attention",
+                "company_id": component.company_id,
+                "security_id": component.security_id,
+                "company_level_only": component.company_level_only,
+                "news_series": self._canonical_mapping(component.news_series),
+                "analyst_series": self._canonical_mapping(component.analyst_series),
+                "news_window_start_at": component.news_window_start_at,
+                "news_window_end_at": component.news_window_end_at,
+                "score": component.score,
+                "unit": component.unit,
+                "weight_coverage": component.weight_coverage,
+                "available_weight": component.available_weight,
+                "algorithm_version": component.algorithm_version,
+                "warnings": component.warnings,
+                "missing_subfactors": component.missing_subfactors,
+                "subfactors": [
+                    {
+                        "code": item.code,
+                        "raw_value": item.raw_value,
+                        "raw_unit": item.raw_unit,
+                        "scoring_value": item.scoring_value,
+                        "scoring_unit": item.scoring_unit,
+                        "transform_code": item.transform_code,
+                        "normalized_score": item.normalized_score,
+                        "configured_weight": item.configured_weight,
+                        "effective_weight": item.effective_weight,
+                        "component_contribution": item.contribution,
+                        "input_available_at": item.input_available_at,
+                        "curve_algorithm_version": item.curve_algorithm_version,
+                    }
+                    for item in component.subfactors
+                ],
+                "unavailable_subfactors": [
+                    {
+                        "code": item.code,
+                        "configured_weight": item.configured_weight,
+                        "warnings": item.warnings,
+                        "evidence_type": item.evidence_type,
+                    }
+                    for item in component.unavailable_subfactors
+                ],
+            }
+        )
+        return (
+            ScoreComponentWrite(
+                component_code="low_market_attention",
+                score=component.score,
+                unit=component.unit,
+                configured_top_level_weight=configured_top_level_weight,
+                subfactor_weight_coverage=component.weight_coverage,
+                final_contribution=None,
+                available_at=component.available_at,
+                algorithm_version=component.algorithm_version,
+                missing_subfactors_json=list(component.missing_subfactors),
+                warnings_json=list(component.warnings),
+                detail_json=detail,
+                explanations=explanations,
             ),
             manifest,
         )
@@ -2905,6 +3522,113 @@ class ScoreSnapshotOrchestrator:
             }
         )
 
+    def _low_market_attention_lineage_manifest(
+        self,
+        bundle: AttentionFeatureBundle,
+        *,
+        component_algorithm_version: str,
+    ) -> dict[str, object]:
+        observations: dict[str, dict[str, object]] = {}
+        source_records: dict[str, dict[str, object]] = {}
+        for observation in (bundle.news_observation, bundle.analyst_observation):
+            if observation is None:
+                continue
+            source = observation.source_record
+            observations[str(observation.id)] = self._canonical_dict(
+                {
+                    "attention_observation_id": observation.id,
+                    "company_id": observation.company_id,
+                    "security_id": observation.security_id,
+                    "provider_dataset_id": observation.provider_dataset_id,
+                    "metric_code": observation.metric_code,
+                    "reported_count": observation.reported_count,
+                    "reported_unit": observation.reported_unit,
+                    "scope_code": observation.scope_code,
+                    "methodology_version": observation.methodology_version,
+                    "measurement_definition_sha256": (
+                        observation.measurement_definition_sha256
+                    ),
+                    "coverage_status": observation.coverage_status,
+                    "observation_date": observation.observation_date,
+                    "window_start_at": observation.window_start_at,
+                    "window_end_at": observation.window_end_at,
+                    "available_at": observation.available_at,
+                    "revision_at": observation.revision_at,
+                    "source_record_id": source.id,
+                }
+            )
+            source_records[str(source.id)] = self._canonical_dict(
+                {
+                    "source_record_id": source.id,
+                    "provider_dataset_id": (
+                        source.provider_dataset_id or observation.provider_dataset_id
+                    ),
+                    "external_record_id": source.external_record_id,
+                    "source_uri": source.source_uri,
+                    "raw_object_key": source.raw_object_key,
+                    "raw_payload_reference": source.raw_payload_reference,
+                    "raw_content_sha256": source.raw_content_sha256,
+                    "content_sha256": source.content_sha256,
+                    "reported_at": source.reported_at,
+                    "published_at": source.published_at,
+                    "available_at": source.available_at,
+                    "revision_at": source.revision_at,
+                    "parse_status": source.parse_status,
+                    "validation_status": source.validation_status,
+                }
+            )
+        algorithms = (
+            ("AttentionFeatureBundle", ATTENTION_FEATURE_BUNDLE_VERSION),
+            ("NewsMentionsCountFeature", NEWS_MENTIONS_COUNT_FEATURE_VERSION),
+            ("NewsWindowDurationDays", NEWS_WINDOW_DURATION_DAYS_FEATURE_VERSION),
+            ("NewsWindowAgeDays", NEWS_WINDOW_AGE_DAYS_FEATURE_VERSION),
+            ("AnalystCoverageCountFeature", ANALYST_COVERAGE_COUNT_FEATURE_VERSION),
+            ("AnalystSnapshotAgeDays", ANALYST_SNAPSHOT_AGE_DAYS_FEATURE_VERSION),
+            ("LowMarketAttentionComponent", component_algorithm_version),
+            ("PiecewiseLinearScoringCurve", PIECEWISE_LINEAR_CURVE_VERSION),
+        )
+        return self._canonical_dict(
+            {
+                "component_code": "low_market_attention",
+                "component_algorithm_version": component_algorithm_version,
+                "curve_algorithm_version": PIECEWISE_LINEAR_CURVE_VERSION,
+                "phase3_algorithm_versions": [
+                    {"evidence_type": kind, "algorithm_version": version}
+                    for kind, version in algorithms
+                ],
+                "financial_facts": [],
+                "market_bars": [],
+                "benchmark_bars": [],
+                "corporate_actions": [],
+                "announcements": [],
+                "documents": [],
+                "document_assets": [],
+                "text_extractions": [],
+                "business_events": [],
+                "business_event_evidence": [],
+                "quantitative_derivations": [],
+                "quantitative_facts": [],
+                "attention_observations": [
+                    observations[key] for key in sorted(observations)
+                ],
+                "attention_source_records": [
+                    source_records[key] for key in sorted(source_records)
+                ],
+            }
+        )
+
+    def _empty_attention_lineage_manifest(self) -> dict[str, object]:
+        return self._canonical_dict(
+            {
+                "component_code": "low_market_attention",
+                "component_algorithm_version": LOW_MARKET_ATTENTION_COMPONENT_VERSION,
+                "curve_algorithm_version": PIECEWISE_LINEAR_CURVE_VERSION,
+                "phase3_algorithm_versions": [],
+                "attention_observations": [],
+                "attention_source_records": [],
+            }
+        )
+
     def _cross_domain_component_union(
         self,
         manifests: tuple[dict[str, object], ...],
@@ -2981,6 +3705,62 @@ class ScoreSnapshotOrchestrator:
             }
         )
         return self._canonical_dict(result)
+
+    def _v5_snapshot_union(
+        self,
+        component_manifests: tuple[dict[str, object], ...],
+        attention_manifest: dict[str, object],
+    ) -> dict[str, object]:
+        base = self._v4_snapshot_union(component_manifests)
+        observations = {
+            str(item["attention_observation_id"]): item
+            for item in cast(
+                list[dict[str, object]],
+                attention_manifest.get("attention_observations", []),
+            )
+        }
+        source_records = {
+            str(item["source_record_id"]): item
+            for item in cast(
+                list[dict[str, object]],
+                attention_manifest.get("attention_source_records", []),
+            )
+        }
+        algorithms = {
+            (str(item["evidence_type"]), str(item["algorithm_version"])): item
+            for item in cast(
+                list[dict[str, object]],
+                base.get("phase3_algorithm_versions", []),
+            )
+        }
+        for item in cast(
+            list[dict[str, object]],
+            attention_manifest.get("phase3_algorithm_versions", []),
+        ):
+            algorithms[(str(item["evidence_type"]), str(item["algorithm_version"]))] = item
+        algorithms[
+            ("OpportunityScoreAggregation", OPPORTUNITY_SCORE_AGGREGATION_VERSION)
+        ] = {
+            "evidence_type": "OpportunityScoreAggregation",
+            "algorithm_version": OPPORTUNITY_SCORE_AGGREGATION_VERSION,
+        }
+        return self._canonical_dict(
+            {
+                **base,
+                "attention_observations": [
+                    observations[key] for key in sorted(observations)
+                ],
+                "attention_source_records": [
+                    source_records[key] for key in sorted(source_records)
+                ],
+                "phase3_algorithm_versions": [
+                    algorithms[key] for key in sorted(algorithms)
+                ],
+                "opportunity_score_aggregation_version": (
+                    OPPORTUNITY_SCORE_AGGREGATION_VERSION
+                ),
+            }
+        )
 
     @staticmethod
     def _merge_cross_domain_manifests(

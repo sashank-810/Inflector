@@ -352,6 +352,20 @@ empirical return claims. Pure deterministic component coverage is now `1.00`,
 while persisted V4 remains `0.95` and `final_score` remains null. See
 [`low-market-attention-scoring.md`](low-market-attention-scoring.md).
 
+Phase 4D-K persists the unchanged pure result only in the new
+`score_snapshot_v5` contract. The exact canonical order is Financial
+Inflection, Business Catalyst, Business Quality, Cash-Flow Quality, Balance
+Sheet, Valuation, Market Structure, and Low Market Attention. The final
+Opportunity Score is the exact Decimal sum of `component score × configured
+top-level weight`, but only when every positive-weight component is present
+and coverage equals `1`. There is no top-level renormalization and confidence
+remains separate. Missing Low Market Attention therefore leaves coverage
+`0.95` and a null final score; a valid zero component remains complete. The
+reference complete score is `70.675`. This is deterministic research
+prioritization, not an empirically calibrated performance claim,
+recommendation, target, or prediction. See
+[`opportunity-score-activation.md`](opportunity-score-activation.md).
+
 ## Risk gates and confidence
 
 Critical unresolved data-quality issues exclude a company. Configurable hard

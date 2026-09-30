@@ -65,6 +65,14 @@ policy/config checksum rather than silent v1 changes.
 
 Counts are not normalized by market data, company size, events, announcements,
 or peers. There is no percentile, rank, sentiment, AI, persistence, migration,
-snapshot v5, top-level `0.05` contribution, or final score. Pure deterministic
-scorer coverage now reaches `1.00`, while persisted `score_snapshot_v4`
-coverage remains `0.95` and `final_score` remains null.
+or provider selection in the pure scorer. Pure deterministic scorer coverage
+reaches `1.00`.
+
+Phase 4D-K separately consumes this unchanged pure result in
+`score_snapshot_v5`. Low Market Attention still cannot select a financial
+context. Its policy-bound series identity and full bundle lineage are retained;
+scored-subfactor explanations remain internal to the component. The top-level
+`0.05` contribution exists only when every positive-weight component is
+available and the final score is activated. There is no renormalization, and
+V1-V4 remain immutable. See
+[`opportunity-score-activation.md`](opportunity-score-activation.md).

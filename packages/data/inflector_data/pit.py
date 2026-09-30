@@ -94,6 +94,13 @@ class SourceRecordView:
     raw_payload_reference: str | None
     content_sha256: str
     validation_status: str
+    provider_dataset_id: UUID | None = None
+    raw_content_sha256: str | None = None
+    reported_at: datetime | None = None
+    published_at: datetime | None = None
+    available_at: datetime | None = None
+    revision_at: datetime | None = None
+    parse_status: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
