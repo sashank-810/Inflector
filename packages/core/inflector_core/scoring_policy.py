@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -430,6 +431,93 @@ class BusinessCatalystScoringPolicy(_PolicyModel):
         return self
 
 
+class AttentionScoringSeriesIdentity(_PolicyModel):
+    provider_dataset_id: UUID
+    scope_code: str
+    methodology_version: str
+    measurement_definition_sha256: str
+
+    @field_validator("scope_code", "methodology_version")
+    @classmethod
+    def validate_text_identity(cls, value: str) -> str:
+        if not value or value != value.strip():
+            raise ValueError("attention series text identity must be non-empty and trimmed")
+        return value
+
+    @field_validator("measurement_definition_sha256")
+    @classmethod
+    def validate_definition_hash(cls, value: str) -> str:
+        if re.fullmatch(r"[0-9a-fA-F]{64}", value) is None:
+            raise ValueError("measurement_definition_sha256 must be a SHA-256 digest")
+        return value.lower()
+
+
+class LowMarketAttentionSubfactorWeights(_PolicyModel):
+    news_mentions_count: Decimal
+    analyst_coverage_count: Decimal
+
+    @field_validator("*", mode="before")
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("low-market-attention weights must not use binary floats")
+        return value
+
+    @model_validator(mode="after")
+    def validate_weights(self) -> LowMarketAttentionSubfactorWeights:
+        weights = (self.news_mentions_count, self.analyst_coverage_count)
+        if any(weight < 0 for weight in weights):
+            raise ValueError("low-market-attention weights must not be negative")
+        if sum(weights, Decimal("0")) != Decimal("1"):
+            raise ValueError("low-market-attention weights must sum exactly to 1")
+        return self
+
+
+class LowMarketAttentionScoringPolicy(_PolicyModel):
+    news_series: AttentionScoringSeriesIdentity
+    analyst_series: AttentionScoringSeriesIdentity
+    evidence_level: Literal["company_level_v1", "security_level_v1"]
+    subfactor_weights: LowMarketAttentionSubfactorWeights
+    minimum_weight_coverage: Decimal
+    required_news_window_duration_days: Decimal
+    news_window_alignment: Literal["utc_day_start_v1"]
+    maximum_news_window_age_days: Decimal
+    maximum_analyst_snapshot_age_days: int
+    news_mentions_signal_curve: PiecewiseLinearScoringCurve
+    analyst_coverage_signal_curve: PiecewiseLinearScoringCurve
+
+    @field_validator(
+        "minimum_weight_coverage",
+        "required_news_window_duration_days",
+        "maximum_news_window_age_days",
+        mode="before",
+    )
+    @classmethod
+    def reject_binary_float(cls, value: object) -> object:
+        if isinstance(value, float):
+            raise ValueError("low-market-attention policy values must not use binary floats")
+        return value
+
+    @model_validator(mode="after")
+    def validate_scoring_policy(self) -> LowMarketAttentionScoringPolicy:
+        if not Decimal("0") < self.minimum_weight_coverage <= Decimal("1"):
+            raise ValueError("minimum_weight_coverage must be in (0, 1]")
+        if self.required_news_window_duration_days <= 0:
+            raise ValueError("required_news_window_duration_days must be positive")
+        if self.maximum_news_window_age_days < 0:
+            raise ValueError("maximum_news_window_age_days must not be negative")
+        if self.maximum_analyst_snapshot_age_days < 0:
+            raise ValueError("maximum_analyst_snapshot_age_days must not be negative")
+        microseconds = self.required_news_window_duration_days * Decimal(
+            "86400000000"
+        )
+        if microseconds != microseconds.to_integral_value():
+            raise ValueError(
+                "required_news_window_duration_days must resolve to whole microseconds"
+            )
+        return self
+
+
 class InflectionScoringPolicy(_PolicyModel):
     financial_context: FinancialContextPolicy
     eligibility: EligibilityPolicy
@@ -442,6 +530,7 @@ class InflectionScoringPolicy(_PolicyModel):
     valuation: ValuationScoringPolicy | None = None
     market_structure: MarketStructureScoringPolicy | None = None
     business_catalyst: BusinessCatalystScoringPolicy | None = None
+    low_market_attention: LowMarketAttentionScoringPolicy | None = None
 
 
 def _canonical_decimal(value: Decimal) -> str:
@@ -480,6 +569,8 @@ def policy_to_canonical_mapping(policy: InflectionScoringPolicy) -> dict[str, ob
         policy_value.pop("market_structure", None)
     if policy_value.get("business_catalyst") is None:
         policy_value.pop("business_catalyst", None)
+    if policy_value.get("low_market_attention") is None:
+        policy_value.pop("low_market_attention", None)
     value = _canonical_value(policy_value)
     assert isinstance(value, dict)
     return value

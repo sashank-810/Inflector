@@ -340,7 +340,7 @@ identities, and explicit PIT readers. Market activity and BusinessEvents are
 not attention evidence. This phase adds no attention feature, policy, score,
 snapshot version, final contribution, or final score.
 
-### Phase 6D-B — Low Market Attention Feature Primitives (acceptance pending)
+### Phase 6D-B — Low Market Attention Feature Primitives (complete)
 
 Derive non-persisted complete counts and raw temporal metadata from exact
 caller-selected attention series. Preserve complete-zero, missing,
@@ -349,12 +349,20 @@ isolation, and full SourceRecord/archive lineage. Add no freshness policy,
 market or event normalization, peer ranking, AI, score, migration, snapshot,
 or final score.
 
+### Phase 4D-J — Low Market Attention Pure Component Scoring (acceptance pending)
+
+Add an optional, series-bound pure scorer over Phase 6D-B features. Require a
+deterministic aligned news window and latest analyst snapshot; treat temporal
+features only as comparability/freshness gates. Low complete counts score
+higher, while missing, partial, unknown, stale, or mismatched evidence stays
+unavailable. Pure scorer coverage reaches `1.00`, but there is no persistence,
+top-level contribution, snapshot v5, or final score.
+
 ### Planned after separate review
 
-Phase 4D-J may define a Low Market Attention pure component scorer. Phase 4D-K
-may separately review final snapshot / Opportunity Score activation. Do not
-infer attention from activity, delivery, price, market-cap, or event evidence,
-and do not activate either future phase here.
+Phase 4D-K may separately review final snapshot / Opportunity Score activation.
+Do not infer attention from activity, delivery, price, market-cap, or event
+evidence, and do not activate that future phase here.
 
 **Exit gate:** unstructured outputs cannot alter financial facts or silently
 enter a production score.

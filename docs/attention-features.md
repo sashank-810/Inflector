@@ -62,3 +62,9 @@ normalization, peer ranking, cross-metric arithmetic, sentiment, AI, policy,
 curve, or score. No migration or snapshot version is introduced.
 `score_snapshot_v4` remains the latest persisted contract at maximum coverage
 `0.95`; Low Market Attention remains missing and `final_score` remains null.
+
+Phase 4D-J consumes this bundle in a separate pure-scoring boundary. Its policy
+binds the exact series identities, deterministic news window, evidence level,
+and freshness limits; the feature layer itself still performs none of those
+scoring decisions. See
+[`low-market-attention-scoring.md`](low-market-attention-scoring.md).

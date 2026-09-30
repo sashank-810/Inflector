@@ -1,0 +1,48 @@
+{
+  "low_market_attention": {
+    "news_series": {
+      "provider_dataset_id": "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
+      "scope_code": "synthetic_indexed_business_news",
+      "methodology_version": "synthetic_news_search_v1",
+      "measurement_definition_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    },
+    "analyst_series": {
+      "provider_dataset_id": "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
+      "scope_code": "synthetic_active_equity_analysts",
+      "methodology_version": "synthetic_analyst_coverage_v1",
+      "measurement_definition_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "evidence_level": "company_level_v1",
+    "subfactor_weights": {
+      "news_mentions_count": "0.50",
+      "analyst_coverage_count": "0.50"
+    },
+    "minimum_weight_coverage": "1.00",
+    "required_news_window_duration_days": "30",
+    "news_window_alignment": "utc_day_start_v1",
+    "maximum_news_window_age_days": "1",
+    "maximum_analyst_snapshot_age_days": 180,
+    "news_mentions_signal_curve": {
+      "breakpoints": [
+        {"raw_value": "-80", "score": "0"},
+        {"raw_value": "-40", "score": "10"},
+        {"raw_value": "-20", "score": "30"},
+        {"raw_value": "-10", "score": "55"},
+        {"raw_value": "-5", "score": "75"},
+        {"raw_value": "-2", "score": "90"},
+        {"raw_value": "0", "score": "100"}
+      ]
+    },
+    "analyst_coverage_signal_curve": {
+      "breakpoints": [
+        {"raw_value": "-30", "score": "0"},
+        {"raw_value": "-15", "score": "10"},
+        {"raw_value": "-8", "score": "35"},
+        {"raw_value": "-4", "score": "60"},
+        {"raw_value": "-2", "score": "80"},
+        {"raw_value": "-1", "score": "90"},
+        {"raw_value": "0", "score": "100"}
+      ]
+    }
+  }
+}

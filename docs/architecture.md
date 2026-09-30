@@ -425,6 +425,16 @@ is no provider fallback, persistence, market or event normalization, peer
 ranking, AI, policy, score, migration, or snapshot change. See
 [`attention-features.md`](attention-features.md).
 
+Phase 4D-J adds a pure Low Market Attention scoring boundary. The policy binds
+exact news and analyst series identities and evidence level; UTC-day-start
+alignment prevents historical news-window shopping, while scoring requires the
+latest PIT analyst snapshot. Counts are scored only when complete, fresh, and
+comparable. The scorer retains the full feature bundle and performs no reads,
+market/event/peer normalization, AI, persistence, top-level contribution, or
+snapshot change. Pure scorer coverage reaches 1.00, but persisted V4 remains
+0.95 with a null final score. See
+[`low-market-attention-scoring.md`](low-market-attention-scoring.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -335,10 +335,22 @@ Phase 6D-B exposes only neutral runtime features: complete counts, exact news
 window duration and age, and calendar-day analyst snapshot age. It applies no
 freshness threshold, provider fallback, peer normalization, cross-metric
 arithmetic, or interpretation. Partial and unknown counts remain unavailable
-with their evidence; complete zero stays zero and missing stays missing. There
-is still no Low Market Attention policy or score, no `snapshot_v5`, and no
-final score. V4 maximum persisted coverage remains `0.95`. See
+with their evidence; complete zero stays zero and missing stays missing.
+Phase 4D-J now provides a separate optional pure scoring policy and component
+score without persistence, `snapshot_v5`, or final-score activation. V4
+maximum persisted coverage remains `0.95`. See
 [`attention-features.md`](attention-features.md).
+
+Low Market Attention v1 binds exact provider/scope/methodology/definition
+identities and an explicit evidence level. The reference scorer requires a
+UTC-day-aligned 30-day news window no older than one day and the latest PIT
+analyst snapshot no older than 180 calendar days. Low counts score higher via
+explicit negation transforms; partial, unknown, missing, stale, and
+duration-mismatched inputs remain unavailable. Counts are not normalized by
+market data, events, company size, or peers. The development curves are not
+empirical return claims. Pure deterministic component coverage is now `1.00`,
+while persisted V4 remains `0.95` and `final_score` remains null. See
+[`low-market-attention-scoring.md`](low-market-attention-scoring.md).
 
 ## Risk gates and confidence
 
