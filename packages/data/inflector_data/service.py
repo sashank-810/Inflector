@@ -430,11 +430,32 @@ class IngestionService:
                     if envelope.record.company_legal_name
                     else None
                 )
+                security = (
+                    self._repository.security_by_isin(envelope.record.security_isin)
+                    if envelope.record.security_isin
+                    else None
+                )
                 metric = (
                     self._repository.metric_by_code(envelope.record.metric_code)
                     if envelope.record.metric_code
                     else None
                 )
+                if envelope.record.security_isin and security is None:
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_security", "security ISIN is not in the canonical universe"
+                        )
+                    )
+                if security is not None:
+                    if company is not None and company.id != security.company_id:
+                        issues.append(
+                            ValidationIssue(
+                                "financial_company_security_mismatch",
+                                "financial company and security identities disagree",
+                            )
+                        )
+                    elif company is None:
+                        company = security.company
                 if company is None and not any(
                     issue.rule_code == "missing_company_identity" for issue in issues
                 ):

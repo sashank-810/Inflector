@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt">
+  <link:schemaRef xlink:href="in-capmkt-ent-2025-01-31.xsd" xlink:type="simple"/>
+  <xbrli:context id="Q1"><xbrli:entity><xbrli:identifier scheme="fictional">FICTEQ</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2025-06-30</xbrli:endDate></xbrli:period></xbrli:context>
+  <xbrli:context id="Q2"><xbrli:entity><xbrli:identifier scheme="fictional">FICTEQ</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2025-07-01</xbrli:startDate><xbrli:endDate>2025-09-30</xbrli:endDate></xbrli:period></xbrli:context>
+  <xbrli:context id="Q3"><xbrli:entity><xbrli:identifier scheme="fictional">FICTEQ</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2025-10-01</xbrli:startDate><xbrli:endDate>2025-12-31</xbrli:endDate></xbrli:period></xbrli:context>
+  <xbrli:context id="Q4"><xbrli:entity><xbrli:identifier scheme="fictional">FICTEQ</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2026-01-01</xbrli:startDate><xbrli:endDate>2026-03-31</xbrli:endDate></xbrli:period></xbrli:context>
+  <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+  <in-capmkt:Symbol contextRef="Q1">FICTEQ</in-capmkt:Symbol><in-capmkt:ISIN contextRef="Q1">INE0FIC01019</in-capmkt:ISIN>
+  <in-capmkt:NatureOfReportStandaloneConsolidated contextRef="Q1">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated><in-capmkt:NatureOfReportStandaloneConsolidated contextRef="Q2">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated><in-capmkt:NatureOfReportStandaloneConsolidated contextRef="Q3">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated><in-capmkt:NatureOfReportStandaloneConsolidated contextRef="Q4">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated>
+  <in-capmkt:RevenueFromOperations contextRef="Q1" unitRef="INR" decimals="0">10</in-capmkt:RevenueFromOperations><in-capmkt:RevenueFromOperations contextRef="Q2" unitRef="INR" decimals="0">20</in-capmkt:RevenueFromOperations><in-capmkt:RevenueFromOperations contextRef="Q3" unitRef="INR" decimals="0">30</in-capmkt:RevenueFromOperations><in-capmkt:RevenueFromOperations contextRef="Q4" unitRef="INR" decimals="0">40</in-capmkt:RevenueFromOperations>
+</xbrli:xbrl>

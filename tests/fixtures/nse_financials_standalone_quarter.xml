@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<xbrli:xbrl xmlns:xbrli="http://www.xbrl.org/2003/instance" xmlns:link="http://www.xbrl.org/2003/linkbase" xmlns:xlink="http://www.w3.org/1999/xlink" xmlns:iso4217="http://www.xbrl.org/2003/iso4217" xmlns:in-capmkt="http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt">
+  <link:schemaRef xlink:href="in-capmkt-ent-2025-01-31.xsd" xlink:type="simple"/>
+  <xbrli:context id="OneD"><xbrli:entity><xbrli:identifier scheme="fictional">FICTEQ</xbrli:identifier></xbrli:entity><xbrli:period><xbrli:startDate>2025-04-01</xbrli:startDate><xbrli:endDate>2025-06-30</xbrli:endDate></xbrli:period></xbrli:context>
+  <xbrli:unit id="INR"><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unit>
+  <xbrli:unit id="INRPerShare"><xbrli:divide><xbrli:unitNumerator><xbrli:measure>iso4217:INR</xbrli:measure></xbrli:unitNumerator><xbrli:unitDenominator><xbrli:measure>xbrli:shares</xbrli:measure></xbrli:unitDenominator></xbrli:divide></xbrli:unit>
+  <in-capmkt:Symbol contextRef="OneD">FICTEQ</in-capmkt:Symbol>
+  <in-capmkt:ISIN contextRef="OneD">INE0FIC01019</in-capmkt:ISIN>
+  <in-capmkt:NameOfTheCompany contextRef="OneD">Fictional Components Limited</in-capmkt:NameOfTheCompany>
+  <in-capmkt:NatureOfReportStandaloneConsolidated contextRef="OneD">Standalone</in-capmkt:NatureOfReportStandaloneConsolidated>
+  <in-capmkt:RevenueFromOperations contextRef="OneD" unitRef="INR" decimals="0">100000000</in-capmkt:RevenueFromOperations>
+  <in-capmkt:OtherIncome contextRef="OneD" unitRef="INR" decimals="0">5000000</in-capmkt:OtherIncome>
+  <in-capmkt:Income contextRef="OneD" unitRef="INR" decimals="0">105000000</in-capmkt:Income>
+  <in-capmkt:FinanceCosts contextRef="OneD" unitRef="INR" decimals="0">1000000</in-capmkt:FinanceCosts>
+  <in-capmkt:ProfitBeforeTax contextRef="OneD" unitRef="INR" decimals="0">20000000</in-capmkt:ProfitBeforeTax>
+  <in-capmkt:TaxExpense contextRef="OneD" unitRef="INR" decimals="0">5000000</in-capmkt:TaxExpense>
+  <in-capmkt:ProfitLossForPeriod contextRef="OneD" unitRef="INR" decimals="0">15000000</in-capmkt:ProfitLossForPeriod>
+  <in-capmkt:BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations contextRef="OneD" unitRef="INRPerShare" decimals="2">1.25</in-capmkt:BasicEarningsLossPerShareFromContinuingAndDiscontinuedOperations>
+  <in-capmkt:DilutedEarningsLossPerShareFromContinuingAndDiscontinuedOperations contextRef="OneD" unitRef="INRPerShare" decimals="2">1.20</in-capmkt:DilutedEarningsLossPerShareFromContinuingAndDiscontinuedOperations>
+</xbrli:xbrl>

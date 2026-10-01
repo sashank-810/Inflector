@@ -101,6 +101,7 @@ class FinancialRecord:
     reported_scale: str | None
     reported_currency: str | None
     parse_errors: tuple[str, ...] = ()
+    security_isin: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

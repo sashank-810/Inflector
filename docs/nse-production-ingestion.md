@@ -117,5 +117,7 @@ schtasks.exe /Create /TN "Inflector NSE 2026-09-30" /SC ONCE /ST 20:00 /SD 30/09
 ```
 
 No task is installed automatically. This slice adds no range backfill, BSE,
-financial statements, market capitalization, delivery enrichment, corporate
-actions, announcements, attention, scoring, backtesting, or frontend changes.
+market capitalization, delivery enrichment, corporate actions, announcements,
+attention, scoring, backtesting, or frontend changes. Financial ingestion is a
+separate bounded job rather than part of this daily market runner; see
+[`nse-production-financials.md`](nse-production-financials.md).

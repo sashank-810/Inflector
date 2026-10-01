@@ -111,6 +111,18 @@ the daily index snapshot. See
 [NSE production ingestion](docs/nse-production-ingestion.md) for live and
 local-file commands, PIT limitations, source terms, and scheduling.
 
+Current NSE Integrated Filing financial XBRLs can be bootstrapped separately
+for one explicit symbol or a bounded symbols file:
+
+```powershell
+.\scripts\ingest_nse_financials.ps1 -Symbol ITC -MaxFilings 20
+```
+
+The financial path archives each exact XBRL independently, uses observed
+retrieval time as availability, and applies only the documented exact taxonomy
+mapping. Historical bootstrap does not reconstruct historical PIT knowledge.
+See [NSE production financials](docs/nse-production-financials.md).
+
 ## Web routes
 
 | Route | Purpose |
@@ -182,7 +194,8 @@ docs/                     Architecture, research, and product design records
 The default identity seed remains fictional, and populated research views
 require separately ingested and persisted V5 snapshots. The web UI is
 read-only. Official NSE ingestion currently covers the listed EQ universe,
-CM UDiFF Final daily OHLCV, and daily index snapshots only; it does not yet
-cover financial statements, BSE, market capitalization, delivery enrichment,
-authentication, alerts, backtesting, recommendations, charts, or
-watchlist/notes persistence.
+CM UDiFF Final daily OHLCV, daily index snapshots, and the controlled current
+Integrated Filing Ind-AS financial XBRL mapping. Financial-industry/legacy
+taxonomies remain deferred. It does not yet cover BSE, market capitalization,
+delivery enrichment, authentication, alerts, backtesting, recommendations,
+charts, or watchlist/notes persistence.

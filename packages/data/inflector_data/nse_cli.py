@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+import time
 from collections.abc import Callable, Sequence
 from datetime import date, datetime
 from pathlib import Path
@@ -15,6 +16,14 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from inflector_core.providers import ProviderMetadata
 from inflector_data.archive import LocalRawObjectStore
+from inflector_data.nse_financials import (
+    NSE_FINANCIAL_DATASET_CODE,
+    NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
+    NSE_INTENTIONALLY_UNMAPPED_TARGET_METRICS,
+    NSEFinancialFiling,
+    NSEIntegratedFinancialDiscovery,
+    NSEIntegratedFinancialsProvider,
+)
 from inflector_data.nse_http import (
     NSEAcquisitionError,
     NSEHttpClient,
@@ -135,14 +144,29 @@ def _parser() -> argparse.ArgumentParser:
         description="Archive-first official NSE production ingestion"
     )
     subparsers = parser.add_subparsers(dest="command", required=True)
-    for command in ("ingest-universe", "ingest-market", "ingest-benchmarks", "ingest-daily"):
+    for command in (
+        "ingest-universe",
+        "ingest-market",
+        "ingest-benchmarks",
+        "ingest-daily",
+        "ingest-financials",
+    ):
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--database-url", required=True)
         subparser.add_argument("--raw-root", type=Path, required=True)
         subparser.add_argument("--license-class", required=True)
         if command in {"ingest-market", "ingest-benchmarks", "ingest-daily"}:
             subparser.add_argument("--date", type=date.fromisoformat, required=True)
-        if command == "ingest-universe":
+        if command == "ingest-financials":
+            targets = subparser.add_mutually_exclusive_group(required=True)
+            targets.add_argument("--symbol")
+            targets.add_argument("--symbols-file", type=Path)
+            subparser.add_argument("--max-symbols", type=int, default=25)
+            subparser.add_argument("--max-filings", type=int, default=20)
+            subparser.add_argument("--from-date", type=date.fromisoformat)
+            subparser.add_argument("--to-date", type=date.fromisoformat)
+            subparser.add_argument("--request-delay-seconds", type=float, default=1.0)
+        elif command == "ingest-universe":
             _local_arguments(subparser, "")
         elif command == "ingest-market":
             _local_arguments(subparser, "")
@@ -330,6 +354,180 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
     return summaries, True
 
 
+def _financial_symbols(args: argparse.Namespace) -> tuple[str, ...]:
+    if args.max_symbols < 1 or args.max_symbols > 100:
+        raise ValueError("max-symbols must be between 1 and 100")
+    if args.max_filings < 1 or args.max_filings > 100:
+        raise ValueError("max-filings must be between 1 and 100")
+    if args.request_delay_seconds < 0 or args.request_delay_seconds > 10:
+        raise ValueError("request-delay-seconds must be between 0 and 10")
+    raw_symbols = (
+        [args.symbol]
+        if args.symbol is not None
+        else args.symbols_file.read_text(encoding="utf-8-sig").splitlines()
+    )
+    symbols: list[str] = []
+    seen: set[str] = set()
+    for raw in raw_symbols:
+        symbol = raw.strip().upper()
+        if not symbol:
+            continue
+        if symbol not in seen:
+            seen.add(symbol)
+            symbols.append(symbol)
+    if not symbols:
+        raise ValueError("at least one NSE symbol is required")
+    if len(symbols) > args.max_symbols:
+        raise ValueError("symbols input exceeds max-symbols")
+    return tuple(symbols)
+
+
+def _financial_stage_summary(
+    *,
+    symbol: str,
+    filing: NSEFinancialFiling | None,
+    status: str,
+    error: str | None = None,
+    provider: NSEIntegratedFinancialsProvider | None = None,
+    result: IngestionResult | None = None,
+) -> dict[str, object]:
+    return {
+        "stage": "financials",
+        "symbol": symbol,
+        "filing_sequence_id": filing.sequence_id if filing is not None else None,
+        "scope": filing.scope if filing is not None else None,
+        "period_end": filing.quarter_end.isoformat() if filing is not None else None,
+        "status": status,
+        "source_uri": filing.xbrl_uri if filing is not None else None,
+        "retrieved_at": (
+            provider.retrieved_at.isoformat()
+            if provider is not None and provider.retrieved_at is not None
+            else None
+        ),
+        "run_id": str(result.run_id) if result is not None else None,
+        "records_received": result.records_received if result is not None else 0,
+        "records_accepted": result.records_accepted if result is not None else 0,
+        "records_quarantined": result.records_quarantined if result is not None else 0,
+        "records_duplicated": result.records_duplicated if result is not None else 0,
+        "recognized_source_facts": (
+            provider.recognized_source_facts if provider is not None else 0
+        ),
+        "mapping_version": NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
+        "mapped_metric_codes": list(provider.mapped_metric_codes) if provider else [],
+        "intentionally_unmapped_target_metrics": list(
+            NSE_INTENTIONALLY_UNMAPPED_TARGET_METRICS
+        ),
+        "unsupported_reason": provider.unsupported_reason if provider else None,
+        "error": error,
+    }
+
+
+def _execute_financials(
+    args: argparse.Namespace, session: Session
+) -> tuple[list[dict[str, object]], bool]:
+    production_preflight(session, args.license_class)
+    symbols = _financial_symbols(args)
+    service = IngestionService(session, LocalRawObjectStore(args.raw_root))
+    client = NSEHttpClient(maximum_response_bytes=10_000_000)
+    universe_provider = NSEUniverseProvider(
+        HttpNSEArtifactSource(client, NSE_EQUITY_UNIVERSE_URL),
+        _metadata(NSE_UNIVERSE_DATASET_CODE, args.license_class),
+    )
+    universe_batch = universe_provider.fetch_universe()
+    symbol_to_isin = {
+        envelope.record.symbol: envelope.record.isin
+        for envelope in universe_batch.records
+        if not envelope.record.parse_errors and envelope.record.symbol and envelope.record.isin
+    }
+    discovery = NSEIntegratedFinancialDiscovery(client)
+    summaries: list[dict[str, object]] = []
+    succeeded = True
+    remaining = args.max_filings
+    for symbol_index, symbol in enumerate(symbols):
+        if remaining == 0:
+            summaries.append(
+                _financial_stage_summary(
+                    symbol=symbol,
+                    filing=None,
+                    status="max_filings_reached",
+                )
+            )
+            continue
+        isin = symbol_to_isin.get(symbol)
+        if isin is None:
+            summaries.append(
+                _financial_stage_summary(
+                    symbol=symbol,
+                    filing=None,
+                    status="unsupported_symbol",
+                    error="symbol is not an EQ row in the official NSE equity master",
+                )
+            )
+            continue
+        try:
+            filings = discovery.discover(
+                symbol=symbol,
+                max_filings=remaining,
+                from_date=args.from_date,
+                to_date=args.to_date,
+            )
+        except (NSEAcquisitionError, OSError, ValueError, RuntimeError) as error:
+            summaries.append(
+                _financial_stage_summary(
+                    symbol=symbol, filing=None, status="failed", error=str(error)
+                )
+            )
+            succeeded = False
+            continue
+        if not filings:
+            summaries.append(
+                _financial_stage_summary(symbol=symbol, filing=None, status="no_filings")
+            )
+            continue
+        for filing in filings:
+            if remaining == 0:
+                break
+            provider = NSEIntegratedFinancialsProvider(
+                HttpNSEArtifactSource(client, filing.xbrl_uri),
+                _metadata(NSE_FINANCIAL_DATASET_CODE, args.license_class),
+                filing,
+                expected_isin=isin,
+            )
+            try:
+                result = service.ingest_financials(provider)
+                status = "unsupported" if provider.unsupported_reason else result.status
+                summaries.append(
+                    _financial_stage_summary(
+                        symbol=symbol,
+                        filing=filing,
+                        status=status,
+                        provider=provider,
+                        result=result,
+                    )
+                )
+            except (NSEAcquisitionError, OSError, ValueError, RuntimeError) as error:
+                summaries.append(
+                    _financial_stage_summary(
+                        symbol=symbol,
+                        filing=filing,
+                        status=(
+                            "source_not_available"
+                            if isinstance(error, NSESourceNotAvailableError)
+                            else "failed"
+                        ),
+                        error=str(error),
+                        provider=provider,
+                    )
+                )
+                succeeded = False
+            remaining -= 1
+            if args.request_delay_seconds and (
+                remaining > 0 or symbol_index < len(symbols) - 1
+            ):
+                time.sleep(args.request_delay_seconds)
+    return summaries, succeeded
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     engine: Engine | None = None
@@ -337,7 +535,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         engine = create_engine(args.database_url, pool_pre_ping=True)
         factory = sessionmaker(bind=engine, autoflush=False)
         with factory() as session:
-            stages, succeeded = _execute(args, session)
+            stages, succeeded = (
+                _execute_financials(args, session)
+                if args.command == "ingest-financials"
+                else _execute(args, session)
+            )
         print(json.dumps({"status": "completed" if succeeded else "failed", "stages": stages}))
         return 0 if succeeded else 1
     except (ProductionPreflightError, ValueError, OSError) as error:

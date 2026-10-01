@@ -20,7 +20,9 @@ from urllib.request import (
 
 NSE_ALLOWED_HOSTS = frozenset({"www.nseindia.com", "nsearchives.nseindia.com"})
 NSE_HOMEPAGE_URL = "https://www.nseindia.com/"
-NSE_USER_AGENT = "Inflector-Personal-Research/1.0 (+local archive-first ingestion)"
+NSE_USER_AGENT = (
+    "Mozilla/5.0 (compatible; Inflector-Personal-Research/1.0; +local-research)"
+)
 
 
 class NSEAcquisitionError(RuntimeError):
@@ -136,8 +138,13 @@ class NSEHttpClient:
                 url,
                 headers={
                     "User-Agent": NSE_USER_AGENT,
-                    "Accept": "text/csv, application/zip, application/octet-stream, */*;q=0.2",
+                    "Accept": (
+                        "application/json, application/xml, text/xml, text/csv, "
+                        "application/zip, application/octet-stream, */*;q=0.2"
+                    ),
                     "Accept-Encoding": "identity",
+                    "Accept-Language": "en-IN,en;q=0.9",
+                    "Referer": "https://www.nseindia.com/",
                     "Connection": "close",
                 },
                 method="GET",

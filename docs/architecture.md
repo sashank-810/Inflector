@@ -491,6 +491,19 @@ conservative availability time for daily market and benchmark facts. The slice
 adds no schema, scoring, provider selection, or frontend coupling. See
 [`nse-production-ingestion.md`](nse-production-ingestion.md).
 
+Production Data Activation B adds a separate database-free official NSE
+Integrated Filing boundary. Structured discovery locates an explicit XBRL;
+the exact XBRL bytes, not rendered HTML or a generated conversion, are the
+archived fact source. Exact symbol-to-ISIN identity connects provider-neutral
+financial envelopes to the canonical universe. The versioned QName mapping,
+context/unit parser, and standard fiscal-boundary rules are conservative:
+unmapped concepts and unsupported industry taxonomies stay unavailable. The
+existing financial ingestion, PIT reader, quarter normalization, and TTM logic
+consume accepted facts without provider-specific branches. Observed retrieval
+is availability, so bootstrap does not claim historical PIT reconstruction.
+No schema, scoring, market-cap derivation, or frontend coupling is added. See
+[`nse-production-financials.md`](nse-production-financials.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -200,3 +200,21 @@ supplies daily OHLCV only: market cap and delivery stay null. Index rows remain
 separate provider-local identities, with no preferred benchmark. Local-file
 recovery requires an explicit official source URI. Full usage and safety
 details are in [`nse-production-ingestion.md`](nse-production-ingestion.md).
+
+## Official NSE Integrated Filing financials
+
+Production Data Activation B adds `nse_integrated_financials_xbrl` as a fourth
+official NSE dataset without changing the archive-first transaction boundary.
+The structured NSE Integrated Filing endpoint locates individual official XBRL
+documents; each exact XBRL response is its own raw `ProviderBatch`. A controlled
+QName mapping emits existing `FinancialRecord` envelopes, and optional
+`security_isin` binds the fact to canonical company identity without fuzzy name
+matching. Existing development CSV providers remain compatible.
+
+Financial availability equals observed successful XBRL retrieval in UTC.
+Discovery broadcast dates and source period ends do not backdate knowledge.
+Historical bootstrap is therefore useful for current research after retrieval,
+not for historical PIT reconstruction. Reported quarter/H1/9M/annual and
+standalone/consolidated semantics pass unchanged into existing period/PIT
+logic. Full mappings, commands, unsupported taxonomies, and safeguards are in
+[`nse-production-financials.md`](nse-production-financials.md).

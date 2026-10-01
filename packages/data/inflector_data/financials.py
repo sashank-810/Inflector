@@ -55,7 +55,7 @@ def validate_financial(record: FinancialRecord) -> list[ValidationIssue]:
 
     issues = [ValidationIssue(code, code.replace("_", " ")) for code in record.parse_errors]
     required = {
-        "missing_company_identity": record.company_legal_name,
+        "missing_company_identity": record.company_legal_name or record.security_isin,
         "missing_filing_identity": record.filing_external_id,
         "missing_filing_type": record.filing_type,
         "missing_filing_scope": record.filing_scope,

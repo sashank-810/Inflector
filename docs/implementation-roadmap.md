@@ -298,7 +298,7 @@ separate review; Phase 5C does not declare the whole Phase 5 dashboard complete.
 
 **Exit gate:** a user can trace any displayed score to inputs and evidence.
 
-### Production Data Activation A — NSE Universe, Market & Benchmark (acceptance pending)
+### Production Data Activation A — NSE Universe, Market & Benchmark (complete)
 
 Add production-safe official NSE acquisition and database-free adapters for
 the current EQ master, CM UDiFF Final daily OHLCV, and daily index snapshot.
@@ -307,7 +307,15 @@ targets, archive exact source bytes, and use observed retrieval as conservative
 availability. Include explicit-date CLI/local-file recovery and no market-cap,
 delivery, financial, scoring, frontend, BSE, or historical-backfill claims.
 
-Production Data Activation B is not started.
+### Production Data Activation B — NSE Integrated Financial Results (acceptance pending)
+
+Activate the current NSE Integrated Filing Ind-AS XBRL generation for bounded,
+explicit EQ symbols. Archive every filing's exact XBRL independently, bind
+identity through official symbol-to-ISIN data, retain observed retrieval as
+conservative availability, and emit only exact versioned taxonomy mappings
+into the existing financial/PIT spine. Defer materially different financial-
+industry and legacy taxonomies. Do not fabricate market capitalization or run
+scoring in this phase.
 
 ## Phase 6 — announcement and catalyst evidence
 
