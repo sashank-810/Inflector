@@ -515,6 +515,19 @@ owns sessions and bounded orchestration; adapters do not import persistence.
 No schema, scoring, OCR, AI, or frontend coupling is added. See
 [`nse-production-corporate-filings.md`](nse-production-corporate-filings.md).
 
+Production Data Activation D adds a profile-driven application orchestration
+layer above the accepted PIT readers and deterministic V5 orchestrator. The
+profile resolves each provider dataset by exact provider/code, declares the
+benchmark and financial-scope priority, and defines operational eligibility and
+confidence inputs without embedding score formulas. A bounded NSE range command
+retains observed retrieval time, so bootstrapped history supports current
+research only. A separate database-free GDELT adapter archives exact DOC 2.0
+`TimelineVolRaw` JSON and emits company-level raw counts. No analyst source,
+market cap, delivery, or missing accounting value is fabricated. Partial V5
+snapshots remain first-class immutable results and flow through the existing API
+and UI without contract changes. See
+[`production-current-research.md`](production-current-research.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

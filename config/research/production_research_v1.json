@@ -1,0 +1,45 @@
+{
+  "research_profile_code": "nse_current_research_v1",
+  "profile_version": "1",
+  "provider_datasets": {
+    "financial": {"provider_code": "nse_official", "dataset_code": "nse_integrated_financials_xbrl"},
+    "market": {"provider_code": "nse_official", "dataset_code": "nse_cash_market_udiff_daily"},
+    "benchmark": {"provider_code": "nse_official", "dataset_code": "nse_indices_daily"},
+    "corporate_actions": {"provider_code": "nse_official", "dataset_code": "nse_corporate_actions"},
+    "business_events": {"provider_code": "nse_official", "dataset_code": "nse_corporate_announcements"},
+    "news_attention": {"provider_code": "gdelt", "dataset_code": "gdelt_doc_company_news_mentions"},
+    "analyst_attention": null
+  },
+  "benchmark_code": "NIFTY 50",
+  "financial_scope_priority": ["consolidated", "standalone"],
+  "financial_core_metrics": [
+    "operating_revenue",
+    "pat",
+    "cash_flow_from_operations",
+    "total_equity"
+  ],
+  "financial_core_required": 4,
+  "comparable_history_metric": "operating_revenue",
+  "confidence_required_feature_slots": [
+    "operating_revenue",
+    "pat",
+    "cash_flow_from_operations",
+    "total_equity",
+    "market_history",
+    "benchmark_history",
+    "business_events",
+    "news_attention",
+    "analyst_attention"
+  ],
+  "source_reliability": "1",
+  "new_listing_horizon_days": 730,
+  "liquidity_window_observations": 20,
+  "liquidity_minimum_observations": 20,
+  "catalyst_lookback_days": 365,
+  "market_interval": "1d",
+  "market_observation_days": 90,
+  "attention_news_window_days": 30,
+  "critical_data_quality_rule_codes": [],
+  "analyst_coverage_source": null,
+  "scoring_policy_asset": "config/scoring/production_opportunity_v5.json"
+}

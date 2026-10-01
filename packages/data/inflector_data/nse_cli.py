@@ -7,9 +7,9 @@ import json
 import sys
 import time
 from collections.abc import Callable, Sequence
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
@@ -122,9 +122,7 @@ def production_preflight(session: Session, licence_class: str) -> None:
         )
     )
     synthetic_dataset = session.scalar(
-        select(ProviderDataset.id).where(
-            ProviderDataset.licence_class == SYNTHETIC_LICENCE_MARKER
-        )
+        select(ProviderDataset.id).where(ProviderDataset.licence_class == SYNTHETIC_LICENCE_MARKER)
     )
     synthetic_company = session.scalar(
         select(Company.id).where(Company.legal_name.in_(SYNTHETIC_COMPANY_NAMES))
@@ -177,13 +175,12 @@ def _metadata(dataset_code: str, licence_class: str) -> ProviderMetadata:
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
-        description="Archive-first official NSE production ingestion"
-    )
+    parser = argparse.ArgumentParser(description="Archive-first official NSE production ingestion")
     subparsers = parser.add_subparsers(dest="command", required=True)
     for command in (
         "ingest-universe",
         "ingest-market",
+        "ingest-market-range",
         "ingest-benchmarks",
         "ingest-daily",
         "ingest-financials",
@@ -197,6 +194,10 @@ def _parser() -> argparse.ArgumentParser:
         subparser.add_argument("--license-class", required=True)
         if command in {"ingest-market", "ingest-benchmarks", "ingest-daily"}:
             subparser.add_argument("--date", type=date.fromisoformat, required=True)
+        if command == "ingest-market-range":
+            subparser.add_argument("--from-date", type=date.fromisoformat, required=True)
+            subparser.add_argument("--to-date", type=date.fromisoformat, required=True)
+            subparser.add_argument("--request-delay-seconds", type=float, default=1.0)
         if command == "ingest-financials":
             targets = subparser.add_mutually_exclusive_group(required=True)
             targets.add_argument("--symbol")
@@ -225,7 +226,7 @@ def _parser() -> argparse.ArgumentParser:
             _local_arguments(subparser, "")
         elif command == "ingest-benchmarks":
             _local_arguments(subparser, "")
-        else:
+        elif command == "ingest-daily":
             for prefix in ("universe", "market", "benchmark"):
                 _local_arguments(subparser, prefix)
     return parser
@@ -284,11 +285,7 @@ def _result_summary(
 
 
 def _failure_summary(stage: str, error: Exception) -> dict[str, object]:
-    status = (
-        "source_not_available"
-        if isinstance(error, NSESourceNotAvailableError)
-        else "failed"
-    )
+    status = "source_not_available" if isinstance(error, NSESourceNotAvailableError) else "failed"
     return {
         "stage": stage,
         "status": status,
@@ -327,14 +324,10 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
     client = NSEHttpClient()
     trading_date: date | None = getattr(args, "date", None)
 
-    stages: list[
-        tuple[str, _ProductionProvider, Callable[[Any], IngestionResult]]
-    ] = []
+    stages: list[tuple[str, _ProductionProvider, Callable[[Any], IngestionResult]]] = []
     if args.command in {"ingest-universe", "ingest-daily"}:
         file_value = (
-            getattr(args, "universe_file", None)
-            if args.command == "ingest-daily"
-            else args.file
+            getattr(args, "universe_file", None) if args.command == "ingest-daily" else args.file
         )
         uri_value = (
             getattr(args, "universe_source_uri", None)
@@ -354,9 +347,7 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
     if args.command in {"ingest-market", "ingest-daily"}:
         assert trading_date is not None
         file_value = (
-            getattr(args, "market_file", None)
-            if args.command == "ingest-daily"
-            else args.file
+            getattr(args, "market_file", None) if args.command == "ingest-daily" else args.file
         )
         uri_value = (
             getattr(args, "market_source_uri", None)
@@ -377,9 +368,7 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
     if args.command in {"ingest-benchmarks", "ingest-daily"}:
         assert trading_date is not None
         file_value = (
-            getattr(args, "benchmark_file", None)
-            if args.command == "ingest-daily"
-            else args.file
+            getattr(args, "benchmark_file", None) if args.command == "ingest-daily" else args.file
         )
         uri_value = (
             getattr(args, "benchmark_source_uri", None)
@@ -405,6 +394,86 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
         if not succeeded:
             return summaries, False
     return summaries, True
+
+
+def _execute_market_range(
+    args: argparse.Namespace, session: Session
+) -> tuple[list[dict[str, object]], bool]:
+    """Attempt both exact daily artifacts for every requested calendar date."""
+
+    production_preflight(session, args.license_class)
+    if args.to_date < args.from_date:
+        raise ValueError("to-date must not precede from-date")
+    day_count = (args.to_date - args.from_date).days + 1
+    if day_count > 150:
+        raise ValueError("market range must not exceed 150 calendar days")
+    if args.request_delay_seconds < 0 or args.request_delay_seconds > 10:
+        raise ValueError("request-delay-seconds must be between 0 and 10")
+
+    service = IngestionService(session, LocalRawObjectStore(args.raw_root))
+    client = NSEHttpClient()
+    attempts: list[dict[str, object]] = []
+    operational_failure = False
+    for index in range(day_count):
+        requested_date = args.from_date + timedelta(days=index)
+        providers: tuple[tuple[str, _ProductionProvider, Callable[[Any], IngestionResult]], ...] = (
+            (
+                "market",
+                NSEMarketDataProvider(
+                    HttpNSEArtifactSource(client, nse_market_url(requested_date)),
+                    _metadata(NSE_MARKET_DATASET_CODE, args.license_class),
+                    requested_date,
+                ),
+                service.ingest_market_data,
+            ),
+            (
+                "benchmark",
+                NSEBenchmarkDataProvider(
+                    HttpNSEArtifactSource(client, nse_benchmark_url(requested_date)),
+                    _metadata(NSE_BENCHMARK_DATASET_CODE, args.license_class),
+                    requested_date,
+                ),
+                service.ingest_benchmark_data,
+            ),
+        )
+        for stage, provider, ingest in providers:
+            summary, succeeded = _run_stage(stage=stage, provider=provider, ingest=ingest)
+            summary["requested_date"] = requested_date.isoformat()
+            attempts.append(summary)
+            if not succeeded and summary["status"] != "source_not_available":
+                operational_failure = True
+        if args.request_delay_seconds and index < day_count - 1:
+            time.sleep(args.request_delay_seconds)
+
+    def count(stage: str, status: str) -> int:
+        return sum(item["stage"] == stage and item["status"] == status for item in attempts)
+
+    aggregate = {
+        "stage": "market_range",
+        "status": "failed" if operational_failure else "completed",
+        "from_date": args.from_date.isoformat(),
+        "to_date": args.to_date.isoformat(),
+        "requested_calendar_dates": day_count,
+        "market_successes": count("market", "completed"),
+        "market_source_not_available": count("market", "source_not_available"),
+        "market_failures": sum(
+            item["stage"] == "market"
+            and item["status"] not in {"completed", "source_not_available"}
+            for item in attempts
+        ),
+        "benchmark_successes": count("benchmark", "completed"),
+        "benchmark_source_not_available": count("benchmark", "source_not_available"),
+        "benchmark_failures": sum(
+            item["stage"] == "benchmark"
+            and item["status"] not in {"completed", "source_not_available"}
+            for item in attempts
+        ),
+        "records_accepted": sum(cast(int, item["records_accepted"]) for item in attempts),
+        "records_duplicated": sum(cast(int, item["records_duplicated"]) for item in attempts),
+        "records_quarantined": sum(cast(int, item["records_quarantined"]) for item in attempts),
+        "attempts": attempts,
+    }
+    return [aggregate], not operational_failure
 
 
 def _financial_symbols(args: argparse.Namespace) -> tuple[str, ...]:
@@ -467,9 +536,7 @@ def _financial_stage_summary(
         ),
         "mapping_version": NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
         "mapped_metric_codes": list(provider.mapped_metric_codes) if provider else [],
-        "intentionally_unmapped_target_metrics": list(
-            NSE_INTENTIONALLY_UNMAPPED_TARGET_METRICS
-        ),
+        "intentionally_unmapped_target_metrics": list(NSE_INTENTIONALLY_UNMAPPED_TARGET_METRICS),
         "unsupported_reason": provider.unsupported_reason if provider else None,
         "error": error,
     }
@@ -574,9 +641,7 @@ def _execute_financials(
                 )
                 succeeded = False
             remaining -= 1
-            if args.request_delay_seconds and (
-                remaining > 0 or symbol_index < len(symbols) - 1
-            ):
+            if args.request_delay_seconds and (remaining > 0 or symbol_index < len(symbols) - 1):
                 time.sleep(args.request_delay_seconds)
     return summaries, succeeded
 
@@ -826,27 +891,27 @@ def main(argv: Sequence[str] | None = None) -> int:
         factory = sessionmaker(bind=engine, autoflush=False)
         with factory() as session:
             stages, succeeded = (
-                _execute_financials(args, session)
-                if args.command == "ingest-financials"
+                _execute_market_range(args, session)
+                if args.command == "ingest-market-range"
                 else (
-                    _execute_corporate_filings(args, session)
-                    if args.command
-                    in {
-                        "ingest-corporate-actions",
-                        "ingest-announcements",
-                        "ingest-catalyst-evidence",
-                    }
-                    else _execute(args, session)
+                    _execute_financials(args, session)
+                    if args.command == "ingest-financials"
+                    else (
+                        _execute_corporate_filings(args, session)
+                        if args.command
+                        in {
+                            "ingest-corporate-actions",
+                            "ingest-announcements",
+                            "ingest-catalyst-evidence",
+                        }
+                        else _execute(args, session)
+                    )
                 )
             )
         print(json.dumps({"status": "completed" if succeeded else "failed", "stages": stages}))
         return 0 if succeeded else 1
     except (ProductionPreflightError, ValueError, OSError) as error:
-        print(
-            json.dumps(
-                {"status": "failed", "stages": [], "error": str(error)}
-            )
-        )
+        print(json.dumps({"status": "failed", "stages": [], "error": str(error)}))
         return 1
     finally:
         if engine is not None:

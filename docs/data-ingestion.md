@@ -237,3 +237,20 @@ rulesets run unchanged, preserving announcement source time. There is no OCR,
 AI, scoring, or historical PIT reconstruction. Commands and exact source fields
 are documented in
 [`nse-production-corporate-filings.md`](nse-production-corporate-filings.md).
+
+## Current research bootstrap and GDELT attention
+
+Production Data Activation D adds a bounded `ingest-market-range` operation.
+It requests both official daily artifacts for each explicit calendar date and
+reports 404s separately from acquisition/format failures. It never substitutes
+a nearby session. Every historical response keeps observed retrieval UTC as
+availability, so the resulting history is current-research bootstrap data, not
+historical PIT backtest data.
+
+GDELT DOC 2.0 news attention is a separate `gdelt` provider dataset. The
+database-free adapter performs one exact quoted legal-name query per company,
+uses `TimelineVolRaw`, archives exact aggregate JSON, and emits only a complete
+raw article count when the response shape is coherent. Failure and ambiguity
+remain unavailable rather than zero. No article bodies or analyst counts are
+acquired. The research profile and commands are documented in
+[`production-current-research.md`](production-current-research.md).

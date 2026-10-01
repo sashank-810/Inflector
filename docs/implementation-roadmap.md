@@ -317,7 +317,7 @@ into the existing financial/PIT spine. Defer materially different financial-
 industry and legacy taxonomies. Do not fabricate market capitalization or run
 scoring in this phase.
 
-### Production Data Activation C — NSE Corporate Actions & Catalyst Evidence (acceptance pending)
+### Production Data Activation C — NSE Corporate Actions & Catalyst Evidence (complete)
 
 Activate bounded official NSE corporate-action and announcement ingestion for
 current EQ identities. Archive exact structured responses and official
@@ -325,6 +325,16 @@ attachment bytes, apply the anchored versioned action-purpose mapping, and feed
 accepted PDFs through the existing deterministic text, `business_event_rules_v1`,
 and quantitative derivation pipeline. Availability remains observed retrieval
 time. Add no scoring, historical-PIT reconstruction, OCR, AI, or migration.
+
+### Production Data Activation D — Current Research & V5 Production Orchestration (acceptance pending)
+
+Add bounded NSE market/index history acquisition, an explicit versioned
+production research profile, exact database-specific immutable policy bindings,
+real persisted-evidence composition, and the existing unchanged V5 orchestrator
+for current research. Add archive-first GDELT raw news counts using an exact-name
+methodology while leaving analyst coverage explicitly unavailable. Partial V5
+snapshots are valid; missing evidence is not fabricated, top-level weights are
+not renormalized, and no frontend, backtest, alert, or migration is included.
 
 ## Phase 6 — announcement and catalyst evidence
 

@@ -136,6 +136,27 @@ event, and quantitative-fact pipeline. Availability is observed retrieval time,
 not an exchange/event date. See
 [NSE production corporate filings](docs/nse-production-corporate-filings.md).
 
+Current production research can be bootstrapped and persisted through the
+unchanged V5 orchestrator with explicit dates, fiscal endpoint, model family,
+profile, and bounded symbols file:
+
+```powershell
+.\scripts\run_inflector_current.ps1 -SymbolsFile .\symbols.txt `
+  -MarketFromDate 2026-06-01 -MarketToDate 2026-09-30 `
+  -FinancialFromDate 2025-03-01 -FinancialToDate 2026-09-30 `
+  -CatalystFromDate 2026-09-01 -CatalystToDate 2026-09-30 `
+  -FiscalYear 2025 -FiscalQuarter 4 `
+  -KnowledgeCutoff 2026-10-01T23:59:59+05:30 `
+  -ModelFamily inflector_v1 -ModelSemanticVersion 1.0.0 `
+  -GitSha <accepted-git-sha> -EffectiveFrom 2026-10-01T00:00:00+05:30
+```
+
+The profile binds exact datasets and `NIFTY 50`; optional GDELT news counts use
+exact-name `TimelineVolRaw` aggregate evidence. Analyst coverage is deliberately
+unavailable. Missing source facts produce a valid partial V5 snapshot with a
+null final score, never an inferred or renormalized score. See
+[current production research](docs/production-current-research.md).
+
 ## Web routes
 
 | Route | Purpose |
