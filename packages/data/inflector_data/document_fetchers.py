@@ -13,6 +13,40 @@ from inflector_core.document_processing import (
     DocumentFetchError,
     FetchedDocument,
 )
+from inflector_data.nse_http import (
+    NSEAcquisitionError,
+    NSEArtifactTooLargeError,
+    NSEHttpClient,
+    validate_nse_url,
+)
+
+
+class NSEOfficialDocumentFetcher:
+    """Fetch only exact allowlisted official NSE document URLs."""
+
+    def __init__(self, client: NSEHttpClient) -> None:
+        self._client = client
+
+    def fetch(self, *, uri: str, max_bytes: int) -> FetchedDocument:
+        if max_bytes <= 0:
+            raise DocumentFetchError("max_bytes must be positive")
+        try:
+            validate_nse_url(uri)
+            artifact = self._client.acquire(
+                uri,
+                maximum_response_bytes=max_bytes,
+            )
+        except NSEArtifactTooLargeError as error:
+            raise DocumentFetchError("document_exceeds_max_bytes") from error
+        except (NSEAcquisitionError, ValueError) as error:
+            raise DocumentFetchError("official_nse_document_fetch_failed") from error
+        return FetchedDocument(
+            requested_uri=uri,
+            resolved_uri=artifact.source_uri,
+            content=artifact.payload,
+            media_type=artifact.media_type,
+            retrieved_at=artifact.retrieved_at,
+        )
 
 
 class LocalFileDocumentFetcher:

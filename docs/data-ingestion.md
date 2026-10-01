@@ -218,3 +218,22 @@ not for historical PIT reconstruction. Reported quarter/H1/9M/annual and
 standalone/consolidated semantics pass unchanged into existing period/PIT
 logic. Full mappings, commands, unsupported taxonomies, and safeguards are in
 [`nse-production-financials.md`](nse-production-financials.md).
+
+## Official NSE corporate filings
+
+Production Data Activation C uses the current structured NSE equity corporate-
+actions and announcements APIs. Exact JSON response bytes are archived first;
+current EQ identity is reconciled through the official equity master without
+fuzzy names. `nse_corporate_action_purpose_rules_v1` maps only explicit cash
+dividend, bonus, split, and fully defensible rights terms. Unsupported or
+compound purposes are counted, not coerced.
+
+Announcement metadata retains the official sequence, native ISIN, event date,
+category, headline text, and attachment URI. Event dates never replace source
+availability: live `available_at` equals observed UTC retrieval. Official
+attachment bytes then use the existing immutable document acquisition and
+deterministic PDF extraction services. The accepted event and quantitative
+rulesets run unchanged, preserving announcement source time. There is no OCR,
+AI, scoring, or historical PIT reconstruction. Commands and exact source fields
+are documented in
+[`nse-production-corporate-filings.md`](nse-production-corporate-filings.md).

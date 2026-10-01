@@ -48,6 +48,7 @@ class AcquiredNSEArtifact:
     source_uri: str
     payload: bytes
     retrieved_at: datetime
+    media_type: str | None = None
 
 
 class _HTTPResponse(Protocol):
@@ -117,7 +118,13 @@ class NSEHttpClient:
         self._sleeper = sleeper
         self._warmed_up = False
 
-    def acquire(self, url: str, *, warm_up: bool = True) -> AcquiredNSEArtifact:
+    def acquire(
+        self,
+        url: str,
+        *,
+        warm_up: bool = True,
+        maximum_response_bytes: int | None = None,
+    ) -> AcquiredNSEArtifact:
         """Return exact response bytes, never an inferred publication time."""
 
         validate_nse_url(url)
@@ -125,14 +132,25 @@ class NSEHttpClient:
         if warm_up and requires_warm_up and not self._warmed_up:
             self._download(NSE_HOMEPAGE_URL)
             self._warmed_up = True
-        payload, final_url = self._download(url)
+        payload, final_url, media_type = self._download(
+            url, maximum_response_bytes=maximum_response_bytes
+        )
         retrieved_at = self._clock()
         if retrieved_at.tzinfo is None:
             raise NSEAcquisitionError("retrieval clock returned a naive timestamp")
-        return AcquiredNSEArtifact(final_url, payload, retrieved_at.astimezone(UTC))
+        return AcquiredNSEArtifact(
+            final_url, payload, retrieved_at.astimezone(UTC), media_type
+        )
 
-    def _download(self, url: str) -> tuple[bytes, str]:
+    def _download(
+        self, url: str, *, maximum_response_bytes: int | None = None
+    ) -> tuple[bytes, str, str | None]:
         validate_nse_url(url)
+        byte_limit = maximum_response_bytes or self._maximum_response_bytes
+        if byte_limit <= 0 or byte_limit > self._maximum_response_bytes:
+            raise ValueError(
+                "maximum_response_bytes must be positive and no greater than the client bound"
+            )
         for attempt in range(1, self._maximum_attempts + 1):
             request = Request(
                 url,
@@ -158,12 +176,12 @@ class NSEHttpClient:
                 final_url = response.geturl()
                 validate_nse_url(final_url)
                 content_length = self._content_length(response)
-                if content_length is not None and content_length > self._maximum_response_bytes:
+                if content_length is not None and content_length > byte_limit:
                     raise NSEArtifactTooLargeError("official NSE response exceeds byte limit")
-                payload = response.read(self._maximum_response_bytes + 1)
-                if len(payload) > self._maximum_response_bytes:
+                payload = response.read(byte_limit + 1)
+                if len(payload) > byte_limit:
                     raise NSEArtifactTooLargeError("official NSE response exceeds byte limit")
-                return payload, final_url
+                return payload, final_url, self._media_type(response)
             except HTTPError as error:
                 if error.code == 404:
                     raise NSESourceNotAvailableError(
@@ -201,3 +219,13 @@ class NSEHttpClient:
             return int(raw)
         except (TypeError, ValueError):
             return None
+
+    @staticmethod
+    def _media_type(response: _HTTPResponse) -> str | None:
+        getter = getattr(response.headers, "get", None)
+        if getter is None:
+            return None
+        raw = getter("Content-Type")
+        if not isinstance(raw, str) or not raw.strip():
+            return None
+        return raw.split(";", maxsplit=1)[0].strip().lower() or None

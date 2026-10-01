@@ -504,6 +504,17 @@ is availability, so bootstrap does not claim historical PIT reconstruction.
 No schema, scoring, market-cap derivation, or frontend coupling is added. See
 [`nse-production-financials.md`](nse-production-financials.md).
 
+Production Data Activation C adds database-free adapters for the official NSE
+corporate-actions and announcements JSON surfaces. Both bind exact current EQ
+symbol/ISIN identity from the official universe and archive the original JSON.
+An allowlisted NSE document fetcher supplies exact attachment bytes to the
+existing document asset/text services; existing PIT announcement selection,
+`business_event_rules_v1`, and quantitative derivation remain the only catalyst
+interpretation path. Observed retrieval remains source availability. The CLI
+owns sessions and bounded orchestration; adapters do not import persistence.
+No schema, scoring, OCR, AI, or frontend coupling is added. See
+[`nse-production-corporate-filings.md`](nse-production-corporate-filings.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

@@ -307,7 +307,7 @@ targets, archive exact source bytes, and use observed retrieval as conservative
 availability. Include explicit-date CLI/local-file recovery and no market-cap,
 delivery, financial, scoring, frontend, BSE, or historical-backfill claims.
 
-### Production Data Activation B — NSE Integrated Financial Results (acceptance pending)
+### Production Data Activation B — NSE Integrated Financial Results (complete)
 
 Activate the current NSE Integrated Filing Ind-AS XBRL generation for bounded,
 explicit EQ symbols. Archive every filing's exact XBRL independently, bind
@@ -316,6 +316,15 @@ conservative availability, and emit only exact versioned taxonomy mappings
 into the existing financial/PIT spine. Defer materially different financial-
 industry and legacy taxonomies. Do not fabricate market capitalization or run
 scoring in this phase.
+
+### Production Data Activation C — NSE Corporate Actions & Catalyst Evidence (acceptance pending)
+
+Activate bounded official NSE corporate-action and announcement ingestion for
+current EQ identities. Archive exact structured responses and official
+attachment bytes, apply the anchored versioned action-purpose mapping, and feed
+accepted PDFs through the existing deterministic text, `business_event_rules_v1`,
+and quantitative derivation pipeline. Availability remains observed retrieval
+time. Add no scoring, historical-PIT reconstruction, OCR, AI, or migration.
 
 ## Phase 6 — announcement and catalyst evidence
 

@@ -7,15 +7,41 @@ import json
 import sys
 import time
 from collections.abc import Callable, Sequence
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 from pathlib import Path
 from typing import Any, Protocol
 
 from sqlalchemy import Engine, create_engine, select
 from sqlalchemy.orm import Session, sessionmaker
 
+from inflector_core.business_event_rules import (
+    BUSINESS_EVENT_RULESET_CODE,
+    BUSINESS_EVENT_RULESET_VERSION,
+)
 from inflector_core.providers import ProviderMetadata
+from inflector_data.announcement_pit import PointInTimeAnnouncementReader
 from inflector_data.archive import LocalRawObjectStore
+from inflector_data.business_event_detection import BusinessEventDetectionService
+from inflector_data.business_event_pit import PointInTimeBusinessEventReader
+from inflector_data.business_event_quantitative import (
+    BusinessEventQuantitativeDerivationService,
+)
+from inflector_data.document_extractors import PyPdfTextExtractor
+from inflector_data.document_fetchers import NSEOfficialDocumentFetcher
+from inflector_data.document_services import (
+    DocumentAcquisitionService,
+    DocumentTextExtractionService,
+)
+from inflector_data.document_text import DocumentExtractionIdentity, DocumentTextReader
+from inflector_data.nse_corporate_filings import (
+    NSE_ANNOUNCEMENT_DATASET_CODE,
+    NSE_CORPORATE_ACTION_DATASET_CODE,
+    NSEAnnouncementProvider,
+    NSECorporateActionProvider,
+    nse_announcements_url,
+    nse_corporate_actions_url,
+    nse_equity_identities,
+)
 from inflector_data.nse_financials import (
     NSE_FINANCIAL_DATASET_CODE,
     NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
@@ -43,7 +69,18 @@ from inflector_data.nse_providers import (
     nse_market_url,
 )
 from inflector_data.service import IngestionResult, IngestionService
-from inflector_database.models import Company, DataProvider, ProviderDataset, Security
+from inflector_database.business_event_quantitative_repository import (
+    BusinessEventQuantitativeRepository,
+)
+from inflector_database.business_event_repository import BusinessEventRepository
+from inflector_database.models import (
+    Announcement,
+    Company,
+    DataProvider,
+    ExchangeListing,
+    ProviderDataset,
+    Security,
+)
 
 NSE_PROVIDER_CODE = "nse_official"
 SYNTHETIC_LICENCE_MARKER = "synthetic-development-only"
@@ -150,6 +187,9 @@ def _parser() -> argparse.ArgumentParser:
         "ingest-benchmarks",
         "ingest-daily",
         "ingest-financials",
+        "ingest-corporate-actions",
+        "ingest-announcements",
+        "ingest-catalyst-evidence",
     ):
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--database-url", required=True)
@@ -166,6 +206,19 @@ def _parser() -> argparse.ArgumentParser:
             subparser.add_argument("--from-date", type=date.fromisoformat)
             subparser.add_argument("--to-date", type=date.fromisoformat)
             subparser.add_argument("--request-delay-seconds", type=float, default=1.0)
+        elif command in {
+            "ingest-corporate-actions",
+            "ingest-announcements",
+            "ingest-catalyst-evidence",
+        }:
+            subparser.add_argument("--from-date", type=date.fromisoformat, required=True)
+            subparser.add_argument("--to-date", type=date.fromisoformat, required=True)
+            subparser.add_argument("--symbol")
+            _local_arguments(subparser, "")
+            if command != "ingest-corporate-actions":
+                subparser.add_argument("--max-announcements", type=int, default=100)
+            if command == "ingest-catalyst-evidence":
+                subparser.add_argument("--max-documents", type=int, default=100)
         elif command == "ingest-universe":
             _local_arguments(subparser, "")
         elif command == "ingest-market":
@@ -528,6 +581,243 @@ def _execute_financials(
     return summaries, succeeded
 
 
+def _corporate_filing_provider(
+    args: argparse.Namespace,
+    *,
+    client: NSEHttpClient,
+) -> tuple[NSECorporateActionProvider | NSEAnnouncementProvider, LocalRawObjectStore]:
+    store = LocalRawObjectStore(args.raw_root)
+    universe = NSEUniverseProvider(
+        HttpNSEArtifactSource(client, NSE_EQUITY_UNIVERSE_URL),
+        _metadata(NSE_UNIVERSE_DATASET_CODE, args.license_class),
+    ).fetch_universe()
+    identities = nse_equity_identities(universe.records)
+    source_uri = (
+        nse_corporate_actions_url(args.from_date, args.to_date, symbol=args.symbol)
+        if args.command == "ingest-corporate-actions"
+        else nse_announcements_url(args.from_date, args.to_date, symbol=args.symbol)
+    )
+    source = _source(
+        local_file=args.file,
+        source_uri=args.source_uri,
+        live_uri=source_uri,
+        client=client,
+    )
+    if args.command == "ingest-corporate-actions":
+        return (
+            NSECorporateActionProvider(
+                source,
+                _metadata(NSE_CORPORATE_ACTION_DATASET_CODE, args.license_class),
+                identities,
+            ),
+            store,
+        )
+    return (
+        NSEAnnouncementProvider(
+            source,
+            _metadata(NSE_ANNOUNCEMENT_DATASET_CODE, args.license_class),
+            identities,
+            max_announcements=args.max_announcements,
+        ),
+        store,
+    )
+
+
+def _execute_corporate_filings(
+    args: argparse.Namespace, session: Session
+) -> tuple[list[dict[str, object]], bool]:
+    production_preflight(session, args.license_class)
+    client = NSEHttpClient()
+    provider, store = _corporate_filing_provider(args, client=client)
+    service = IngestionService(session, store)
+    if isinstance(provider, NSECorporateActionProvider):
+        summary, succeeded = _run_stage(
+            stage="corporate_actions",
+            provider=provider,
+            ingest=service.ingest_corporate_actions,
+        )
+        summary["supported_action_counts"] = provider.supported_action_counts
+        summary["purpose_rules_version"] = "nse_corporate_action_purpose_rules_v1"
+        summary["unsupported_purpose_examples"] = list(provider.unsupported_purposes[:10])
+        return [summary], succeeded
+
+    summary, succeeded = _run_stage(
+        stage="announcements",
+        provider=provider,
+        ingest=service.ingest_announcements,
+    )
+    summary["documents_discovered"] = provider.documents_discovered
+    if not succeeded or args.command == "ingest-announcements":
+        return [summary], succeeded
+    try:
+        catalyst = _process_catalyst_evidence(
+            args=args,
+            session=session,
+            store=store,
+            client=client,
+            as_of=provider.retrieved_at,
+            external_record_ids=provider.external_record_ids,
+        )
+        return [summary, catalyst], True
+    except (OSError, ValueError, RuntimeError) as error:
+        session.rollback()
+        return [
+            summary,
+            {"stage": "catalyst_evidence", "status": "failed", "error": str(error)},
+        ], False
+
+
+def _process_catalyst_evidence(
+    *,
+    args: argparse.Namespace,
+    session: Session,
+    store: LocalRawObjectStore,
+    client: NSEHttpClient,
+    as_of: datetime | None,
+    external_record_ids: tuple[str, ...],
+) -> dict[str, object]:
+    if as_of is None:
+        raise ValueError("announcement retrieval time is unavailable")
+    if args.max_documents < 0 or args.max_documents > 500:
+        raise ValueError("max-documents must be between 0 and 500")
+    dataset = session.scalar(
+        select(ProviderDataset)
+        .join(DataProvider, ProviderDataset.provider_id == DataProvider.id)
+        .where(
+            DataProvider.code == NSE_PROVIDER_CODE,
+            ProviderDataset.code == NSE_ANNOUNCEMENT_DATASET_CODE,
+        )
+    )
+    if dataset is None:
+        raise ValueError("NSE announcement dataset was not persisted")
+    reader = PointInTimeAnnouncementReader(session)
+    announcements = []
+    if args.symbol:
+        security = session.scalar(
+            select(Security)
+            .join(ExchangeListing, ExchangeListing.security_id == Security.id)
+            .where(
+                ExchangeListing.exchange == "NSE",
+                ExchangeListing.symbol == args.symbol.strip().upper(),
+            )
+        )
+        if security is None:
+            raise ValueError("requested NSE symbol is not in the canonical universe")
+        announcements.extend(
+            reader.security_announcements_as_of(
+                provider_dataset_id=dataset.id,
+                security_id=security.id,
+                as_of=as_of,
+                start_date=args.from_date,
+                end_date=args.to_date,
+            )
+        )
+    else:
+        company_ids = list(
+            session.scalars(
+                select(Announcement.company_id)
+                .where(Announcement.provider_dataset_id == dataset.id)
+                .distinct()
+            )
+        )
+        for company_id in company_ids:
+            announcements.extend(
+                reader.company_announcements_as_of(
+                    provider_dataset_id=dataset.id,
+                    company_id=company_id,
+                    as_of=as_of,
+                    start_date=args.from_date,
+                    end_date=args.to_date,
+                )
+            )
+    allowed_external_ids = frozenset(external_record_ids)
+    selected = {
+        item.id: item for item in announcements if item.external_record_id in allowed_external_ids
+    }
+    ordered = sorted(selected.values(), key=lambda item: (item.available_at, str(item.id)))
+    acquisition = DocumentAcquisitionService(session, store)
+    extraction = DocumentTextExtractionService(session, store)
+    extractor = PyPdfTextExtractor()
+    fetcher = NSEOfficialDocumentFetcher(client)
+    text_reader = DocumentTextReader(session, store)
+    extraction_identity = DocumentExtractionIdentity(
+        extractor.extractor_code,
+        extractor.extractor_semantic_version,
+        extractor.extractor_runtime_version,
+    )
+    detector = BusinessEventDetectionService(BusinessEventRepository(session))
+    event_reader = PointInTimeBusinessEventReader(session)
+    quant = BusinessEventQuantitativeDerivationService(
+        BusinessEventQuantitativeRepository(session), store
+    )
+    documents_acquired = 0
+    acquisition_failures = 0
+    successful_extractions = 0
+    unavailable_extractions = 0
+    events: dict[str, int] = {}
+    derivations = 0
+    facts: dict[str, int] = {}
+    derived_at = datetime.now(UTC)
+    for announcement in ordered:
+        texts = []
+        for document in announcement.documents:
+            if documents_acquired + acquisition_failures >= args.max_documents:
+                break
+            try:
+                asset = acquisition.acquire(document_id=document.id, fetcher=fetcher)
+                documents_acquired += 1
+            except (OSError, ValueError, RuntimeError):
+                acquisition_failures += 1
+                continue
+            try:
+                extracted = extraction.extract(
+                    document_asset_id=asset.asset_id,
+                    extractor=extractor,
+                )
+                if extracted.status == "success":
+                    successful_extractions += 1
+                else:
+                    unavailable_extractions += 1
+                text = text_reader.text_for_document(
+                    document=document,
+                    extraction_identity=extraction_identity,
+                )
+                if text is not None:
+                    texts.append(text)
+            except (OSError, ValueError, RuntimeError):
+                unavailable_extractions += 1
+        detected = detector.detect(
+            announcement=announcement,
+            document_texts=tuple(texts),
+            derived_at=derived_at,
+        )
+        for result in detected:
+            events[result.event_type] = events.get(result.event_type, 0) + 1
+        for event in event_reader.events_for_announcement(
+            announcement=announcement,
+            ruleset_code=BUSINESS_EVENT_RULESET_CODE,
+            ruleset_semantic_version=BUSINESS_EVENT_RULESET_VERSION,
+        ):
+            result = quant.derive(event=event, derived_at=derived_at)
+            derivations += 1
+            for fact in result.facts:
+                facts[fact.fact_code] = facts.get(fact.fact_code, 0) + 1
+    session.commit()
+    return {
+        "stage": "catalyst_evidence",
+        "status": "completed",
+        "announcements_processed": len(ordered),
+        "documents_discovered": sum(len(item.documents) for item in ordered),
+        "documents_acquired": documents_acquired,
+        "document_acquisition_failures": acquisition_failures,
+        "successful_text_extractions": successful_extractions,
+        "no_text_or_failed_extractions": unavailable_extractions,
+        "business_events_by_type": events,
+        "quantitative_derivations": derivations,
+        "quantitative_facts_by_code": facts,
+    }
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = _parser().parse_args(argv)
     engine: Engine | None = None
@@ -538,7 +828,16 @@ def main(argv: Sequence[str] | None = None) -> int:
             stages, succeeded = (
                 _execute_financials(args, session)
                 if args.command == "ingest-financials"
-                else _execute(args, session)
+                else (
+                    _execute_corporate_filings(args, session)
+                    if args.command
+                    in {
+                        "ingest-corporate-actions",
+                        "ingest-announcements",
+                        "ingest-catalyst-evidence",
+                    }
+                    else _execute(args, session)
+                )
             )
         print(json.dumps({"status": "completed" if succeeded else "failed", "stages": stages}))
         return 0 if succeeded else 1
