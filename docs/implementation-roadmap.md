@@ -284,7 +284,7 @@ anti-score-shopping, immutable historical evidence, current-status
 independence, and fail-closed integrity validation. Add no scoring, writes,
 migration, provider work, or frontend.
 
-### Phase 5C — Research Queue & Company Research Frontend (acceptance pending)
+### Phase 5C — Research Queue & Company Research Frontend (complete)
 
 Add the frontend-only, explicit-model V5 research queue and URL-addressable
 company/security/configuration dossier. Render persisted snapshot history and
