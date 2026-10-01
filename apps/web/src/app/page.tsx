@@ -14,7 +14,7 @@ export default async function OverviewPage(): Promise<React.ReactNode> {
         <div>
           <p className="mb-2 text-xs font-semibold uppercase tracking-[0.16em] text-accent">Overview</p>
           <h1 className="text-2xl font-semibold tracking-tight">Company identity universe</h1>
-          <p className="mt-2 max-w-2xl text-sm text-muted">Seeded fictional issuers retrieved from the local Inflector API. Financial data and opportunity scores are intentionally not yet available.</p>
+          <p className="mt-2 max-w-2xl text-sm text-muted">Canonical company identities from the local Inflector API. Persisted V5 research is available through explicit model, security, and scoring-configuration selection.</p>
         </div>
         <p className="font-mono text-sm text-muted">{total} companies</p>
       </div>

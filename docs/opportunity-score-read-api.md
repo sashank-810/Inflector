@@ -75,6 +75,12 @@ use no current-time default and issue no writes.
 Phase 5A adds no frontend, migration, alert, backtest, provider, AI, ranking
 formula, or investment recommendation.
 
+Phase 5C is the first frontend consumer of this contract. It preserves the
+required model family and exact security/configuration selection in the URL,
+renders canonical Decimal strings without float conversion, and keeps partial
+scores null. Queue and detail views remain read-only; no browser-side scoring
+or current-time reinterpretation is added.
+
 ## Phase 5B company research reads
 
 Phase 5B preserves both Phase 5A endpoints and their response semantics. It

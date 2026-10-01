@@ -284,13 +284,17 @@ anti-score-shopping, immutable historical evidence, current-status
 independence, and fail-closed integrity validation. Add no scoring, writes,
 migration, provider work, or frontend.
 
-Planned only after separate review: Phase 5C — Research Queue / Company
-Research Frontend.
+### Phase 5C — Research Queue & Company Research Frontend (acceptance pending)
 
-1. Build dark desktop-first dashboard, explorer filters, company research page,
-   score explanations, inflection radar, and watchlist/notes.
-2. Include loading, empty, error, freshness, confidence, source, and exclusion
-   states from the start.
+Add the frontend-only, explicit-model V5 research queue and URL-addressable
+company/security/configuration dossier. Render persisted snapshot history and
+neutral change comparisons, component explanation drill-down, and a bounded
+persisted audit browser with responsive, accessible loading, error, empty, and
+partial states. Add no frontend scoring, implicit context choice, writes,
+migration, recommendation semantics, or new chart/table/query dependency.
+
+Richer visualization, watchlist, and notes workflows remain future work after
+separate review; Phase 5C does not declare the whole Phase 5 dashboard complete.
 
 **Exit gate:** a user can trace any displayed score to inputs and evidence.
 

@@ -199,6 +199,13 @@ row selection behavior.
 
 ## Dependency decisions
 
+Phase 5C deliberately implements the first queue, company dossier, and audit
+browser with server components, URL query state, semantic HTML tables, native
+disclosures, Tailwind, and existing Lucide icons. It adds no query, table,
+chart, virtualization, or state-management dependency. The broader dependency
+options below remain proposals for later, separately reviewed interaction or
+visualization needs; Phase 5C does not activate them.
+
 No dependency is installed by this architecture task. The decisions below set
 the implementation default; actual adoption happens only in the named phase.
 

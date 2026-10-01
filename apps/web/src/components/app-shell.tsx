@@ -53,7 +53,7 @@ export function AppShell({ children }: Readonly<{ children: ReactNode }>): React
         <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-line bg-canvas/95 px-5 backdrop-blur">
           <div className="flex items-center gap-3 lg:hidden"><span className="font-semibold">INFLECTOR</span><span className="text-xs text-muted">Research workstation</span></div>
           <div className="hidden lg:block"><p className="text-xs uppercase tracking-[0.18em] text-muted">Indian equity intelligence</p></div>
-          <div aria-label="Data status" className="flex items-center gap-2 text-xs text-muted"><span className="h-2 w-2 rounded-full bg-accent" aria-hidden="true" />Identity universe · local development</div>
+          <div className="text-xs text-muted">Read-only research · local API</div>
         </header>
         <main className="mx-auto max-w-[1600px] p-5 lg:p-7" id="main-content">{children}</main>
       </div>

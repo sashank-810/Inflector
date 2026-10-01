@@ -471,6 +471,16 @@ not current constants. It performs no evidence joins, archive access, writes,
 clock reads, current-status gating, scoring, or frontend work. See
 [`company-research-read-api.md`](company-research-read-api.md).
 
+Phase 5C consumes those accepted read contracts in a frontend-only research
+surface. Next.js server components keep the model family, queue filters,
+company security/configuration context, historical snapshot, and pagination in
+the URL. Decimal values remain strings, timestamps remain explicit, and no
+score or freshness policy is implemented in the browser. Component
+explanations and the bounded 14-category audit browser render persisted
+evidence only; they never join to current source rows. This slice adds no API,
+database, provider, migration, write path, or new frontend dependency. See
+[`research-frontend.md`](research-frontend.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

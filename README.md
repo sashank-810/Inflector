@@ -4,10 +4,10 @@ Inflector is a personal Indian-equity research workstation. It identifies and
 explains potential business and financial inflections for research; it is not a
 stock-tip, brokerage, or prediction product.
 
-Phase 1 proves the smallest vertical slice: fictional canonical company
-identity data in PostgreSQL flows through FastAPI to a dark, desktop-first
-Next.js research shell. It intentionally excludes market data, financials,
-scores, providers, AI, alerts, authentication, charts, and backtesting.
+The current product slice carries canonical company identity and immutable V5
+Opportunity Score research from PostgreSQL through explicit FastAPI read
+contracts into a dark, desktop-first Next.js research workstation. Scores
+prioritize investigation; they are not recommendations or predictions.
 
 ## Architecture
 
@@ -16,8 +16,8 @@ scores, providers, AI, alerts, authentication, charts, and backtesting.
   and migration history.
 - **FastAPI** provides a versioned, explicit-schema read API.
 - **Next.js App Router + TypeScript + Tailwind** renders server-fetched company
-  identity views. The small owned UI foundation follows shadcn/ui conventions
-  and uses Lucide icons.
+  identity, persisted research queues, exact-context dossiers, and bounded
+  audit views. The small owned UI foundation uses Lucide icons.
 - Docker Compose starts **PostgreSQL only**. FastAPI and Next.js run locally
   with hot reload during development.
 
@@ -92,7 +92,19 @@ npm run dev
 ```
 
 Open http://localhost:3000. The Overview table is loaded from FastAPI. Select
-a company to view its canonical identity, ISIN, securities, and listings.
+a company to view its canonical identity, or enter an explicit model family at
+`/opportunities` to inspect persisted V5 research contexts.
+
+## Web routes
+
+| Route | Purpose |
+|---|---|
+| `/opportunities` | Explicit-model persisted V5 research queue |
+| `/companies/{company_id}` | Canonical identity plus explicit security/configuration research dossier |
+| `/opportunities/{snapshot_id}/audit/{category}` | Bounded persisted audit-category browser |
+
+Research selection is URL-addressable. It requires an explicit model family
+and, on the company dossier, an exact security and scoring configuration.
 
 ## API
 
@@ -151,8 +163,7 @@ docs/                     Architecture, research, and product design records
 
 ## Current limitations
 
-All displayed companies are fictional seed identities. There is no market or
-financial data, scoring, recommendation logic, live provider, authentication,
-worker, charting, or watchlist persistence in Phase 1. The next approved scope
-is Phase 2: provider abstraction, manual/CSV/mock ingestion, normalization,
-and data-quality handling.
+The default identity seed remains fictional, and populated research views
+require separately ingested and persisted V5 snapshots. The web UI is
+read-only: it adds no live providers, authentication, alerts, backtesting,
+recommendations, charts, or watchlist/notes persistence.

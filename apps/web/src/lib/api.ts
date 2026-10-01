@@ -34,7 +34,11 @@ type CompanyListResponse = {
 };
 
 export class ApiError extends Error {
-  constructor(message: string, readonly status?: number) {
+  constructor(
+    message: string,
+    readonly status?: number,
+    readonly kind: "not-found" | "validation" | "integrity" | "unavailable" = "unavailable"
+  ) {
     super(message);
     this.name = "ApiError";
   }
@@ -48,19 +52,37 @@ function getApiBaseUrl(): string {
   return value.replace(/\/$/, "");
 }
 
-async function fetchApi<T>(path: string): Promise<T> {
+export async function fetchApi<T>(path: string): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${getApiBaseUrl()}${path}`, { cache: "no-store" });
   } catch {
-    throw new ApiError("The Inflector API is unavailable. Start the local FastAPI service and try again.");
+    throw new ApiError(
+      "The Inflector API is unavailable. Start the local FastAPI service and try again.",
+      undefined,
+      "unavailable"
+    );
   }
 
   if (!response.ok) {
     if (response.status === 404) {
-      throw new ApiError("The requested company was not found.", response.status);
+      throw new ApiError("The requested resource was not found.", response.status, "not-found");
     }
-    throw new ApiError("The Inflector API could not complete this request.", response.status);
+    if (response.status === 422) {
+      throw new ApiError("The research request parameters are invalid.", response.status, "validation");
+    }
+    if (response.status === 500) {
+      throw new ApiError(
+        "Persisted snapshot integrity validation failed. This research record was not rendered.",
+        response.status,
+        "integrity"
+      );
+    }
+    throw new ApiError(
+      "The Inflector API could not complete this request.",
+      response.status,
+      "unavailable"
+    );
   }
   return (await response.json()) as T;
 }
