@@ -95,6 +95,22 @@ Open http://localhost:3000. The Overview table is loaded from FastAPI. Select
 a company to view its canonical identity, or enter an explicit model family at
 `/opportunities` to inspect persisted V5 research contexts.
 
+### Official NSE production ingestion
+
+Use a separate migrated database and raw archive root. The production command
+requires an explicit source-terms classification and exact trading date:
+
+```powershell
+.\scripts\ingest_nse_daily.ps1 -Date 2026-09-30
+```
+
+The runner reads `INFLECTOR_PRODUCTION_DATABASE_URL`,
+`INFLECTOR_PRODUCTION_RAW_ROOT`, and `INFLECTOR_NSE_LICENSE_CLASS`. It ingests
+the official NSE EQ master, CM UDiFF Final daily file, and all valid rows from
+the daily index snapshot. See
+[NSE production ingestion](docs/nse-production-ingestion.md) for live and
+local-file commands, PIT limitations, source terms, and scheduling.
+
 ## Web routes
 
 | Route | Purpose |
@@ -165,5 +181,8 @@ docs/                     Architecture, research, and product design records
 
 The default identity seed remains fictional, and populated research views
 require separately ingested and persisted V5 snapshots. The web UI is
-read-only: it adds no live providers, authentication, alerts, backtesting,
-recommendations, charts, or watchlist/notes persistence.
+read-only. Official NSE ingestion currently covers the listed EQ universe,
+CM UDiFF Final daily OHLCV, and daily index snapshots only; it does not yet
+cover financial statements, BSE, market capitalization, delivery enrichment,
+authentication, alerts, backtesting, recommendations, charts, or
+watchlist/notes persistence.

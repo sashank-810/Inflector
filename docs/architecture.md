@@ -481,6 +481,16 @@ evidence only; they never join to current source rows. This slice adds no API,
 database, provider, migration, write path, or new frontend dependency. See
 [`research-frontend.md`](research-frontend.md).
 
+Production Data Activation A introduces a database-free official NSE adapter
+boundary over the existing archive-first ingestion service. A bounded
+standard-library HTTPS client allows only NSE hosts; parsers emit the existing
+provider-neutral universe, market-bar, and benchmark-bar contracts. The CLI,
+not the adapters, owns sessions and production preflight. Exact artifact bytes
+remain in the raw object store, while observed UTC retrieval time is the
+conservative availability time for daily market and benchmark facts. The slice
+adds no schema, scoring, provider selection, or frontend coupling. See
+[`nse-production-ingestion.md`](nse-production-ingestion.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

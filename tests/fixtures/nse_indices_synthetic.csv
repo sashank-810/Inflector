@@ -1,0 +1,4 @@
+Index Name,Index Date,Open Index Value,High Index Value,Low Index Value,Closing Index Value,Points Change,Change(%),Volume,Turnover (Rs. Cr.),P/E,P/B,Div Yield
+Fictional Broad 50,30-09-2026,25000.125,25200.75,24900.50,25150.625,150.50,.60,1000000,5000,20,3,1.2
+Fictional Industrial 20,30-09-2026,18000,18100.25,17850.75,18050.5,50.5,.28,500000,2500,18,2.5,1.5
+Fictional Broken Index,30-09-2026,invalid,100,90,95,0,0,0,0,0,0,0

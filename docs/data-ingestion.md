@@ -182,3 +182,21 @@ is appended only at a strictly later semantic revision position, including
 corrections delivered under a new external ID for the same economic identity.
 Provider, methodology, scope, and definition-hash series remain isolated.
 See [`attention-evidence.md`](attention-evidence.md).
+
+## Official NSE production sources
+
+Production Data Activation A adds separate adapters and CLI orchestration for
+the current official NSE listed-equity master, CM UDiFF Final daily ZIP, and
+daily index snapshot. Provider code `nse_official` and the three explicit
+dataset codes are distinct from `synthetic_csv`. Production commands require a
+caller-supplied database URL, raw root, and licence classification, and refuse
+known synthetic database markers before mutation.
+
+The same archive-first service persists exact CSV or ZIP response bytes before
+accepted rows. Live retrieval completion is the observed UTC knowledge time;
+market and benchmark availability is never inferred from trading date or close.
+Historical downloads therefore do not claim historical PIT usability. UDiFF
+supplies daily OHLCV only: market cap and delivery stay null. Index rows remain
+separate provider-local identities, with no preferred benchmark. Local-file
+recovery requires an explicit official source URI. Full usage and safety
+details are in [`nse-production-ingestion.md`](nse-production-ingestion.md).

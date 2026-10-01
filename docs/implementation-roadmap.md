@@ -298,6 +298,17 @@ separate review; Phase 5C does not declare the whole Phase 5 dashboard complete.
 
 **Exit gate:** a user can trace any displayed score to inputs and evidence.
 
+### Production Data Activation A — NSE Universe, Market & Benchmark (acceptance pending)
+
+Add production-safe official NSE acquisition and database-free adapters for
+the current EQ master, CM UDiFF Final daily OHLCV, and daily index snapshot.
+Require explicit production database/raw-root/licence inputs, reject synthetic
+targets, archive exact source bytes, and use observed retrieval as conservative
+availability. Include explicit-date CLI/local-file recovery and no market-cap,
+delivery, financial, scoring, frontend, BSE, or historical-backfill claims.
+
+Production Data Activation B is not started.
+
 ## Phase 6 — announcement and catalyst evidence
 
 ### Phase 6A — Announcement & Document Evidence Foundation (complete)
