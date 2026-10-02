@@ -43,6 +43,18 @@ OPERATIONAL_STAGE_DEFINITIONS = (
 RESEARCH_STATE_PROJECTION_VERSION = "research_state_projection_v1"
 
 
+def operational_stage_definitions(
+    profile: ProductionOperationsProfile,
+) -> tuple[tuple[str, bool], ...]:
+    if profile.delivery_history_calendar_lookback_days is None:
+        return OPERATIONAL_STAGE_DEFINITIONS
+    return (
+        *OPERATIONAL_STAGE_DEFINITIONS[:3],
+        ("delivery_history", False),
+        *OPERATIONAL_STAGE_DEFINITIONS[3:],
+    )
+
+
 @dataclass(frozen=True, slots=True)
 class CycleInputs:
     operations_profile_path: Path
@@ -207,7 +219,7 @@ def doctor(
     session: Session,
     *,
     plan: CyclePlan,
-    expected_migration: str = "20261002_0016",
+    expected_migration: str = "20261002_0017",
 ) -> dict[str, object]:
     session.execute(text("SELECT 1"))
     migration = session.execute(
@@ -298,6 +310,28 @@ class AcceptedProductionStageExecutor:
                 "to_date": to_date.isoformat(),
                 "stages": summaries,
             }, succeeded
+        if stage == "delivery_history":
+            lookback = profile.delivery_history_calendar_lookback_days
+            if lookback is None:
+                return {"status": "disabled_by_operations_profile"}, True
+            to_date = cutoff.date()
+            from_date = to_date - timedelta(days=lookback - 1)
+            summaries, succeeded = nse_cli._execute_delivery_range(  # noqa: SLF001
+                Namespace(
+                    command="ingest-delivery-range",
+                    raw_root=inputs.raw_root,
+                    license_class=inputs.nse_license_class,
+                    from_date=from_date,
+                    to_date=to_date,
+                    request_delay_seconds=profile.request_delay_seconds,
+                ),
+                session,
+            )
+            return {
+                "from_date": from_date.isoformat(),
+                "to_date": to_date.isoformat(),
+                "stages": summaries,
+            }, succeeded
         if stage == "financials":
             summaries, succeeded = nse_cli._execute_financials(  # noqa: SLF001
                 Namespace(
@@ -322,15 +356,12 @@ class AcceptedProductionStageExecutor:
                 }
             )
             unscoped_failure = any(
-                item.get("status") == "failed" and not item.get("symbol")
-                for item in summaries
+                item.get("status") == "failed" and not item.get("symbol") for item in summaries
             )
             return {
                 "stages": summaries,
                 "symbol_operational_failures": symbol_failures,
-                "upstream_status": (
-                    "completed" if succeeded else "completed_with_symbol_failures"
-                ),
+                "upstream_status": ("completed" if succeeded else "completed_with_symbol_failures"),
             }, not unscoped_failure
         window_start = cutoff.date() - timedelta(
             days=plan.research_profile.catalyst_lookback_days - 1
@@ -454,7 +485,7 @@ class ProductionCycleService:
                 ordered_symbols=plan.inputs.symbols,
                 inputs=plan.persisted_inputs,
                 planned_at=self._clock(),
-                stages=OPERATIONAL_STAGE_DEFINITIONS,
+                stages=operational_stage_definitions(plan.operations_profile),
             )
             self._session.commit()
         else:
@@ -499,7 +530,7 @@ class ProductionCycleService:
     def _execute(
         self, run_id: UUID, *, plan: CyclePlan, owner_token: str
     ) -> tuple[dict[str, object], int]:
-        for definition_name, required in OPERATIONAL_STAGE_DEFINITIONS:
+        for definition_name, required in operational_stage_definitions(plan.operations_profile):
             run = self._required_run(run_id)
             stage = next(item for item in run.stages if item.stage_name == definition_name)
             if stage.status == "completed":
@@ -655,8 +686,7 @@ def snapshot_change_report(
             ScoreSnapshot.knowledge_cutoff == current.knowledge_cutoff,
             ScoreSnapshot.ending_fiscal_year == current.ending_fiscal_year,
             ScoreSnapshot.ending_fiscal_quarter == current.ending_fiscal_quarter,
-            ScoreSnapshot.snapshot_fingerprint_sha256
-            > current.snapshot_fingerprint_sha256,
+            ScoreSnapshot.snapshot_fingerprint_sha256 > current.snapshot_fingerprint_sha256,
         ),
     )
     previous = session.scalar(
@@ -773,13 +803,11 @@ def cycle_summary(
         "error_code": run.error_code,
         "error": run.error_message,
         "operational_failures": [
-            {"stage": item.stage_name, "error_code": item.error_code}
-            for item in stage_failures
+            {"stage": item.stage_name, "error_code": item.error_code} for item in stage_failures
         ],
         "integrity_failures": integrity_failures,
         "source_not_available_count": sum(
-            _count_status(item.result_summary_json, "source_not_available")
-            for item in run.stages
+            _count_status(item.result_summary_json, "source_not_available") for item in run.stages
         ),
         "recovery_required": run.status in {"failed", "stale"} or lease_state == "expired",
     }

@@ -65,6 +65,21 @@ class MarketBarRecord:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketDeliveryRecord:
+    """Provider-neutral daily security delivery observation."""
+
+    security_isin: str | None
+    symbol: str | None
+    series: str | None
+    trading_date: date | None
+    total_traded_quantity: int | None
+    delivery_quantity: int | None
+    reported_delivery_percentage: Decimal | None
+    delivery_percentage: Decimal | None
+    parse_errors: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
 class BenchmarkBarRecord:
     """Provider-neutral daily benchmark observation with explicit identity."""
 
@@ -286,6 +301,15 @@ class AnnouncementProvider(Protocol):
 
     def fetch_announcements(self) -> ProviderBatch[AnnouncementRecord]:
         """Return one provider-neutral announcement batch."""
+
+        ...
+
+
+class MarketDeliveryProvider(Protocol):
+    """Provider port for immutable daily delivery observations."""
+
+    def fetch_market_delivery(self) -> ProviderBatch[MarketDeliveryRecord]:
+        """Return one provider-neutral delivery batch."""
 
         ...
 

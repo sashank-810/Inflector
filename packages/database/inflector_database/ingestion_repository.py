@@ -16,6 +16,7 @@ from inflector_core.providers import (
     BenchmarkBarRecord,
     CorporateActionRecord,
     FinancialRecord,
+    MarketDeliveryRecord,
     ProviderMetadata,
     UniverseRecord,
     corporate_action_event_anchor,
@@ -37,6 +38,7 @@ from inflector_database.models import (
     FinancialMetricDefinition,
     FiscalPeriod,
     IngestionRun,
+    MarketDeliveryObservation,
     PriceBar,
     ProviderDataset,
     Security,
@@ -824,6 +826,60 @@ class IngestionRepository:
                 market_cap=market_cap,
                 delivery_quantity=delivery_quantity,
                 delivery_percentage=delivery_percentage,
+                available_at=available_at,
+                revision_at=revision_at,
+            )
+        )
+
+    def economic_market_delivery(
+        self,
+        *,
+        dataset_id: UUID,
+        security_id: UUID,
+        trading_date: date,
+        series: str,
+    ) -> list[MarketDeliveryObservation]:
+        return list(
+            self.session.scalars(
+                select(MarketDeliveryObservation)
+                .join(SourceRecord)
+                .where(
+                    MarketDeliveryObservation.provider_dataset_id == dataset_id,
+                    MarketDeliveryObservation.security_id == security_id,
+                    MarketDeliveryObservation.trading_date == trading_date,
+                    MarketDeliveryObservation.series == series,
+                    SourceRecord.validation_status == "accepted",
+                )
+                .order_by(
+                    MarketDeliveryObservation.available_at,
+                    MarketDeliveryObservation.revision_at,
+                    MarketDeliveryObservation.ingested_at,
+                )
+            )
+        )
+
+    def add_market_delivery(
+        self,
+        *,
+        dataset_id: UUID,
+        security_id: UUID,
+        source_id: UUID,
+        record: MarketDeliveryRecord,
+        available_at: datetime,
+        revision_at: datetime | None,
+    ) -> None:
+        assert record.trading_date is not None and record.series is not None
+        self.session.add(
+            MarketDeliveryObservation(
+                security_id=security_id,
+                provider_dataset_id=dataset_id,
+                source_record_id=source_id,
+                trading_date=record.trading_date,
+                series=record.series,
+                total_traded_quantity=record.total_traded_quantity,
+                delivery_quantity=record.delivery_quantity,
+                reported_delivery_percentage=record.reported_delivery_percentage,
+                delivery_percentage=record.delivery_percentage,
                 available_at=available_at,
                 revision_at=revision_at,
             )

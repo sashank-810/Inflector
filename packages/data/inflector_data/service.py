@@ -6,6 +6,7 @@ import json
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import UTC, date, datetime
+from decimal import Decimal
 from hashlib import sha256
 from uuid import UUID
 
@@ -26,6 +27,8 @@ from inflector_core.providers import (
     IngestionEnvelope,
     MarketBarRecord,
     MarketDataProvider,
+    MarketDeliveryProvider,
+    MarketDeliveryRecord,
     ProviderBatch,
     UniverseProvider,
     UniverseRecord,
@@ -50,6 +53,7 @@ from inflector_database.models import (
     CorporateAction,
     FinancialFact,
     IngestionRun,
+    MarketDeliveryObservation,
     PriceBar,
     ProviderDataset,
     SourceRecord,
@@ -92,6 +96,9 @@ class IngestionService:
     def ingest_market_data(self, provider: MarketDataProvider) -> IngestionResult:
         return self._ingest_market(provider.fetch_market_data())
 
+    def ingest_market_delivery(self, provider: MarketDeliveryProvider) -> IngestionResult:
+        return self._ingest_market_delivery(provider.fetch_market_delivery())
+
     def ingest_benchmark_data(self, provider: BenchmarkDataProvider) -> IngestionResult:
         return self._ingest_benchmark(provider.fetch_benchmark_data())
 
@@ -111,6 +118,7 @@ class IngestionService:
         self,
         batch: ProviderBatch[UniverseRecord]
         | ProviderBatch[MarketBarRecord]
+        | ProviderBatch[MarketDeliveryRecord]
         | ProviderBatch[BenchmarkBarRecord]
         | ProviderBatch[FinancialRecord]
         | ProviderBatch[CorporateActionRecord]
@@ -181,6 +189,7 @@ class IngestionService:
         self,
         envelope: IngestionEnvelope[UniverseRecord]
         | IngestionEnvelope[MarketBarRecord]
+        | IngestionEnvelope[MarketDeliveryRecord]
         | IngestionEnvelope[BenchmarkBarRecord]
         | IngestionEnvelope[FinancialRecord]
         | IngestionEnvelope[CorporateActionRecord]
@@ -405,6 +414,150 @@ class IngestionService:
         except Exception as error:
             self._failed(run.id, counters, error)
             raise
+
+    def _ingest_market_delivery(
+        self, batch: ProviderBatch[MarketDeliveryRecord]
+    ) -> IngestionResult:
+        dataset, run, raw = self._start(batch)
+        counters = _Counters(received=len(batch.records))
+        try:
+            for envelope in batch.records:
+                if self._repository.source_exists(
+                    dataset.id, envelope.external_record_id, envelope.content_sha256
+                ):
+                    counters.duplicated += 1
+                    continue
+                source = self._source(
+                    envelope,
+                    dataset.id,
+                    run.id,
+                    raw,
+                    "failed" if envelope.record.parse_errors else "parsed",
+                )
+                record = envelope.record
+                issues = self._validate_market_delivery(record, envelope.available_at)
+                security = (
+                    self._repository.security_by_isin(record.security_isin)
+                    if record.security_isin
+                    else None
+                )
+                if security is None and not any(
+                    issue.rule_code == "missing_security_identity" for issue in issues
+                ):
+                    issues.append(
+                        ValidationIssue(
+                            "unknown_security", "security ISIN is not in the canonical universe"
+                        )
+                    )
+                if issues:
+                    self._quarantine(run.id, source.id, issues)
+                    counters.quarantined += 1
+                    continue
+                assert security is not None and envelope.available_at is not None
+                assert record.trading_date is not None and record.series is not None
+                existing = self._repository.economic_market_delivery(
+                    dataset_id=dataset.id,
+                    security_id=security.id,
+                    trading_date=record.trading_date,
+                    series=record.series,
+                )
+                if self._delivery_equivalent(existing, record):
+                    source.validation_status = "duplicate_economic"
+                    counters.duplicated += 1
+                    continue
+                if existing and not self._delivery_later(existing, envelope):
+                    self._quarantine(
+                        run.id,
+                        source.id,
+                        [
+                            ValidationIssue(
+                                "ambiguous_delivery_revision",
+                                "changed delivery values lack a strictly later availability",
+                            )
+                        ],
+                    )
+                    counters.quarantined += 1
+                    continue
+                source.validation_status = "accepted"
+                self._repository.add_market_delivery(
+                    dataset_id=dataset.id,
+                    security_id=security.id,
+                    source_id=source.id,
+                    record=record,
+                    available_at=envelope.available_at,
+                    revision_at=envelope.revision_at,
+                )
+                counters.accepted += 1
+            return self._completed(run.id, counters)
+        except Exception as error:
+            self._failed(run.id, counters, error)
+            raise
+
+    @staticmethod
+    def _validate_market_delivery(
+        record: MarketDeliveryRecord, available_at: datetime | None
+    ) -> list[ValidationIssue]:
+        issues = [ValidationIssue(code, code) for code in record.parse_errors]
+        if not record.security_isin:
+            issues.append(ValidationIssue("missing_security_identity", "security ISIN is required"))
+        if record.trading_date is None:
+            issues.append(ValidationIssue("missing_trading_date", "trading date is required"))
+        if record.series != "EQ":
+            issues.append(ValidationIssue("unsupported_delivery_series", "only EQ is supported"))
+        if record.total_traded_quantity is None or record.total_traded_quantity < 0:
+            issues.append(ValidationIssue("invalid_traded_quantity", "traded quantity is invalid"))
+        if record.delivery_quantity is not None and record.delivery_quantity < 0:
+            issues.append(
+                ValidationIssue("invalid_delivery_quantity", "delivery quantity is invalid")
+            )
+        if (
+            record.total_traded_quantity is not None
+            and record.delivery_quantity is not None
+            and record.delivery_quantity > record.total_traded_quantity
+        ):
+            issues.append(ValidationIssue("delivery_exceeds_traded", "delivery exceeds traded"))
+        if record.reported_delivery_percentage is not None and not (
+            Decimal("0") <= record.reported_delivery_percentage <= Decimal("100")
+        ):
+            issues.append(ValidationIssue("invalid_delivery_percentage", "percentage is invalid"))
+        if record.delivery_percentage is not None and not (
+            Decimal("0") <= record.delivery_percentage <= Decimal("1")
+        ):
+            issues.append(ValidationIssue("invalid_delivery_ratio", "delivery ratio is invalid"))
+        if available_at is None:
+            issues.append(ValidationIssue("missing_available_at", "available_at is required"))
+        return issues
+
+    @staticmethod
+    def _delivery_equivalent(
+        existing: list[MarketDeliveryObservation], record: MarketDeliveryRecord
+    ) -> bool:
+        return any(
+            (
+                item.total_traded_quantity,
+                item.delivery_quantity,
+                item.reported_delivery_percentage,
+                item.delivery_percentage,
+            )
+            == (
+                record.total_traded_quantity,
+                record.delivery_quantity,
+                record.reported_delivery_percentage,
+                record.delivery_percentage,
+            )
+            for item in existing
+        )
+
+    @staticmethod
+    def _delivery_later(
+        existing: list[MarketDeliveryObservation],
+        envelope: IngestionEnvelope[MarketDeliveryRecord],
+    ) -> bool:
+        assert envelope.available_at is not None
+        newest = max(
+            IngestionService._utc(item.revision_at or item.available_at) for item in existing
+        )
+        return (envelope.revision_at or envelope.available_at) > newest
 
     def _ingest_financials(self, batch: ProviderBatch[FinancialRecord]) -> IngestionResult:
         dataset, run, raw = self._start(batch)

@@ -54,6 +54,7 @@ from inflector_data.growth_history_features import GrowthHistoryFeatures
 from inflector_data.market_adjustments import MarketAdjustmentPrimitives
 from inflector_data.market_pit import PointInTimeMarketReader
 from inflector_data.market_structure_features import (
+    IndependentDeliveryEvidence,
     MarketStructureFeatureBundle,
     MarketStructureFeaturePrimitives,
 )
@@ -92,6 +93,9 @@ class ProductionResearchEvidence:
     unavailable_reasons: dict[str, str]
     attention_news_status: str
     analyst_attention_status: str
+    delivery_status: str
+    delivery_observation_count: int
+    delivery_pit_cutoff: datetime | None
 
 
 class ProductionResearchAssembler:
@@ -181,6 +185,7 @@ class ProductionResearchAssembler:
             benchmark_provider_dataset_id=benchmark_id,
             security_id=security.id,
             cutoff=cutoff,
+            delivery_provider_dataset_id=dataset_ids.get("delivery"),
         )
         attention, news_status, analyst_status = self._attention(
             company_id=company.id,
@@ -254,8 +259,17 @@ class ProductionResearchAssembler:
         )
         unavailable = {
             "valuation": "market_cap_missing",
-            "delivery": "delivery_data_missing",
         }
+        delivery_feature = market_evidence.average_delivery_percentage_20
+        delivery_manifest = delivery_feature.evidence
+        delivery_count = (
+            len(delivery_manifest.observations)
+            if isinstance(delivery_manifest, IndependentDeliveryEvidence)
+            else 0
+        )
+        delivery_status = "complete" if delivery_feature.value is not None else "unavailable"
+        if delivery_status != "complete":
+            unavailable["delivery"] = "delivery_data_missing"
         if analyst_status != "complete":
             unavailable["analyst_attention"] = "approved_source_not_configured"
         return ProductionResearchEvidence(
@@ -272,6 +286,9 @@ class ProductionResearchAssembler:
             unavailable_reasons=unavailable,
             attention_news_status=news_status,
             analyst_attention_status=analyst_status,
+            delivery_status=delivery_status,
+            delivery_observation_count=delivery_count,
+            delivery_pit_cutoff=delivery_feature.available_at,
         )
 
     def _financial_candidate(
@@ -545,6 +562,7 @@ class ProductionResearchAssembler:
         benchmark_provider_dataset_id: UUID,
         security_id: UUID,
         cutoff: datetime,
+        delivery_provider_dataset_id: UUID | None,
     ) -> MarketStructureFeatureBundle:
         adjustments = MarketAdjustmentPrimitives(
             self._market_reader, PointInTimeCorporateActionReader(self._session)
@@ -558,6 +576,13 @@ class ProductionResearchAssembler:
             interval=self._profile.market_interval,
             as_of=cutoff,
             market_on_or_before=cutoff.date(),
+            delivery_provider_dataset_id=delivery_provider_dataset_id,
+            delivery_series="EQ",
+            **(
+                {"delivery_observation_window": self._profile.delivery_observation_window}
+                if self._profile.delivery_observation_window is not None
+                else {}
+            ),
         )
 
     def _business_candidates(

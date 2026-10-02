@@ -540,6 +540,16 @@ research-state projection compares persisted snapshot fields without changing
 snapshot fingerprints or creating recommendations. See
 [`production-operations.md`](production-operations.md).
 
+Production Data Activation F adds `MarketDeliveryObservation` as append-only
+source evidence rather than mutating accepted `PriceBar` rows. The PIT market
+reader selects the exact delivery dataset independently, and the existing
+Market Structure feature layer aligns those observations to its accepted
+20-bar price window. Research/Operations V2 profiles introduce only the
+delivery binding/window and acquisition stage; V1 assets and scorer semantics
+remain unchanged. Official market-cap candidates failed the qualification
+gate, so valuation remains fail-closed. See
+[`production-market-evidence.md`](production-market-evidence.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

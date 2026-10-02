@@ -16,6 +16,7 @@ from inflector_data.market_adjustments import (
 from inflector_data.market_pit import (
     PointInTimeBenchmarkBar,
     PointInTimeMarketBar,
+    PointInTimeMarketDeliveryObservation,
     PointInTimeMarketReader,
 )
 
@@ -94,6 +95,15 @@ class DeliveryEvidence:
 
 
 @dataclass(frozen=True, slots=True)
+class IndependentDeliveryEvidence:
+    """Separate official delivery observations aligned to the price window."""
+
+    observations: tuple[PointInTimeMarketDeliveryObservation, ...]
+    expected_trading_dates: tuple[date, ...]
+    basis_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
 class MarketStructureFeatureValue:
     code: str
     value: Decimal | None
@@ -151,6 +161,9 @@ class MarketStructureFeaturePrimitives:
         interval: str,
         as_of: datetime,
         market_on_or_before: date | None = None,
+        delivery_provider_dataset_id: UUID | None = None,
+        delivery_series: str = "EQ",
+        delivery_observation_window: int = SHORT_PRICE_WINDOW,
     ) -> MarketStructureFeatureBundle:
         cutoff = self._knowledge_cutoff(as_of)
         if not benchmark_code.strip():
@@ -205,17 +218,23 @@ class MarketStructureFeaturePrimitives:
             sma20_to_sma60=sma20_to_sma60,
             return_volatility_20=volatility20,
             return_volatility_60=volatility60,
-            volatility_ratio_20_to_60=self._volatility_ratio(
-                volatility20, volatility60, cutoff
-            ),
+            volatility_ratio_20_to_60=self._volatility_ratio(volatility20, volatility60, cutoff),
             consolidation_range_20=self._consolidation(bars, basis_date, cutoff),
-            average_close_times_volume_20_inr=self._activity_level(
-                raw_bars, basis_date, cutoff
+            average_close_times_volume_20_inr=self._activity_level(raw_bars, basis_date, cutoff),
+            close_times_volume_ratio_20_to_60=self._activity_ratio(raw_bars, basis_date, cutoff),
+            average_delivery_percentage_20=(
+                self._delivery(raw_bars, basis_date, cutoff)
+                if delivery_provider_dataset_id is None
+                else self._independent_delivery(
+                    raw_bars,
+                    basis_date,
+                    cutoff,
+                    delivery_provider_dataset_id=delivery_provider_dataset_id,
+                    security_id=security_id,
+                    series=delivery_series,
+                    observation_window=delivery_observation_window,
+                )
             ),
-            close_times_volume_ratio_20_to_60=self._activity_ratio(
-                raw_bars, basis_date, cutoff
-            ),
-            average_delivery_percentage_20=self._delivery(raw_bars, basis_date, cutoff),
             algorithm_version=MARKET_STRUCTURE_FEATURE_BUNDLE_VERSION,
         )
 
@@ -562,9 +581,7 @@ class MarketStructureFeaturePrimitives:
             warning = "incomplete_delivery_window"
         else:
             percentages = tuple(
-                bar.delivery_percentage
-                for bar in window
-                if bar.delivery_percentage is not None
+                bar.delivery_percentage for bar in window if bar.delivery_percentage is not None
             )
             if any(value < 0 or value > 1 for value in percentages):
                 raise ValueError("delivery percentage evidence must be in [0, 1]")
@@ -578,6 +595,58 @@ class MarketStructureFeaturePrimitives:
             self._raw_available_at(window),
             AVERAGE_DELIVERY_PERCENTAGE_20_VERSION,
             DeliveryEvidence(window, basis_date),
+        )
+
+    def _independent_delivery(
+        self,
+        bars: tuple[PointInTimeMarketBar, ...],
+        basis_date: date | None,
+        as_of: datetime,
+        *,
+        delivery_provider_dataset_id: UUID,
+        security_id: UUID,
+        series: str,
+        observation_window: int,
+    ) -> MarketStructureFeatureValue:
+        if observation_window != SHORT_PRICE_WINDOW:
+            raise ValueError("delivery observation window must match the accepted 20-bar primitive")
+        price_window = bars[-observation_window:]
+        expected_dates = tuple(bar.trading_date for bar in price_window)
+        observations = self._market_reader.market_delivery_series_as_of(
+            provider_dataset_id=delivery_provider_dataset_id,
+            security_id=security_id,
+            series=series,
+            as_of=as_of,
+            start_date=expected_dates[0] if expected_dates else None,
+            end_date=expected_dates[-1] if expected_dates else None,
+        )
+        by_date = {item.trading_date: item for item in observations}
+        aligned = tuple(by_date[item] for item in expected_dates if item in by_date)
+        warning: str | None = None
+        value: Decimal | None = None
+        if len(price_window) < observation_window:
+            warning = "insufficient_price_history"
+        elif len(aligned) != observation_window or any(
+            item.delivery_percentage is None for item in aligned
+        ):
+            warning = "incomplete_delivery_window"
+        else:
+            percentages = tuple(
+                item.delivery_percentage for item in aligned if item.delivery_percentage is not None
+            )
+            if any(item < 0 or item > 1 for item in percentages):
+                raise ValueError("delivery percentage evidence must be in [0, 1]")
+            value = sum(percentages, Decimal("0")) / Decimal(observation_window)
+        available_at = max((item.available_at for item in aligned), default=None)
+        return self._feature(
+            "average_delivery_percentage_20",
+            value,
+            "ratio",
+            () if warning is None else (warning,),
+            as_of,
+            available_at,
+            AVERAGE_DELIVERY_PERCENTAGE_20_VERSION,
+            IndependentDeliveryEvidence(aligned, expected_dates, basis_date),
         )
 
     @staticmethod
@@ -632,8 +701,7 @@ class MarketStructureFeaturePrimitives:
         timestamps = [
             timestamp
             for item in items
-            if item is not None
-            and (timestamp := getattr(item, "available_at")) is not None
+            if item is not None and (timestamp := getattr(item, "available_at")) is not None
         ]
         return max(timestamps) if timestamps else None
 

@@ -11,7 +11,13 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from inflector_data.pit import SourceRecordView
-from inflector_database.models import BenchmarkBar, BenchmarkSeries, PriceBar, SourceRecord
+from inflector_database.models import (
+    BenchmarkBar,
+    BenchmarkSeries,
+    MarketDeliveryObservation,
+    PriceBar,
+    SourceRecord,
+)
 
 
 class MarketDataIntegrityError(ValueError):
@@ -70,8 +76,28 @@ class PointInTimeBenchmarkBar:
     source_record: SourceRecordView
 
 
+@dataclass(frozen=True, slots=True)
+class PointInTimeMarketDeliveryObservation:
+    """One accepted delivery revision selected at an explicit cutoff."""
+
+    id: UUID
+    provider_dataset_id: UUID
+    security_id: UUID
+    trading_date: date
+    series: str
+    total_traded_quantity: int | None
+    delivery_quantity: int | None
+    reported_delivery_percentage: Decimal | None
+    delivery_percentage: Decimal | None
+    available_at: datetime
+    revision_at: datetime | None
+    ingested_at: datetime
+    source_record: SourceRecordView
+
+
 _MarketRow = tuple[PriceBar, SourceRecord]
 _BenchmarkRow = tuple[BenchmarkBar, BenchmarkSeries, SourceRecord]
+_DeliveryRow = tuple[MarketDeliveryObservation, SourceRecord]
 
 
 class PointInTimeMarketReader:
@@ -150,6 +176,53 @@ class PointInTimeMarketReader:
             end_date=on_or_before,
         )
         return series[-1] if series else None
+
+    def market_delivery_series_as_of(
+        self,
+        *,
+        provider_dataset_id: UUID,
+        security_id: UUID,
+        series: str,
+        as_of: datetime,
+        start_date: date | None = None,
+        end_date: date | None = None,
+    ) -> list[PointInTimeMarketDeliveryObservation]:
+        """Return one PIT-visible delivery revision per report date, oldest first."""
+
+        cutoff = self._knowledge_cutoff(as_of)
+        self._validate_range(start_date, end_date)
+        if not series.strip():
+            raise ValueError("delivery series must be non-empty")
+        statement = (
+            select(MarketDeliveryObservation, SourceRecord)
+            .join(SourceRecord, MarketDeliveryObservation.source_record_id == SourceRecord.id)
+            .where(
+                MarketDeliveryObservation.provider_dataset_id == provider_dataset_id,
+                SourceRecord.provider_dataset_id == provider_dataset_id,
+                SourceRecord.validation_status == "accepted",
+                MarketDeliveryObservation.security_id == security_id,
+                MarketDeliveryObservation.series == series,
+                MarketDeliveryObservation.available_at <= cutoff,
+            )
+            .order_by(
+                MarketDeliveryObservation.trading_date.asc(),
+                MarketDeliveryObservation.available_at.desc(),
+                func.coalesce(
+                    MarketDeliveryObservation.revision_at,
+                    MarketDeliveryObservation.available_at,
+                ).desc(),
+                MarketDeliveryObservation.ingested_at.desc(),
+                MarketDeliveryObservation.id.desc(),
+            )
+        )
+        if start_date is not None:
+            statement = statement.where(MarketDeliveryObservation.trading_date >= start_date)
+        if end_date is not None:
+            statement = statement.where(MarketDeliveryObservation.trading_date <= end_date)
+        selected: dict[date, _DeliveryRow] = {}
+        for row in self._session.execute(statement).tuples():
+            selected.setdefault(row[0].trading_date, row)
+        return [self._delivery_view(row) for row in selected.values()]
 
     def benchmark_bar_as_of(
         self,
@@ -346,6 +419,25 @@ class PointInTimeMarketReader:
             available_at=PointInTimeMarketReader._as_utc(bar.available_at),
             revision_at=PointInTimeMarketReader._as_utc_or_none(bar.revision_at),
             ingested_at=PointInTimeMarketReader._as_utc(bar.ingested_at),
+            source_record=PointInTimeMarketReader._source_view(source),
+        )
+
+    @staticmethod
+    def _delivery_view(row: _DeliveryRow) -> PointInTimeMarketDeliveryObservation:
+        item, source = row
+        return PointInTimeMarketDeliveryObservation(
+            id=item.id,
+            provider_dataset_id=item.provider_dataset_id,
+            security_id=item.security_id,
+            trading_date=item.trading_date,
+            series=item.series,
+            total_traded_quantity=item.total_traded_quantity,
+            delivery_quantity=item.delivery_quantity,
+            reported_delivery_percentage=item.reported_delivery_percentage,
+            delivery_percentage=item.delivery_percentage,
+            available_at=PointInTimeMarketReader._as_utc(item.available_at),
+            revision_at=PointInTimeMarketReader._as_utc_or_none(item.revision_at),
+            ingested_at=PointInTimeMarketReader._as_utc(item.ingested_at),
             source_record=PointInTimeMarketReader._source_view(source),
         )
 

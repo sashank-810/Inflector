@@ -621,6 +621,36 @@ class PriceBar(Base):
     )
 
 
+class MarketDeliveryObservation(Base):
+    """Append-only daily security delivery evidence from a distinct artifact."""
+
+    __tablename__ = "market_delivery_observations"
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), unique=True, nullable=False
+    )
+    trading_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    series: Mapped[str] = mapped_column(String(16), nullable=False)
+    total_traded_quantity: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    delivery_quantity: Mapped[int | None] = mapped_column(BigInteger, nullable=True)
+    reported_delivery_percentage: Mapped[Decimal | None] = mapped_column(
+        ExactDecimal(), nullable=True
+    )
+    delivery_percentage: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    revision_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    ingested_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
 class BenchmarkSeries(Base):
     """Provider-dataset-local benchmark identity without hidden reconciliation."""
 

@@ -45,8 +45,12 @@ provider or context by score. Immutable conflicts fail closed.
 
 The assembler calls existing PIT readers and feature primitives. It does not
 derive EBITDA, sum debt, derive market cap, manufacture delivery, or redetect
-business events. Consequently valuation reports `market_cap_missing`, delivery
-features can remain unavailable, and a correct partial snapshot is expected.
+business events. V1 continues to report missing delivery. V2 may consume only
+PIT-visible official delivery observations from the explicit delivery dataset;
+the exact accepted 20-bar primitive remains unchanged. Valuation still reports
+`market_cap_missing`, because no official market-cap source passed Production F
+qualification. Delivery features can remain unavailable, and a correct partial
+snapshot is expected.
 The existing financial context resolver remains authoritative.
 
 ## GDELT news methodology

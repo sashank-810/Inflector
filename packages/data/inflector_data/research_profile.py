@@ -35,6 +35,7 @@ class ProductionResearchProfile:
     market_interval: str
     market_observation_days: int
     attention_news_window_days: int
+    delivery_observation_window: int | None
     critical_data_quality_rule_codes: tuple[str, ...]
     analyst_coverage_source: DatasetBinding | None
     scoring_policy_asset: str
@@ -64,8 +65,19 @@ def load_research_profile(path: Path) -> ProductionResearchProfile:
         "news_attention",
         "analyst_attention",
     }
-    if set(datasets) != required_domains:
+    if frozenset(datasets) not in {
+        frozenset(required_domains),
+        frozenset({*required_domains, "delivery"}),
+    }:
         raise ValueError("research profile dataset domains are incomplete")
+    delivery_window_raw = value.get("delivery_observation_window")
+    delivery_window = (
+        None if delivery_window_raw is None else _positive_int(value, "delivery_observation_window")
+    )
+    if "delivery" in datasets and delivery_window != 20:
+        raise ValueError("delivery-enabled research profile must use the accepted 20-bar window")
+    if "delivery" not in datasets and delivery_window is not None:
+        raise ValueError("delivery window requires an explicit delivery dataset")
     financial_core = _strings(value, "financial_core_metrics")
     confidence_slots = _strings(value, "confidence_required_feature_slots")
     scope_priority = _strings(value, "financial_scope_priority")
@@ -96,6 +108,7 @@ def load_research_profile(path: Path) -> ProductionResearchProfile:
         market_interval=_text(value, "market_interval"),
         market_observation_days=_positive_int(value, "market_observation_days"),
         attention_news_window_days=_positive_int(value, "attention_news_window_days"),
+        delivery_observation_window=delivery_window,
         critical_data_quality_rule_codes=critical,
         analyst_coverage_source=_dataset_binding(
             value.get("analyst_coverage_source"), "analyst_coverage_source"

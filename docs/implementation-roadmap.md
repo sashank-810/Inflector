@@ -336,7 +336,7 @@ methodology while leaving analyst coverage explicitly unavailable. Partial V5
 snapshots are valid; missing evidence is not fabricated, top-level weights are
 not renormalized, and no frontend, backtest, alert, or migration is included.
 
-### Production Data Activation E — Scheduler, Operations & Burn-In (acceptance pending)
+### Production Data Activation E — Scheduler, Operations & Burn-In (complete)
 
 Add an execution-only operations profile, deterministic cycle and symbol-set
 identity, a persistent run/stage/symbol ledger, database lease protection,
@@ -346,6 +346,16 @@ single explicit-cycle CLI, deterministic no-network burn-in, and opt-in Windows
 Task Scheduler runner/registration dry run. Preserve partial V5 success and all
 existing missing-evidence semantics; add no scoring, alert, backtest,
 recommendation, or frontend behavior.
+
+### Production Data Activation F — Official Delivery Evidence & Valuation Source Qualification (acceptance pending)
+
+Activate archive-first official NSE Full Bhavcopy daily delivery evidence as a
+separate immutable observation, expose it through exact PIT selection to the
+unchanged Market Structure primitive, and add bounded explicit-date acquisition
+through versioned Research/Operations V2 profiles. Preserve V1 assets and all
+scoring semantics. Qualify official market-cap candidates against the exact
+valuation contract; add no market-cap implementation or substitute when the
+gate is not fully proven.
 
 ## Phase 6 — announcement and catalyst evidence
 

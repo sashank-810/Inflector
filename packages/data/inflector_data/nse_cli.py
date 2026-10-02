@@ -42,6 +42,11 @@ from inflector_data.nse_corporate_filings import (
     nse_corporate_actions_url,
     nse_equity_identities,
 )
+from inflector_data.nse_delivery import (
+    NSE_DELIVERY_DATASET_CODE,
+    NSEMarketDeliveryProvider,
+    nse_delivery_url,
+)
 from inflector_data.nse_financials import (
     NSE_FINANCIAL_DATASET_CODE,
     NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
@@ -73,6 +78,7 @@ from inflector_database.business_event_quantitative_repository import (
     BusinessEventQuantitativeRepository,
 )
 from inflector_database.business_event_repository import BusinessEventRepository
+from inflector_database.ingestion_repository import IngestionRepository
 from inflector_database.models import (
     Announcement,
     Company,
@@ -181,6 +187,7 @@ def _parser() -> argparse.ArgumentParser:
         "ingest-universe",
         "ingest-market",
         "ingest-market-range",
+        "ingest-delivery-range",
         "ingest-benchmarks",
         "ingest-daily",
         "ingest-financials",
@@ -194,7 +201,7 @@ def _parser() -> argparse.ArgumentParser:
         subparser.add_argument("--license-class", required=True)
         if command in {"ingest-market", "ingest-benchmarks", "ingest-daily"}:
             subparser.add_argument("--date", type=date.fromisoformat, required=True)
-        if command == "ingest-market-range":
+        if command in {"ingest-market-range", "ingest-delivery-range"}:
             subparser.add_argument("--from-date", type=date.fromisoformat, required=True)
             subparser.add_argument("--to-date", type=date.fromisoformat, required=True)
             subparser.add_argument("--request-delay-seconds", type=float, default=1.0)
@@ -471,6 +478,86 @@ def _execute_market_range(
         "records_accepted": sum(cast(int, item["records_accepted"]) for item in attempts),
         "records_duplicated": sum(cast(int, item["records_duplicated"]) for item in attempts),
         "records_quarantined": sum(cast(int, item["records_quarantined"]) for item in attempts),
+        "attempts": attempts,
+    }
+    return [aggregate], not operational_failure
+
+
+def _delivery_identity_map(session: Session) -> dict[str, str]:
+    rows = session.execute(
+        select(ExchangeListing.symbol, Security.isin)
+        .join(Security, ExchangeListing.security_id == Security.id)
+        .where(
+            ExchangeListing.exchange == "NSE",
+            ExchangeListing.valid_to.is_(None),
+            ExchangeListing.status == "active",
+            Security.security_type == "equity",
+            Security.status == "active",
+        )
+        .order_by(ExchangeListing.symbol, Security.isin)
+    ).all()
+    identities: dict[str, str] = {}
+    for symbol, isin in rows:
+        normalized = symbol.strip().upper()
+        existing = identities.get(normalized)
+        if existing is not None and existing != isin:
+            raise ProductionPreflightError("current NSE symbol identity is ambiguous")
+        identities[normalized] = isin
+    return identities
+
+
+def _execute_delivery_range(
+    args: argparse.Namespace, session: Session
+) -> tuple[list[dict[str, object]], bool]:
+    """Attempt the exact official delivery artifact for every requested date."""
+
+    production_preflight(session, args.license_class)
+    if args.to_date < args.from_date:
+        raise ValueError("to-date must not precede from-date")
+    day_count = (args.to_date - args.from_date).days + 1
+    if day_count > 150:
+        raise ValueError("delivery range must not exceed 150 calendar days")
+    if args.request_delay_seconds < 0 or args.request_delay_seconds > 10:
+        raise ValueError("request-delay-seconds must be between 0 and 10")
+    identities = _delivery_identity_map(session)
+    IngestionRepository(session).ensure_dataset(
+        _metadata(NSE_DELIVERY_DATASET_CODE, args.license_class)
+    )
+    session.commit()
+    service = IngestionService(session, LocalRawObjectStore(args.raw_root))
+    client = NSEHttpClient()
+    attempts: list[dict[str, object]] = []
+    operational_failure = False
+    for index in range(day_count):
+        requested_date = args.from_date + timedelta(days=index)
+        provider = NSEMarketDeliveryProvider(
+            HttpNSEArtifactSource(client, nse_delivery_url(requested_date)),
+            _metadata(NSE_DELIVERY_DATASET_CODE, args.license_class),
+            requested_date,
+            identities,
+        )
+        summary, succeeded = _run_stage(
+            stage="delivery", provider=provider, ingest=service.ingest_market_delivery
+        )
+        summary["requested_date"] = requested_date.isoformat()
+        attempts.append(summary)
+        if not succeeded and summary["status"] != "source_not_available":
+            operational_failure = True
+        if args.request_delay_seconds and index < day_count - 1:
+            time.sleep(args.request_delay_seconds)
+    aggregate = {
+        "stage": "delivery_range",
+        "status": "failed" if operational_failure else "completed",
+        "from_date": args.from_date.isoformat(),
+        "to_date": args.to_date.isoformat(),
+        "requested_calendar_dates": day_count,
+        "successes": sum(item["status"] == "completed" for item in attempts),
+        "source_not_available": sum(item["status"] == "source_not_available" for item in attempts),
+        "failures": sum(item["status"] == "failed" for item in attempts),
+        "records_accepted": sum(cast(int, item["records_accepted"]) for item in attempts),
+        "records_duplicated": sum(cast(int, item["records_duplicated"]) for item in attempts),
+        "records_quarantined": sum(cast(int, item["records_quarantined"]) for item in attempts),
+        "provider_skipped_rows": sum(cast(int, item["provider_skipped_rows"]) for item in attempts),
         "attempts": attempts,
     }
     return [aggregate], not operational_failure
@@ -893,6 +980,8 @@ def main(argv: Sequence[str] | None = None) -> int:
             stages, succeeded = (
                 _execute_market_range(args, session)
                 if args.command == "ingest-market-range"
+                else _execute_delivery_range(args, session)
+                if args.command == "ingest-delivery-range"
                 else (
                     _execute_financials(args, session)
                     if args.command == "ingest-financials"

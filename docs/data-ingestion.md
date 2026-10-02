@@ -265,3 +265,12 @@ Database leases exclude concurrent ownership and explicit resume preserves
 completed idempotent stages. Missing NSE artifacts, failed GDELT requests,
 missing analyst coverage, and missing delivery remain unavailable—never
 fabricated zeroes. See [`production-operations.md`](production-operations.md).
+
+Production Data Activation F adds `nse_cash_market_delivery_daily` from the
+official `sec_bhavdata_full_DDMMYYYY.csv` Full Bhavcopy report. Exact CSV bytes
+are archived; current NSE EQ symbols are resolved exactly to canonical ISINs;
+and delivery values are persisted separately from immutable UDiFF price bars.
+`ingest-delivery-range` attempts each explicit calendar date up to 150 days.
+Its report date is economic time while observed retrieval is `available_at`, so
+today's historical download does not become historical-PIT evidence. See
+[`production-market-evidence.md`](production-market-evidence.md).

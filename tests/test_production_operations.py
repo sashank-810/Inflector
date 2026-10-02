@@ -45,11 +45,18 @@ from inflector_database.operations_repository import (
 ROOT = Path(__file__).parents[1]
 OPERATIONS_PROFILE = ROOT / "config/operations/production_operations_v1.json"
 RESEARCH_PROFILE = ROOT / "config/research/production_research_v1.json"
+OPERATIONS_PROFILE_V2 = ROOT / "config/operations/production_operations_v2.json"
+RESEARCH_PROFILE_V2 = ROOT / "config/research/production_research_v2.json"
 CYCLE_AT = datetime(2026, 10, 2, 14, 30, tzinfo=UTC)
 
 
 def _plan(
-    tmp_path: Path, *, cycle_at: datetime = CYCLE_AT, symbols_text: str = "AAA\nBBB\n"
+    tmp_path: Path,
+    *,
+    cycle_at: datetime = CYCLE_AT,
+    symbols_text: str = "AAA\nBBB\n",
+    operations_profile_path: Path = OPERATIONS_PROFILE,
+    research_profile_path: Path = RESEARCH_PROFILE,
 ) -> CyclePlan:
     symbols_token = "-".join(symbols_text.splitlines())
     symbols_file = tmp_path / f"symbols-{cycle_at.timestamp()}-{symbols_token}.txt"
@@ -58,14 +65,14 @@ def _plan(
     gdelt_root = tmp_path / "gdelt"
     raw_root.mkdir(exist_ok=True)
     gdelt_root.mkdir(exist_ok=True)
-    operations = load_operations_profile(OPERATIONS_PROFILE)
+    operations = load_operations_profile(operations_profile_path)
     symbols = tuple(
         dict.fromkeys(line.strip().upper() for line in symbols_text.splitlines() if line.strip())
     )
     return plan_cycle(
         CycleInputs(
-            operations_profile_path=OPERATIONS_PROFILE,
-            research_profile_path=RESEARCH_PROFILE,
+            operations_profile_path=operations_profile_path,
+            research_profile_path=research_profile_path,
             model_family="fictional_operations_v1",
             symbols_file=symbols_file,
             symbols=symbols,
@@ -81,7 +88,7 @@ def _plan(
             model_effective_from=datetime(2026, 10, 1, tzinfo=UTC),
         ),
         operations,
-        load_research_profile(RESEARCH_PROFILE),
+        load_research_profile(research_profile_path),
     )
 
 
@@ -220,7 +227,7 @@ def test_doctor_is_read_only_and_reports_initialization_requirement(
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
         text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
-        {"version": "20261002_0016"},
+        {"version": "20261002_0017"},
     )
     before = session.scalar(select(func.count()).select_from(OperationalRun))
 
@@ -316,6 +323,28 @@ def test_upstream_symbol_failure_does_not_block_later_symbols(
     symbols = cast(list[dict[str, object]], summary["symbols"])
     assert [item["status"] for item in symbols] == ["completed", "failed", "completed"]
     assert symbols[1]["error_code"] == "upstream_symbol_stage_failed"
+
+
+def test_v2_delivery_stage_is_optional_and_completed_cycle_is_reused(
+    session: Session, tmp_path: Path
+) -> None:
+    plan = _plan(
+        tmp_path,
+        operations_profile_path=OPERATIONS_PROFILE_V2,
+        research_profile_path=RESEARCH_PROFILE_V2,
+    )
+    executor = _Executor(failing_stage="delivery_history")
+    service = ProductionCycleService(session, executor, clock=_clock())
+    first, first_code = service.run(plan, owner_token="owner-one")
+    repeated, repeated_code = service.run(plan, owner_token="owner-two")
+    assert first_code == repeated_code == 0
+    assert first["status"] == "completed"
+    stages = cast(list[dict[str, object]], first["stages"])
+    delivery = next(item for item in stages if item["stage"] == "delivery_history")
+    assert delivery["status"] == "failed"
+    assert executor.calls.index("delivery_history") < executor.calls.index("current_research")
+    assert repeated["already_completed"] is True
+    assert executor.calls.count("delivery_history") == 1
 
 
 def test_required_stage_failure_blocks_then_explicit_resume_reuses_completed_stages(

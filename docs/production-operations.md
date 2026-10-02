@@ -138,7 +138,10 @@ cycle when the host returns, but local scheduling is not a 24/7 guarantee.
 
 ## Operational limits
 
-This layer does not acquire market cap, delivery, or analyst coverage; create
+The immutable V1 operations profile does not acquire delivery. The V2 profile
+adds an optional `delivery_history` stage backed by the accepted delivery CLI;
+it contains no delivery formula and preserves resume/lease semantics. This
+layer does not acquire market cap or analyst coverage; create
 alerts/backtests; add recommendations; or change the frontend. Legitimate
 source absence stays missing. Real smoke execution requires an already migrated
 production database, separate writable NSE/GDELT archive roots, explicit NSE

@@ -244,8 +244,17 @@ The default identity seed remains fictional, and populated research views
 require separately ingested and persisted V5 snapshots. The web UI is
 read-only. Official NSE ingestion currently covers the listed EQ universe,
 CM UDiFF Final daily OHLCV, daily index snapshots, and the controlled current
-Integrated Filing Ind-AS financial XBRL mapping, corporate actions, and bounded
-announcement/document catalyst evidence. Financial-industry/legacy taxonomies
-remain deferred. It does not yet cover BSE, market capitalization, delivery
-enrichment, authentication, alerts, backtesting, recommendations, charts, or
+Integrated Filing Ind-AS financial XBRL mapping, corporate actions, bounded
+announcement/document catalyst evidence, and official Full Bhavcopy daily
+delivery observations. Financial-industry/legacy taxonomies remain deferred.
+It does not yet cover BSE, approved market capitalization, analyst coverage,
+authentication, alerts, backtesting, recommendations, charts, or
 watchlist/notes persistence. Production scoring is not activated.
+
+Delivery range ingestion is explicit and bounded:
+
+`python -m inflector_data.nse_cli ingest-delivery-range --database-url ... --raw-root ... --license-class ... --from-date YYYY-MM-DD --to-date YYYY-MM-DD`
+
+Use `production_research_v2.json` with `production_operations_v2.json` to enable
+delivery evidence operationally. V1 profiles remain immutable. See
+[`docs/production-market-evidence.md`](docs/production-market-evidence.md).

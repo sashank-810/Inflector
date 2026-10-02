@@ -17,6 +17,7 @@ class ProductionOperationsProfile:
     timezone: str
     scheduled_local_time: str
     market_history_calendar_lookback_days: int
+    delivery_history_calendar_lookback_days: int | None
     maximum_symbols_per_cycle: int
     gdelt_enabled: bool
     stage_max_attempts: int
@@ -62,7 +63,9 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         "recent_runs_limit",
         "recent_runs_hard_limit",
     }
-    if set(value) != expected:
+    supported = set(expected)
+    supported.add("delivery_history_calendar_lookback_days")
+    if frozenset(value) not in {frozenset(expected), frozenset(supported)}:
         raise ValueError("operations profile fields are incomplete or unsupported")
     timezone = _text(value, "timezone")
     try:
@@ -72,6 +75,11 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
     scheduled_time = _text(value, "scheduled_local_time")
     _validate_time(scheduled_time)
     lookback = _integer(value, "market_history_calendar_lookback_days", minimum=1, maximum=150)
+    delivery_lookback = (
+        _integer(value, "delivery_history_calendar_lookback_days", minimum=1, maximum=150)
+        if "delivery_history_calendar_lookback_days" in value
+        else None
+    )
     maximum_symbols = _integer(value, "maximum_symbols_per_cycle", minimum=1, maximum=100)
     recent_hard_limit = _integer(value, "recent_runs_hard_limit", minimum=1, maximum=100)
     recent_default = _integer(value, "recent_runs_limit", minimum=1, maximum=recent_hard_limit)
@@ -82,6 +90,7 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         timezone=timezone,
         scheduled_local_time=scheduled_time,
         market_history_calendar_lookback_days=lookback,
+        delivery_history_calendar_lookback_days=delivery_lookback,
         maximum_symbols_per_cycle=maximum_symbols,
         gdelt_enabled=_boolean(value, "gdelt_enabled"),
         stage_max_attempts=_integer(value, "stage_max_attempts", minimum=1, maximum=5),
