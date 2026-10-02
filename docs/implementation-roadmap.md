@@ -326,7 +326,7 @@ accepted PDFs through the existing deterministic text, `business_event_rules_v1`
 and quantitative derivation pipeline. Availability remains observed retrieval
 time. Add no scoring, historical-PIT reconstruction, OCR, AI, or migration.
 
-### Production Data Activation D — Current Research & V5 Production Orchestration (acceptance pending)
+### Production Data Activation D — Current Research & V5 Production Orchestration (complete)
 
 Add bounded NSE market/index history acquisition, an explicit versioned
 production research profile, exact database-specific immutable policy bindings,
@@ -335,6 +335,17 @@ for current research. Add archive-first GDELT raw news counts using an exact-nam
 methodology while leaving analyst coverage explicitly unavailable. Partial V5
 snapshots are valid; missing evidence is not fabricated, top-level weights are
 not renormalized, and no frontend, backtest, alert, or migration is included.
+
+### Production Data Activation E — Scheduler, Operations & Burn-In (acceptance pending)
+
+Add an execution-only operations profile, deterministic cycle and symbol-set
+identity, a persistent run/stage/symbol ledger, database lease protection,
+explicit stale recovery/resume, bounded status history, and non-evaluative
+snapshot-change reporting around the accepted Production D workflow. Provide a
+single explicit-cycle CLI, deterministic no-network burn-in, and opt-in Windows
+Task Scheduler runner/registration dry run. Preserve partial V5 success and all
+existing missing-evidence semantics; add no scoring, alert, backtest,
+recommendation, or frontend behavior.
 
 ## Phase 6 — announcement and catalyst evidence
 

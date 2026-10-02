@@ -157,6 +157,21 @@ unavailable. Missing source facts produce a valid partial V5 snapshot with a
 null final score, never an inferred or renormalized score. See
 [current production research](docs/production-current-research.md).
 
+Repeated current-research execution is managed by the persistent operations
+ledger and explicit cycle clock:
+
+```powershell
+python -m inflector_data.ops_cli doctor <explicit production arguments>
+python -m inflector_data.ops_cli run-cycle <the same explicit arguments>
+python -m inflector_data.ops_cli status --database-url $env:INFLECTOR_PRODUCTION_DATABASE_URL
+```
+
+The cycle lease prevents concurrent ownership, exact completed reruns are
+reused, failed/stale runs require explicit resume, and partial V5 snapshots are
+successful research results. Windows Task Scheduler wrappers support dry-run
+registration without putting the database URL in the task command. See
+[production operations](docs/production-operations.md).
+
 ## Web routes
 
 | Route | Purpose |

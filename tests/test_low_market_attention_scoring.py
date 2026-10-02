@@ -593,4 +593,9 @@ def test_no_forbidden_domain_or_persistence_dependency() -> None:
         "ScoreSnapshotRepository",
     ):
         assert forbidden not in source
-    assert not any((Path(__file__).parents[1] / "migrations/versions").glob("*0016*"))
+    operations_migrations = tuple(
+        (Path(__file__).parents[1] / "migrations/versions").glob("*0016*")
+    )
+    assert [item.name for item in operations_migrations] == [
+        "20261002_0016_operational_runs.py"
+    ]

@@ -122,3 +122,9 @@ final contributions null; no top-level renormalization occurs.
 
 This activation adds no migration, backtest, alert, ranking, recommendation,
 analyst fabrication, market-cap fabrication, or frontend scoring.
+
+Production Data Activation E wraps these accepted commands with an explicit
+cycle clock, persistent run/stage/symbol ledger, expiring database lease,
+explicit resume, status inspection, and Windows scheduled runner. It does not
+change this research profile or V5 semantics. See
+[`production-operations.md`](production-operations.md).

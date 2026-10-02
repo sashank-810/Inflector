@@ -254,3 +254,14 @@ raw article count when the response shape is coherent. Failure and ambiguity
 remain unavailable rather than zero. No article bodies or analyst counts are
 acquired. The research profile and commands are documented in
 [`production-current-research.md`](production-current-research.md).
+
+## Repeated production operations
+
+Production Data Activation E schedules the accepted ingestion paths without
+changing provider or evidence semantics. A deterministic operational ledger
+records exact calendar requests, bounded summaries, source-not-available
+counts, and stage failures; raw payloads remain in the existing archives.
+Database leases exclude concurrent ownership and explicit resume preserves
+completed idempotent stages. Missing NSE artifacts, failed GDELT requests,
+missing analyst coverage, and missing delivery remain unavailable—never
+fabricated zeroes. See [`production-operations.md`](production-operations.md).

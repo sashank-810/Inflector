@@ -528,6 +528,18 @@ snapshots remain first-class immutable results and flow through the existing API
 and UI without contract changes. See
 [`production-current-research.md`](production-current-research.md).
 
+Production Data Activation E adds a database-backed operational boundary above
+that accepted workflow. A versioned execution-only profile and explicit cycle
+timestamp produce a deterministic run key. Migration `20261002_0016` persists
+immutable run identity, resumable stage attempts, per-symbol outcomes, and an
+expiring conditional lease. Exact completed reruns are reused; only explicit
+resume can recover an expired/failed run. Required stages call the existing
+Production A-D entry points, optional attention failure preserves missingness,
+and partial V5 snapshots remain operational success. The versioned factual
+research-state projection compares persisted snapshot fields without changing
+snapshot fingerprints or creating recommendations. See
+[`production-operations.md`](production-operations.md).
+
 ## Deployment, auth, and observability
 
 Phase 1 Compose runs `postgres` only; FastAPI and Next.js run locally with hot

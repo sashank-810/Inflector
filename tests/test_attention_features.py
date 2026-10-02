@@ -663,4 +663,8 @@ def test_attention_feature_module_has_no_forbidden_domain_dependency() -> None:
         "ScoreSnapshot",
     ):
         assert forbidden not in source
-    assert not (Path(__file__).parents[1] / "migrations/versions/20260929_0016.py").exists()
+    # Attention still owns migration 0015; the later operations ledger is isolated in 0016.
+    assert (
+        Path(__file__).parents[1]
+        / "migrations/versions/20261002_0016_operational_runs.py"
+    ).exists()

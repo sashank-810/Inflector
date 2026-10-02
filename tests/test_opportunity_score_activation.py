@@ -581,8 +581,8 @@ def test_v5_does_not_change_v4_identity(session) -> None:
     assert after.snapshot_fingerprint_sha256 == before.snapshot_fingerprint_sha256
 
 
-def test_v5_version_has_no_migration() -> None:
+def test_v5_schema_remains_unchanged_by_later_operations_migration() -> None:
     versions = tuple((Path("migrations/versions")).glob("*.py"))
-    assert len(versions) == 15
+    assert len(versions) == 16
     assert any("20260929_0015_attention_observations" in item.name for item in versions)
-    assert not any("0016" in item.name for item in versions)
+    assert any("20261002_0016_operational_runs" in item.name for item in versions)

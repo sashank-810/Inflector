@@ -10,6 +10,7 @@ from sqlalchemy import (
     JSON,
     BigInteger,
     Boolean,
+    CheckConstraint,
     Date,
     DateTime,
     ForeignKey,
@@ -255,9 +256,7 @@ class AttentionObservation(Base):
     measurement_definition_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     coverage_status: Mapped[str] = mapped_column(String(32), nullable=False)
     observation_date: Mapped[date | None] = mapped_column(Date, nullable=True, index=True)
-    window_start_at: Mapped[datetime | None] = mapped_column(
-        DateTime(timezone=True), nullable=True
-    )
+    window_start_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
     window_end_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True, index=True
     )
@@ -506,9 +505,7 @@ class BusinessEventEvidence(Base):
     )
     excerpt_text: Mapped[str] = mapped_column(Text, nullable=False)
     excerpt_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    source_available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    source_available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     evidence_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -583,9 +580,7 @@ class BusinessEventQuantitativeFact(Base):
     normalized_value: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     normalized_unit: Mapped[str | None] = mapped_column(String(64), nullable=True)
     date_value: Mapped[date | None] = mapped_column(Date, nullable=True)
-    source_available_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    source_available_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     warnings_json: Mapped[list[str]] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
     )
@@ -1046,3 +1041,124 @@ class ScoreExplanation(Base):
     )
 
     score_component: Mapped[ScoreComponent] = relationship(back_populates="explanations")
+
+
+class OperationalRun(Base):
+    """Persistent identity and lifecycle for one explicit production cycle."""
+
+    __tablename__ = "operational_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_operational_run_key"),
+        CheckConstraint(
+            "status IN ('planned','running','completed','completed_with_symbol_failures',"
+            "'failed','stale')",
+            name="ck_operational_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    operations_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    operations_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    research_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    fiscal_year: Mapped[int] = mapped_column(nullable=False)
+    fiscal_quarter: Mapped[int] = mapped_column(nullable=False)
+    cycle_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    knowledge_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    symbol_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordered_symbols_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(64), nullable=False, default="planned")
+    planned_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    lease_owner_token: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    lease_acquired_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    lease_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    stages: Mapped[list[OperationalRunStage]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+    symbols: Mapped[list[OperationalRunSymbol]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class OperationalRunStage(Base):
+    """Resumable state and bounded result history for one production stage."""
+
+    __tablename__ = "operational_run_stages"
+    __table_args__ = (
+        UniqueConstraint("operational_run_id", "stage_name", name="uq_operational_run_stage"),
+        CheckConstraint(
+            "status IN ('planned','running','completed','failed','blocked','skipped')",
+            name="ck_operational_stage_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    operational_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    stage_name: Mapped[str] = mapped_column(String(64), nullable=False)
+    stage_order: Mapped[int] = mapped_column(nullable=False)
+    required: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    started_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    result_summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    attempt_history_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=list
+    )
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    run: Mapped[OperationalRun] = relationship(back_populates="stages")
+
+
+class OperationalRunSymbol(Base):
+    """Per-symbol outcome for isolation, status inspection, and burn-in comparison."""
+
+    __tablename__ = "operational_run_symbols"
+    __table_args__ = (
+        UniqueConstraint("operational_run_id", "symbol", name="uq_operational_run_symbol"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    operational_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordinal: Mapped[int] = mapped_column(nullable=False)
+    status: Mapped[str] = mapped_column(String(64), nullable=False)
+    snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    result_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    change_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    error_code: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    run: Mapped[OperationalRun] = relationship(back_populates="symbols")
