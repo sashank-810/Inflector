@@ -129,6 +129,13 @@ unavailable rather than derived. See
 [NSE production financials](docs/nse-production-financials.md) and
 [production financial primitives](docs/production-financial-primitives.md).
 
+Research V4 adds explicit per-company latest-endpoint selection without
+changing financial or scoring semantics. Use `run-current-auto` or Operations
+V3 `run-cycle-auto`; manual FY/Q research remains supported. The resolver uses
+only PIT-visible accepted fiscal metadata and never falls back to an older,
+more complete period. See
+[financial endpoint discovery](docs/production-financial-endpoint-discovery.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

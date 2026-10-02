@@ -18,6 +18,7 @@ class ProductionOperationsProfile:
     scheduled_local_time: str
     market_history_calendar_lookback_days: int
     delivery_history_calendar_lookback_days: int | None
+    automatic_financial_endpoint: bool
     maximum_symbols_per_cycle: int
     gdelt_enabled: bool
     stage_max_attempts: int
@@ -65,7 +66,12 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
     }
     supported = set(expected)
     supported.add("delivery_history_calendar_lookback_days")
-    if frozenset(value) not in {frozenset(expected), frozenset(supported)}:
+    supported_auto = {*supported, "automatic_financial_endpoint"}
+    if frozenset(value) not in {
+        frozenset(expected),
+        frozenset(supported),
+        frozenset(supported_auto),
+    }:
         raise ValueError("operations profile fields are incomplete or unsupported")
     timezone = _text(value, "timezone")
     try:
@@ -91,6 +97,11 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         scheduled_local_time=scheduled_time,
         market_history_calendar_lookback_days=lookback,
         delivery_history_calendar_lookback_days=delivery_lookback,
+        automatic_financial_endpoint=(
+            _boolean(value, "automatic_financial_endpoint")
+            if "automatic_financial_endpoint" in value
+            else False
+        ),
         maximum_symbols_per_cycle=maximum_symbols,
         gdelt_enabled=_boolean(value, "gdelt_enabled"),
         stage_max_attempts=_integer(value, "stage_max_attempts", minimum=1, maximum=5),

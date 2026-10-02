@@ -147,3 +147,23 @@ source absence stays missing. Real smoke execution requires an already migrated
 production database, separate writable NSE/GDELT archive roots, explicit NSE
 and GDELT source classifications, an explicit symbols file, and approved model
 identity inputs.
+
+## Operations V3 automatic financial endpoint mode
+
+`nse_daily_operations_v3` preserves the V2 schedule, bounds, delivery stage,
+leases, stale recovery, retry behavior, and one-instance policy, but explicitly
+enables automatic financial endpoints. Use `doctor-auto` and `run-cycle-auto`;
+they deliberately accept no global fiscal year or quarter. The cycle still
+runs the bounded existing financial-filing refresh before current research,
+then each symbol resolves its own PIT-visible endpoint through Research V4.
+Issuer-level no-endpoint results are legitimate and later symbols continue.
+
+The operational run key binds the Operations V3 and Research V4 checksums,
+endpoint and primitive policy checksums, scoring-policy definition checksum,
+cycle cutoff, source classifications, GDELT choice, and ordered symbol set.
+The existing ledger schema is reused; its legacy non-null fiscal columns use a
+documented zero sentinel only for AUTO runs, while persisted canonical inputs
+and public JSON carry null fiscal coordinates and `financial_endpoint_mode =
+auto`. Manual V1/V2 cycles continue to require explicit fiscal coordinates.
+Resume, lease, and completed-run reuse semantics are unchanged. See
+[`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).

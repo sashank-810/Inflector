@@ -142,3 +142,21 @@ cycle clock, persistent run/stage/symbol ledger, expiring database lease,
 explicit resume, status inspection, and Windows scheduled runner. It does not
 change this research profile or V5 semantics. See
 [`production-operations.md`](production-operations.md).
+
+## Automatic financial endpoints
+
+Production H adds explicit `run-current-auto` mode under immutable Research V4.
+For each symbol it resolves the latest accepted fiscal endpoint whose source
+evidence is visible at the caller-supplied knowledge cutoff, using
+`nse_latest_pit_financial_endpoint_v1`. Scope priority remains consolidated,
+then standalone. The resolver orders authoritative persisted period metadata;
+it never examines metric completeness, component coverage, confidence, or
+score. Consequently, a newer partial filing is selected over an older complete
+filing. No endpoint is an issuer-level unavailable result, while ambiguous
+period metadata fails closed without stopping later symbols.
+
+The manual `run-current --fiscal-year ... --fiscal-quarter ...` path remains
+available. Once AUTO selects an endpoint, it delegates to that same accepted
+research assembler and V5 orchestrator with the selected FY, quarter, and
+scope. See
+[`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).

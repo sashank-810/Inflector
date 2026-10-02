@@ -1,0 +1,13 @@
+{
+  "financial_endpoint_policy_code": "nse_latest_pit_financial_endpoint_v1",
+  "policy_version": "1",
+  "source_family": "nse_official/nse_integrated_financials_xbrl",
+  "supported_period_kinds": ["quarter", "half_year", "nine_month", "annual"],
+  "ordering_fields": ["period_end", "fiscal_year", "fiscal_quarter"],
+  "scope_selection": "research_profile_priority_first",
+  "future_period_handling": "exclude",
+  "ambiguity_handling": "fail_closed",
+  "completeness_handling": "ignored",
+  "revision_handling": "existing_pit_reader",
+  "no_endpoint_handling": "issuer_unavailable"
+}

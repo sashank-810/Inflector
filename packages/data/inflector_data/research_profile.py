@@ -9,6 +9,10 @@ from hashlib import sha256
 from pathlib import Path
 from typing import Any
 
+from inflector_data.financial_endpoint import (
+    FinancialEndpointPolicy,
+    load_financial_endpoint_policy,
+)
 from inflector_data.financial_primitive_policy import (
     FinancialPrimitivePolicy,
     load_financial_primitive_policy,
@@ -46,6 +50,9 @@ class ProductionResearchProfile:
     scoring_policy_asset: str
     financial_primitive_policy_asset: str | None
     financial_primitive_policy_checksum_sha256: str | None
+    financial_endpoint_policy_code: str | None
+    financial_endpoint_policy_asset: str | None
+    financial_endpoint_policy_checksum_sha256: str | None
     checksum_sha256: str
 
 
@@ -98,9 +105,7 @@ def load_research_profile(path: Path) -> ProductionResearchProfile:
         raise ValueError("source_reliability must be between zero and one")
     critical = _strings(value, "critical_data_quality_rule_codes", allow_empty=True)
     primitive_asset = _optional_text(value, "financial_primitive_policy_asset")
-    primitive_checksum = _optional_text(
-        value, "financial_primitive_policy_checksum_sha256"
-    )
+    primitive_checksum = _optional_text(value, "financial_primitive_policy_checksum_sha256")
     if (primitive_asset is None) != (primitive_checksum is None):
         raise ValueError("financial primitive policy asset and checksum must be supplied together")
     if primitive_checksum is not None and (
@@ -108,6 +113,18 @@ def load_research_profile(path: Path) -> ProductionResearchProfile:
         or any(character not in "0123456789abcdef" for character in primitive_checksum)
     ):
         raise ValueError("financial primitive policy checksum must be lowercase SHA-256")
+    endpoint_code = _optional_text(value, "financial_endpoint_policy_code")
+    endpoint_asset = _optional_text(value, "financial_endpoint_policy_asset")
+    endpoint_checksum = _optional_text(value, "financial_endpoint_policy_checksum_sha256")
+    if len({item is None for item in (endpoint_code, endpoint_asset, endpoint_checksum)}) != 1:
+        raise ValueError(
+            "financial endpoint policy code, asset, and checksum must be supplied together"
+        )
+    if endpoint_checksum is not None and (
+        len(endpoint_checksum) != 64
+        or any(character not in "0123456789abcdef" for character in endpoint_checksum)
+    ):
+        raise ValueError("financial endpoint policy checksum must be lowercase SHA-256")
     return ProductionResearchProfile(
         research_profile_code=_text(value, "research_profile_code"),
         profile_version=_text(value, "profile_version"),
@@ -134,6 +151,9 @@ def load_research_profile(path: Path) -> ProductionResearchProfile:
         scoring_policy_asset=_text(value, "scoring_policy_asset"),
         financial_primitive_policy_asset=primitive_asset,
         financial_primitive_policy_checksum_sha256=primitive_checksum,
+        financial_endpoint_policy_code=endpoint_code,
+        financial_endpoint_policy_asset=endpoint_asset,
+        financial_endpoint_policy_checksum_sha256=endpoint_checksum,
         checksum_sha256=sha256(
             json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
         ).hexdigest(),
@@ -156,6 +176,28 @@ def load_profile_financial_primitive_policy(
     policy = load_financial_primitive_policy(policy_path)
     if policy.checksum_sha256 != profile.financial_primitive_policy_checksum_sha256:
         raise ValueError("financial primitive policy checksum does not match research profile")
+    return policy
+
+
+def load_profile_financial_endpoint_policy(
+    profile: ProductionResearchProfile, repository_root: Path
+) -> FinancialEndpointPolicy | None:
+    """Resolve and verify the explicitly bound cutoff-aware endpoint policy."""
+
+    if profile.financial_endpoint_policy_asset is None:
+        return None
+    root = repository_root.resolve()
+    policy_path = (root / profile.financial_endpoint_policy_asset).resolve()
+    try:
+        policy_path.relative_to(root)
+    except ValueError as error:
+        raise ValueError("financial endpoint policy must remain inside the repository") from error
+    policy = load_financial_endpoint_policy(policy_path)
+    if (
+        policy.financial_endpoint_policy_code != profile.financial_endpoint_policy_code
+        or policy.checksum_sha256 != profile.financial_endpoint_policy_checksum_sha256
+    ):
+        raise ValueError("financial endpoint policy identity does not match research profile")
     return policy
 
 

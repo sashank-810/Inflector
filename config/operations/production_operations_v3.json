@@ -1,0 +1,22 @@
+{
+  "operations_profile_code": "nse_daily_operations_v3",
+  "profile_version": "3",
+  "timezone": "Asia/Kolkata",
+  "scheduled_local_time": "20:00",
+  "market_history_calendar_lookback_days": 120,
+  "delivery_history_calendar_lookback_days": 120,
+  "automatic_financial_endpoint": true,
+  "maximum_symbols_per_cycle": 100,
+  "gdelt_enabled": true,
+  "stage_max_attempts": 3,
+  "run_lease_seconds": 7200,
+  "stale_run_policy": "explicit_resume_after_lease_expiry",
+  "run_missed_jobs_when_available": true,
+  "forbid_multiple_instances": true,
+  "request_delay_seconds": 1,
+  "maximum_financial_filings": 20,
+  "maximum_announcements": 100,
+  "maximum_documents": 100,
+  "recent_runs_limit": 10,
+  "recent_runs_hard_limit": 100
+}

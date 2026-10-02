@@ -42,10 +42,20 @@ def _parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     doctor_parser = subparsers.add_parser("doctor", help="read-only production preflight")
-    _cycle_arguments(doctor_parser)
+    _cycle_arguments(doctor_parser, automatic=False)
+
+    doctor_auto = subparsers.add_parser(
+        "doctor-auto", help="read-only automatic-endpoint production preflight"
+    )
+    _cycle_arguments(doctor_auto, automatic=True)
 
     run_parser = subparsers.add_parser("run-cycle", help="execute one explicit production cycle")
-    _cycle_arguments(run_parser)
+    _cycle_arguments(run_parser, automatic=False)
+
+    run_auto = subparsers.add_parser(
+        "run-cycle-auto", help="execute one per-company automatic-endpoint cycle"
+    )
+    _cycle_arguments(run_auto, automatic=True)
 
     resume = subparsers.add_parser("resume-run", help="explicitly resume one failed/stale run")
     resume.add_argument("--database-url", required=True)
@@ -61,14 +71,15 @@ def _parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _cycle_arguments(parser: argparse.ArgumentParser) -> None:
+def _cycle_arguments(parser: argparse.ArgumentParser, *, automatic: bool) -> None:
     parser.add_argument("--database-url", required=True)
     parser.add_argument("--operations-profile", type=Path, required=True)
     parser.add_argument("--research-profile", type=Path, required=True)
     parser.add_argument("--model-family", required=True)
     parser.add_argument("--symbols-file", type=Path, required=True)
-    parser.add_argument("--fiscal-year", type=int, required=True)
-    parser.add_argument("--fiscal-quarter", type=int, choices=(1, 2, 3, 4), required=True)
+    if not automatic:
+        parser.add_argument("--fiscal-year", type=int, required=True)
+        parser.add_argument("--fiscal-quarter", type=int, choices=(1, 2, 3, 4), required=True)
     parser.add_argument("--cycle-at", type=datetime.fromisoformat, required=True)
     parser.add_argument("--raw-root", type=Path, required=True)
     parser.add_argument("--nse-license-class", required=True)
@@ -92,8 +103,8 @@ def _plan(args: argparse.Namespace) -> CyclePlan:
             model_family=args.model_family,
             symbols_file=args.symbols_file,
             symbols=symbols,
-            fiscal_year=args.fiscal_year,
-            fiscal_quarter=args.fiscal_quarter,
+            fiscal_year=getattr(args, "fiscal_year", None),
+            fiscal_quarter=getattr(args, "fiscal_quarter", None),
             cycle_at=args.cycle_at,
             raw_root=args.raw_root,
             nse_license_class=args.nse_license_class,
@@ -118,9 +129,9 @@ def _resume_plan(run: OperationalRun) -> CyclePlan:
 
 
 def _execute(args: argparse.Namespace, session: Session) -> tuple[dict[str, object], int]:
-    if args.command in {"doctor", "run-cycle"}:
+    if args.command in {"doctor", "doctor-auto", "run-cycle", "run-cycle-auto"}:
         plan = _plan(args)
-        if args.command == "doctor":
+        if args.command in {"doctor", "doctor-auto"}:
             return doctor(session, plan=plan), 0
         return ProductionCycleService(
             session,

@@ -88,8 +88,8 @@ class OperationsRepository:
         research_profile_code: str,
         research_profile_checksum_sha256: str,
         model_family: str,
-        fiscal_year: int,
-        fiscal_quarter: int,
+        fiscal_year: int | None,
+        fiscal_quarter: int | None,
         cycle_at: datetime,
         knowledge_cutoff: datetime,
         symbol_set_checksum_sha256: str,
@@ -98,6 +98,10 @@ class OperationsRepository:
         planned_at: datetime,
         stages: tuple[tuple[str, bool], ...],
     ) -> OperationalRun:
+        if (fiscal_year is None) != (fiscal_quarter is None):
+            raise ValueError("operational fiscal coordinates must be supplied together")
+        ledger_fiscal_year = fiscal_year if fiscal_year is not None else 0
+        ledger_fiscal_quarter = fiscal_quarter if fiscal_quarter is not None else 0
         record = OperationalRun(
             run_key_sha256=run_key_sha256,
             operations_profile_code=operations_profile_code,
@@ -105,8 +109,8 @@ class OperationsRepository:
             research_profile_code=research_profile_code,
             research_profile_checksum_sha256=research_profile_checksum_sha256,
             model_family=model_family,
-            fiscal_year=fiscal_year,
-            fiscal_quarter=fiscal_quarter,
+            fiscal_year=ledger_fiscal_year,
+            fiscal_quarter=ledger_fiscal_quarter,
             cycle_at=_aware_utc(cycle_at),
             knowledge_cutoff=_aware_utc(knowledge_cutoff),
             symbol_set_checksum_sha256=symbol_set_checksum_sha256,

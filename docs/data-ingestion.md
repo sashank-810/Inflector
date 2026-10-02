@@ -291,3 +291,19 @@ the policy code/checksum in the operation lineage. Total income is not used.
 Reported EBITDA and total debt remain unavailable; finance cost plus D&A is not
 EBITDA, and borrowing fields are not summed. See
 [`production-financial-primitives.md`](production-financial-primitives.md).
+
+## Current filing refresh and endpoint resolution
+
+Production H keeps financial acquisition on the accepted archive-first
+`nse_integrated_financials_xbrl` path. Operations V3 performs the existing
+bounded per-symbol filing discovery/fetch stage before research; exact XBRL
+bytes and observed retrieval availability retain their accepted semantics.
+Acquisition time does not determine fiscal chronology.
+
+After ingestion, the separate research-layer endpoint resolver considers only
+accepted financial facts and filings with `available_at <= knowledge_cutoff`.
+It orders their authoritative persisted fiscal endpoints under the bound
+`nse_latest_pit_financial_endpoint_v1` policy. It neither fills missing metrics
+from older endpoints nor mixes scopes. Historical filings fetched today remain
+invisible to earlier cutoffs. Details are in
+[`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).

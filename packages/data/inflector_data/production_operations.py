@@ -62,8 +62,8 @@ class CycleInputs:
     model_family: str
     symbols_file: Path
     symbols: tuple[str, ...]
-    fiscal_year: int
-    fiscal_quarter: int
+    fiscal_year: int | None
+    fiscal_quarter: int | None
     cycle_at: datetime
     raw_root: Path
     nse_license_class: str
@@ -124,8 +124,15 @@ def plan_cycle(
     research_profile: ProductionResearchProfile,
 ) -> CyclePlan:
     cutoff = inputs.knowledge_cutoff
-    if not 1 <= inputs.fiscal_quarter <= 4:
+    automatic_endpoint = inputs.fiscal_year is None and inputs.fiscal_quarter is None
+    if (inputs.fiscal_year is None) != (inputs.fiscal_quarter is None):
+        raise ValueError("fiscal-year and fiscal-quarter must be supplied together")
+    if not automatic_endpoint and not 1 <= cast(int, inputs.fiscal_quarter) <= 4:
         raise ValueError("fiscal-quarter must be between 1 and 4")
+    if automatic_endpoint != operations_profile.automatic_financial_endpoint:
+        raise ValueError("cycle endpoint mode must match the operations profile")
+    if automatic_endpoint and research_profile.financial_endpoint_policy_checksum_sha256 is None:
+        raise ValueError("automatic cycles require a bound financial endpoint policy")
     if inputs.symbols != normalize_symbols(
         inputs.symbols_file, maximum=operations_profile.maximum_symbols_per_cycle
     ):
@@ -142,6 +149,14 @@ def plan_cycle(
         "symbols": list(inputs.symbols),
         "fiscal_year": inputs.fiscal_year,
         "fiscal_quarter": inputs.fiscal_quarter,
+        "financial_endpoint_mode": "automatic" if automatic_endpoint else "explicit",
+        "financial_endpoint_policy_code": research_profile.financial_endpoint_policy_code,
+        "financial_endpoint_policy_checksum_sha256": (
+            research_profile.financial_endpoint_policy_checksum_sha256
+        ),
+        "financial_primitive_policy_checksum_sha256": (
+            research_profile.financial_primitive_policy_checksum_sha256
+        ),
         "cycle_at": cutoff.isoformat(),
         "knowledge_cutoff": cutoff.isoformat(),
         "raw_root": str(inputs.raw_root.resolve()),
@@ -165,6 +180,21 @@ def plan_cycle(
         "model_family": persisted["model_family"],
         "fiscal_year": inputs.fiscal_year,
         "fiscal_quarter": inputs.fiscal_quarter,
+        "financial_endpoint_policy_code": research_profile.financial_endpoint_policy_code,
+        "financial_endpoint_policy_checksum_sha256": (
+            research_profile.financial_endpoint_policy_checksum_sha256
+        ),
+        "financial_primitive_policy_checksum_sha256": (
+            research_profile.financial_primitive_policy_checksum_sha256
+        ),
+        "scoring_configuration_identity": {
+            "configuration_name": research_profile.research_profile_code,
+            "configuration_version": research_profile.profile_version,
+            "scoring_policy_asset": research_profile.scoring_policy_asset,
+            "scoring_policy_asset_checksum_sha256": _asset_checksum(
+                inputs.research_profile_path, research_profile.scoring_policy_asset
+            ),
+        },
         "cycle_at": cutoff.isoformat(),
         "knowledge_cutoff": cutoff.isoformat(),
         "symbol_set_checksum_sha256": symbols_checksum,
@@ -198,8 +228,8 @@ def cycle_inputs_from_persisted(value: dict[str, object]) -> CycleInputs:
         model_family=_stored_text(value, "model_family"),
         symbols_file=Path(_stored_text(value, "symbols_file")),
         symbols=tuple(cast(list[str], symbols)),
-        fiscal_year=_stored_int(value, "fiscal_year"),
-        fiscal_quarter=_stored_int(value, "fiscal_quarter"),
+        fiscal_year=_stored_optional_int(value, "fiscal_year"),
+        fiscal_quarter=_stored_optional_int(value, "fiscal_quarter"),
         cycle_at=datetime.fromisoformat(_stored_text(value, "cycle_at")),
         raw_root=Path(_stored_text(value, "raw_root")),
         nse_license_class=_stored_text(value, "nse_license_class"),
@@ -256,6 +286,10 @@ def doctor(
         "operations_profile_checksum": plan.operations_profile.checksum_sha256,
         "research_profile_code": plan.research_profile.research_profile_code,
         "research_profile_checksum": plan.research_profile.checksum_sha256,
+        "financial_endpoint_policy": {
+            "code": plan.research_profile.financial_endpoint_policy_code,
+            "checksum_sha256": plan.research_profile.financial_endpoint_policy_checksum_sha256,
+        },
         "model_family": plan.inputs.model_family,
         "symbols": list(plan.inputs.symbols),
         "provider_bindings_status": binding_status,
@@ -428,9 +462,10 @@ class AcceptedProductionStageExecutor:
             )
             return payload, succeeded
         if stage == "current_research":
+            automatic_endpoint = profile.automatic_financial_endpoint
             payload, succeeded = research_cli._execute(  # noqa: SLF001
                 Namespace(
-                    command="run-current",
+                    command="run-current-auto" if automatic_endpoint else "run-current",
                     database_url="managed-by-operations",
                     model_family=inputs.model_family,
                     research_profile=inputs.research_profile_path,
@@ -767,8 +802,9 @@ def cycle_summary(
         },
         "cycle_at": _persisted_utc(run.cycle_at).isoformat(),
         "knowledge_cutoff": _persisted_utc(run.knowledge_cutoff).isoformat(),
-        "fiscal_year": run.fiscal_year,
-        "fiscal_quarter": run.fiscal_quarter,
+        "fiscal_year": run.fiscal_year or None,
+        "fiscal_quarter": run.fiscal_quarter or None,
+        "financial_endpoint_mode": run.inputs_json.get("financial_endpoint_mode", "explicit"),
         "model_family": run.model_family,
         "ordered_symbols": run.ordered_symbols_json,
         "symbol_set_checksum_sha256": run.symbol_set_checksum_sha256,
@@ -894,6 +930,28 @@ def _stored_int(value: dict[str, object], field: str) -> int:
     if isinstance(item, bool) or not isinstance(item, int):
         raise OperationsStateError(f"persisted {field} is malformed")
     return item
+
+
+def _stored_optional_int(value: dict[str, object], field: str) -> int | None:
+    item = value.get(field)
+    if item is None:
+        return None
+    if isinstance(item, bool) or not isinstance(item, int):
+        raise OperationsStateError(f"persisted {field} is malformed")
+    return item
+
+
+def _asset_checksum(research_profile_path: Path, asset: str) -> str:
+    root = research_profile_path.resolve().parents[2]
+    path = (root / asset).resolve()
+    try:
+        path.relative_to(root)
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (ValueError, OSError, json.JSONDecodeError) as error:
+        raise ValueError("scoring policy asset is invalid") from error
+    return sha256(
+        json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
 
 
 def _optional_uuid(value: object) -> UUID | None:

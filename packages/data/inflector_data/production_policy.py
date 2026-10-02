@@ -21,6 +21,7 @@ from inflector_data.gdelt_attention import GDELT_NEWS_METHOD_DEFINITION_SHA256
 from inflector_data.research_profile import (
     DatasetBinding,
     ProductionResearchProfile,
+    load_profile_financial_endpoint_policy,
     load_profile_financial_primitive_policy,
 )
 from inflector_database.models import (
@@ -84,6 +85,7 @@ def bind_production_policy(
 ) -> BoundProductionPolicy:
     try:
         load_profile_financial_primitive_policy(profile, repository_root)
+        load_profile_financial_endpoint_policy(profile, repository_root)
     except ValueError as error:
         raise ProductionPolicyBindingError(str(error)) from error
     dataset_ids = resolve_profile_datasets(session, profile, require_optional=True)

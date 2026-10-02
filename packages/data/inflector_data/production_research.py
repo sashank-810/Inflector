@@ -158,6 +158,7 @@ class ProductionResearchAssembler:
         knowledge_cutoff: datetime,
         dataset_ids: dict[str, UUID | None],
         policy: InflectionScoringPolicy,
+        financial_scope_override: str | None = None,
     ) -> ProductionResearchEvidence:
         cutoff = _aware_utc(knowledge_cutoff, "knowledge_cutoff")
         if fiscal_quarter not in {1, 2, 3, 4}:
@@ -171,6 +172,14 @@ class ProductionResearchAssembler:
         action_id = _required_dataset(dataset_ids, "corporate_actions")
         event_id = _required_dataset(dataset_ids, "business_events")
 
+        financial_scopes = (
+            (financial_scope_override,)
+            if financial_scope_override is not None
+            else self._profile.financial_scope_priority
+        )
+        if any(scope not in self._profile.financial_scope_priority for scope in financial_scopes):
+            raise ValueError("financial scope override is outside research profile policy")
+
         financial_candidates = tuple(
             self._financial_candidate(
                 provider_dataset_id=financial_id,
@@ -183,7 +192,7 @@ class ProductionResearchAssembler:
                 cutoff=cutoff,
                 policy=policy,
             )
-            for scope in self._profile.financial_scope_priority
+            for scope in financial_scopes
         )
         business_candidates, event_count, event_available = self._business_candidates(
             financial_provider_dataset_id=financial_id,
@@ -292,9 +301,7 @@ class ProductionResearchAssembler:
             business_catalyst_context_candidates=business_candidates,
             market_structure_evidence=market_evidence,
             low_market_attention_evidence=attention,
-            attempted_financial_contexts=tuple(
-                (financial_id, scope) for scope in self._profile.financial_scope_priority
-            ),
+            attempted_financial_contexts=tuple((financial_id, scope) for scope in financial_scopes),
             unavailable_reasons=unavailable,
             attention_news_status=news_status,
             analyst_attention_status=analyst_status,

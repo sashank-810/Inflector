@@ -357,7 +357,7 @@ scoring semantics. Qualify official market-cap candidates against the exact
 valuation contract; add no market-cap implementation or substitute when the
 gate is not fully proven.
 
-### Production Data Activation G — Official Financial Primitive Expansion (acceptance pending)
+### Production Data Activation G — Official Financial Primitive Expansion (complete)
 
 Qualify exact structured concepts from the accepted NSE Integrated Filing XBRL
 family through a versioned semantic policy. Preserve direct finance-cost,
@@ -366,6 +366,15 @@ explicit lineage-preserving operating-revenue-to-revenue normalization while
 leaving reported EBITDA and total debt unavailable. Reuse existing PIT,
 period, feature, context and V5 paths without scorer changes, migration,
 valuation/analyst work, automatic quarter discovery, or frontend work.
+
+### Production Data Activation H — Automatic Financial Endpoint Discovery & Filing Refresh (acceptance pending)
+
+Add an immutable cutoff-aware endpoint policy, Research V4, and Operations V3.
+Refresh bounded official NSE Integrated Filing XBRLs, then resolve each
+company's latest PIT-visible fiscal endpoint independently before delegating to
+the existing Production G evidence and V5 orchestration path. Preserve explicit
+manual FY/Q research, scope priority, revisions, partial snapshots, leases and
+resume behavior. Never fall back to an older, more complete period.
 
 ## Phase 6 — announcement and catalyst evidence
 

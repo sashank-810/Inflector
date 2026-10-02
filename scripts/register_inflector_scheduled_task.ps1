@@ -12,10 +12,10 @@ param(
     [string]$ModelFamily,
     [Parameter(Mandatory = $true)]
     [string]$SymbolsFile,
-    [Parameter(Mandatory = $true)]
-    [int]$FiscalYear,
-    [Parameter(Mandatory = $true)]
-    [int]$FiscalQuarter,
+    [ValidateRange(0, 2200)]
+    [int]$FiscalYear = 0,
+    [ValidateRange(0, 4)]
+    [int]$FiscalQuarter = 0,
     [Parameter(Mandatory = $true)]
     [string]$ModelSemanticVersion,
     [Parameter(Mandatory = $true)]
@@ -31,6 +31,10 @@ $resolvedRepository = (Resolve-Path -LiteralPath $RepositoryPath).Path
 $resolvedPython = (Resolve-Path -LiteralPath $PythonExecutable).Path
 $runner = (Resolve-Path -LiteralPath (Join-Path $resolvedRepository 'scripts\run_inflector_scheduled.ps1')).Path
 $profile = Get-Content -LiteralPath $OperationsProfile -Raw | ConvertFrom-Json
+$automaticEndpoint = $profile.automatic_financial_endpoint -eq $true
+if (-not $automaticEndpoint -and ($FiscalYear -lt 2000 -or $FiscalQuarter -lt 1)) {
+    throw 'Explicit operations profiles require FiscalYear and FiscalQuarter.'
+}
 $runAt = [DateTime]::ParseExact($profile.scheduled_local_time, 'HH:mm', $null)
 $localTimezone = [TimeZoneInfo]::Local.Id
 $acceptedTimezoneIds = @('Asia/Kolkata', 'India Standard Time')
@@ -49,13 +53,15 @@ $runnerArguments = @(
     '-ResearchProfile', (Quote-Argument $ResearchProfile),
     '-ModelFamily', (Quote-Argument $ModelFamily),
     '-SymbolsFile', (Quote-Argument $SymbolsFile),
-    '-FiscalYear', [string]$FiscalYear,
-    '-FiscalQuarter', [string]$FiscalQuarter,
     '-ModelSemanticVersion', (Quote-Argument $ModelSemanticVersion),
     '-GitSha', (Quote-Argument $GitSha),
     '-ModelEffectiveFrom', (Quote-Argument $ModelEffectiveFrom),
     '-PythonExecutable', (Quote-Argument $resolvedPython)
-) -join ' '
+)
+if (-not $automaticEndpoint) {
+    $runnerArguments += @('-FiscalYear', [string]$FiscalYear, '-FiscalQuarter', [string]$FiscalQuarter)
+}
+$runnerArguments = $runnerArguments -join ' '
 
 $preview = [ordered]@{
     task_name = $TaskName

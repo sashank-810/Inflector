@@ -8,12 +8,10 @@ param(
     [string]$ModelFamily,
     [Parameter(Mandatory = $true)]
     [string]$SymbolsFile,
-    [Parameter(Mandatory = $true)]
-    [ValidateRange(2000, 2200)]
-    [int]$FiscalYear,
-    [Parameter(Mandatory = $true)]
-    [ValidateRange(1, 4)]
-    [int]$FiscalQuarter,
+    [ValidateRange(0, 2200)]
+    [int]$FiscalYear = 0,
+    [ValidateRange(0, 4)]
+    [int]$FiscalQuarter = 0,
     [Parameter(Mandatory = $true)]
     [string]$ModelSemanticVersion,
     [Parameter(Mandatory = $true)]
@@ -43,15 +41,18 @@ $timezoneId = if ($operations.timezone -eq 'Asia/Kolkata' -and $IsWindows -ne $f
 $timezone = [TimeZoneInfo]::FindSystemTimeZoneById($timezoneId)
 $cycleAt = [TimeZoneInfo]::ConvertTime([DateTimeOffset]::UtcNow, $timezone).ToString('o')
 
+$automaticEndpoint = $operations.automatic_financial_endpoint -eq $true
+if (-not $automaticEndpoint -and ($FiscalYear -lt 2000 -or $FiscalQuarter -lt 1)) {
+    throw 'Explicit operations profiles require FiscalYear and FiscalQuarter.'
+}
+$command = if ($automaticEndpoint) { 'run-cycle-auto' } else { 'run-cycle' }
 $arguments = @(
-    '-m', 'inflector_data.ops_cli', 'run-cycle',
+    '-m', 'inflector_data.ops_cli', $command,
     '--database-url', $env:INFLECTOR_PRODUCTION_DATABASE_URL,
     '--operations-profile', $OperationsProfile,
     '--research-profile', $ResearchProfile,
     '--model-family', $ModelFamily,
     '--symbols-file', $SymbolsFile,
-    '--fiscal-year', [string]$FiscalYear,
-    '--fiscal-quarter', [string]$FiscalQuarter,
     '--cycle-at', $cycleAt,
     '--raw-root', $env:INFLECTOR_PRODUCTION_RAW_ROOT,
     '--nse-license-class', $env:INFLECTOR_NSE_LICENSE_CLASS,
@@ -59,6 +60,9 @@ $arguments = @(
     '--git-sha', $GitSha,
     '--model-effective-from', $ModelEffectiveFrom
 )
+if (-not $automaticEndpoint) {
+    $arguments += @('--fiscal-year', [string]$FiscalYear, '--fiscal-quarter', [string]$FiscalQuarter)
+}
 if ($operations.gdelt_enabled) {
     foreach ($name in @('INFLECTOR_GDELT_RAW_ROOT', 'INFLECTOR_GDELT_LICENSE_CLASS')) {
         if ([string]::IsNullOrWhiteSpace([Environment]::GetEnvironmentVariable($name))) {

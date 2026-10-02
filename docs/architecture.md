@@ -109,6 +109,15 @@ existing `FinancialFact` schema. No generic source fact is fabricated, no debt
 or EBITDA formula is introduced, and V1/V2 behavior remains unchanged. See
 [`production-financial-primitives.md`](production-financial-primitives.md).
 
+Production Data Activation H adds a read-only financial endpoint resolver over
+the same immutable `FinancialFact`, `FiscalPeriod`, filing, and source lineage.
+Research V4 binds a versioned policy that orders PIT-visible endpoints by
+stored period metadata, applies the existing scope priority, ignores score
+coverage, and fails closed on ambiguity. Operations V3 refreshes the existing
+bounded filing source and resolves FY/Q per company; it stores no mutable
+latest-period pointer and adds no scorer. See
+[`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).
+
 Phase 3E-A adds `InstantFinancialSnapshotReader`, a read-only same-period
 selection layer over PIT financial facts. It intersects eligible instant
 monetary INR facts by exact stored `FiscalPeriod.id` and defines latest by
