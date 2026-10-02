@@ -136,6 +136,14 @@ only PIT-visible accepted fiscal metadata and never falls back to an older,
 more complete period. See
 [financial endpoint discovery](docs/production-financial-endpoint-discovery.md).
 
+Production I completes the remaining source qualification without weakening
+evidence standards. Official market-cap candidates do not yet provide an
+approved archiveable daily atomic value compatible with the UDiFF bar, and
+official analyst/meeting/registry sources do not provide a complete dated count
+of active analysts covering each company. Both remain `NOT_APPROVED`; Research
+V4 and Operations V3 stay current, and missing evidence remains missing. See
+[evidence-gap qualification](docs/production-evidence-gap-qualification.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

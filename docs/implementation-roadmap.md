@@ -367,7 +367,7 @@ leaving reported EBITDA and total debt unavailable. Reuse existing PIT,
 period, feature, context and V5 paths without scorer changes, migration,
 valuation/analyst work, automatic quarter discovery, or frontend work.
 
-### Production Data Activation H — Automatic Financial Endpoint Discovery & Filing Refresh (acceptance pending)
+### Production Data Activation H — Automatic Financial Endpoint Discovery & Filing Refresh (complete)
 
 Add an immutable cutoff-aware endpoint policy, Research V4, and Operations V3.
 Refresh bounded official NSE Integrated Filing XBRLs, then resolve each
@@ -375,6 +375,15 @@ company's latest PIT-visible fiscal endpoint independently before delegating to
 the existing Production G evidence and V5 orchestration path. Preserve explicit
 manual FY/Q research, scope priority, revisions, partial snapshots, leases and
 resume behavior. Never fall back to an older, more complete period.
+
+### Production Data Activation I — Remaining Evidence Gap Qualification & Coverage Completion (acceptance pending)
+
+Re-evaluate official market-cap and first-party analyst-coverage candidates
+against the exact accepted valuation and Low Market Attention contracts. Record
+independent `NOT_APPROVED` outcomes when daily atomic semantics, complete
+company-level coverage, archiveability, or PIT provenance cannot be proven.
+Preserve missingness, partial V5 results, all accepted profiles/policies, and
+scorer semantics; add no substitute provider or derived evidence.
 
 ## Phase 6 — announcement and catalyst evidence
 
