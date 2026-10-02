@@ -100,6 +100,15 @@ PIT-clean quarterized values. They retain selected-quarter lineage and apply no
 provider preference, feature persistence, or scoring policy; see
 [`financial-inflection-features.md`](financial-inflection-features.md).
 
+Production Data Activation G adds a policy-aware normalization boundary before
+those unchanged primitives. Research V3 can request generic `revenue` from the
+exact persisted `operating_revenue` fact through a versioned identity mapping;
+the quarter value retains the original fact and policy checksum in lineage.
+Direct structured borrowing and depreciation/amortisation facts remain in the
+existing `FinancialFact` schema. No generic source fact is fabricated, no debt
+or EBITDA formula is introduced, and V1/V2 behavior remains unchanged. See
+[`production-financial-primitives.md`](production-financial-primitives.md).
+
 Phase 3E-A adds `InstantFinancialSnapshotReader`, a read-only same-period
 selection layer over PIT financial facts. It intersects eligible instant
 monetary INR facts by exact stored `FiscalPeriod.id` and defines latest by

@@ -333,6 +333,8 @@ class AcceptedProductionStageExecutor:
                 "stages": summaries,
             }, succeeded
         if stage == "financials":
+            primitive_asset = plan.research_profile.financial_primitive_policy_asset
+            repository_root = Path(__file__).resolve().parents[3]
             summaries, succeeded = nse_cli._execute_financials(  # noqa: SLF001
                 Namespace(
                     command="ingest-financials",
@@ -342,6 +344,9 @@ class AcceptedProductionStageExecutor:
                     symbols_file=inputs.symbols_file,
                     max_symbols=profile.maximum_symbols_per_cycle,
                     max_filings=profile.maximum_financial_filings,
+                    financial_primitive_policy=(
+                        repository_root / primitive_asset if primitive_asset else None
+                    ),
                     from_date=None,
                     to_date=cutoff.date(),
                     request_delay_seconds=profile.request_delay_seconds,

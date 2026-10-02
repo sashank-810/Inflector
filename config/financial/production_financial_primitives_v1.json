@@ -1,0 +1,96 @@
+{
+  "financial_primitive_policy_code": "nse_indas_financial_primitives_v1",
+  "policy_version": "1",
+  "source_family": "nse_official/nse_integrated_financials_xbrl",
+  "allowed_taxonomy_namespaces": [
+    "http://www.sebi.gov.in/xbrl/2025-01-31/in-capmkt",
+    "http://www.sebi.gov.in/xbrl/2026-01-31/in-capmkt"
+  ],
+  "filing_scopes": ["standalone", "consolidated"],
+  "qualifications": {
+    "revenue": {
+      "status": "APPROVED_DERIVED",
+      "classification": "normalized_identity",
+      "source_concepts": ["RevenueFromOperations"],
+      "source_metric_codes": ["operating_revenue"],
+      "required_constituents": ["operating_revenue"],
+      "period_type": "duration",
+      "reported_unit": "INR",
+      "calculation": "identity",
+      "rationale": "The accepted generic revenue feature represents the operating top line. RevenueFromOperations is the exact structured operating top line; Income includes OtherIncome and is rejected as the revenue denominator.",
+      "missingness_behavior": "No PIT-visible operating_revenue fact means revenue is unavailable; no alternative concept is selected."
+    },
+    "ebitda_reported": {
+      "status": "NOT_APPROVED",
+      "classification": "unavailable",
+      "source_concepts": [],
+      "source_metric_codes": [],
+      "required_constituents": [],
+      "period_type": "duration",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "Representative current integrated filings expose no stable structured reported-EBITDA concept. Finance cost and depreciation do not authorize an EBITDA construction.",
+      "missingness_behavior": "Reported EBITDA remains unavailable."
+    },
+    "borrowings_current": {
+      "status": "APPROVED_DIRECT",
+      "classification": "direct",
+      "source_concepts": ["BorrowingsCurrent"],
+      "source_metric_codes": ["borrowings_current"],
+      "required_constituents": [],
+      "period_type": "instant",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "BorrowingsCurrent is an explicit structured instant fact and is retained under its exact accounting meaning.",
+      "missingness_behavior": "An absent or nil source fact remains unavailable; only an explicit reported zero is zero."
+    },
+    "borrowings_non_current": {
+      "status": "APPROVED_DIRECT",
+      "classification": "direct",
+      "source_concepts": ["BorrowingsNoncurrent"],
+      "source_metric_codes": ["borrowings_non_current"],
+      "required_constituents": [],
+      "period_type": "instant",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "BorrowingsNoncurrent is an explicit structured instant fact and is retained under its exact accounting meaning.",
+      "missingness_behavior": "An absent or nil source fact remains unavailable; only an explicit reported zero is zero."
+    },
+    "total_debt": {
+      "status": "NOT_APPROVED",
+      "classification": "unavailable",
+      "source_concepts": ["BorrowingsCurrent", "BorrowingsNoncurrent", "DebtEquityRatio"],
+      "source_metric_codes": ["borrowings_current", "borrowings_non_current"],
+      "required_constituents": ["borrowings_current", "borrowings_non_current"],
+      "period_type": "instant",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "The accepted total_debt contract does not define lease liabilities, current maturities, debt securities, preference shares, accrued interest, or other interest-bearing liabilities precisely enough for a complete non-double-counting derivation.",
+      "missingness_behavior": "Total debt remains unavailable; borrowings are never summed or reverse-engineered from DebtEquityRatio."
+    },
+    "finance_cost": {
+      "status": "APPROVED_DIRECT",
+      "classification": "direct",
+      "source_concepts": ["FinanceCosts"],
+      "source_metric_codes": ["finance_cost"],
+      "required_constituents": [],
+      "period_type": "duration",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "FinanceCosts is an explicit structured duration fact already accepted by the NSE financial mapping.",
+      "missingness_behavior": "An absent or nil source fact remains unavailable."
+    },
+    "depreciation_amortisation": {
+      "status": "APPROVED_DIRECT",
+      "classification": "direct",
+      "source_concepts": ["DepreciationDepletionAndAmortisationExpense"],
+      "source_metric_codes": ["depreciation_amortisation"],
+      "required_constituents": [],
+      "period_type": "duration",
+      "reported_unit": "INR",
+      "calculation": null,
+      "rationale": "DepreciationDepletionAndAmortisationExpense is an explicit structured duration fact retained without using it to construct EBITDA.",
+      "missingness_behavior": "An absent or nil source fact remains unavailable."
+    }
+  }
+}

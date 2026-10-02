@@ -121,7 +121,13 @@ for one explicit symbol or a bounded symbols file:
 The financial path archives each exact XBRL independently, uses observed
 retrieval time as availability, and applies only the documented exact taxonomy
 mapping. Historical bootstrap does not reconstruct historical PIT knowledge.
-See [NSE production financials](docs/nse-production-financials.md).
+Research V3 may additionally bind the explicit Production G primitive policy:
+`RevenueFromOperations` can become a lineage-preserving normalized `revenue`,
+while direct finance cost, depreciation/amortisation and current/non-current
+borrowings remain distinct facts. Reported EBITDA and total debt remain
+unavailable rather than derived. See
+[NSE production financials](docs/nse-production-financials.md) and
+[production financial primitives](docs/production-financial-primitives.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:

@@ -33,6 +33,7 @@ from inflector_data.document_services import (
     DocumentTextExtractionService,
 )
 from inflector_data.document_text import DocumentExtractionIdentity, DocumentTextReader
+from inflector_data.financial_primitive_policy import load_financial_primitive_policy
 from inflector_data.nse_corporate_filings import (
     NSE_ANNOUNCEMENT_DATASET_CODE,
     NSE_CORPORATE_ACTION_DATASET_CODE,
@@ -211,6 +212,7 @@ def _parser() -> argparse.ArgumentParser:
             targets.add_argument("--symbols-file", type=Path)
             subparser.add_argument("--max-symbols", type=int, default=25)
             subparser.add_argument("--max-filings", type=int, default=20)
+            subparser.add_argument("--financial-primitive-policy", type=Path)
             subparser.add_argument("--from-date", type=date.fromisoformat)
             subparser.add_argument("--to-date", type=date.fromisoformat)
             subparser.add_argument("--request-delay-seconds", type=float, default=1.0)
@@ -623,6 +625,9 @@ def _financial_stage_summary(
         ),
         "mapping_version": NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION,
         "mapped_metric_codes": list(provider.mapped_metric_codes) if provider else [],
+        "financial_primitive_policy": (
+            provider.primitive_policy_identity if provider is not None else None
+        ),
         "intentionally_unmapped_target_metrics": list(NSE_INTENTIONALLY_UNMAPPED_TARGET_METRICS),
         "unsupported_reason": provider.unsupported_reason if provider else None,
         "error": error,
@@ -635,6 +640,12 @@ def _execute_financials(
     production_preflight(session, args.license_class)
     symbols = _financial_symbols(args)
     service = IngestionService(session, LocalRawObjectStore(args.raw_root))
+    primitive_policy_path = getattr(args, "financial_primitive_policy", None)
+    primitive_policy = (
+        load_financial_primitive_policy(primitive_policy_path)
+        if primitive_policy_path is not None
+        else None
+    )
     client = NSEHttpClient(maximum_response_bytes=10_000_000)
     universe_provider = NSEUniverseProvider(
         HttpNSEArtifactSource(client, NSE_EQUITY_UNIVERSE_URL),
@@ -699,6 +710,7 @@ def _execute_financials(
                 _metadata(NSE_FINANCIAL_DATASET_CODE, args.license_class),
                 filing,
                 expected_isin=isin,
+                primitive_policy=primitive_policy,
             )
             try:
                 result = service.ingest_financials(provider)

@@ -41,7 +41,10 @@ from inflector_data.production_research import (
     ProductionResearchAssembler,
     ProductionResearchAssemblyError,
 )
-from inflector_data.research_profile import load_research_profile
+from inflector_data.research_profile import (
+    load_profile_financial_primitive_policy,
+    load_research_profile,
+)
 from inflector_data.score_orchestration import ScoreSnapshotOrchestrator
 from inflector_data.service import IngestionService
 from inflector_database.models import DataProvider
@@ -203,7 +206,8 @@ def _run_symbol(
         raise ProductionPolicyBindingError(
             "active scoring configuration does not match the requested research profile"
         )
-    assembler = ProductionResearchAssembler(session, profile)
+    primitive_policy = load_profile_financial_primitive_policy(profile, repository_root)
+    assembler = ProductionResearchAssembler(session, profile, primitive_policy)
     gdelt_summary = None
     if args.ingest_gdelt_news:
         if args.gdelt_raw_root is None or args.gdelt_license_class is None:
@@ -282,6 +286,11 @@ def _run_symbol(
         "delivery_status": evidence.delivery_status,
         "delivery_observation_count": evidence.delivery_observation_count,
         "delivery_pit_cutoff": evidence.delivery_pit_cutoff,
+        "financial_primitive_policy": evidence.financial_primitive_policy,
+        "revenue_source_status": evidence.revenue_source_status,
+        "reported_ebitda_status": evidence.reported_ebitda_status,
+        "debt_source_status": evidence.debt_source_status,
+        "total_debt_status": evidence.total_debt_status,
         "market_cap_qualification_status": "not_approved",
         "gdelt_ingestion": gdelt_summary,
         "research_profile_checksum": profile.checksum_sha256,

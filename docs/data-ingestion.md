@@ -274,3 +274,20 @@ and delivery values are persisted separately from immutable UDiFF price bars.
 Its report date is economic time while observed retrieval is `available_at`, so
 today's historical download does not become historical-PIT evidence. See
 [`production-market-evidence.md`](production-market-evidence.md).
+
+## Qualified NSE financial primitives
+
+Production Data Activation G keeps the same official Integrated Filing XBRL
+dataset and archive-first ingestion transaction. The versioned
+`nse_indas_financial_primitives_v1` policy adds exact direct mappings for
+current/non-current borrowings and depreciation/amortisation, while retaining
+the accepted direct finance-cost mapping. The original QName, context, unit,
+filing and raw locator remain the source lineage.
+
+Generic `revenue` is not inserted as a second `FinancialFact`. Under explicit
+Research V3 policy only, the existing period normalizer exposes a semantic
+identity from PIT-visible `operating_revenue`, retaining that source fact and
+the policy code/checksum in the operation lineage. Total income is not used.
+Reported EBITDA and total debt remain unavailable; finance cost plus D&A is not
+EBITDA, and borrowing fields are not summed. See
+[`production-financial-primitives.md`](production-financial-primitives.md).

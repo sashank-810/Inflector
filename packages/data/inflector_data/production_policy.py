@@ -18,7 +18,11 @@ from inflector_core.scoring_policy import (
     scoring_policy_from_mapping,
 )
 from inflector_data.gdelt_attention import GDELT_NEWS_METHOD_DEFINITION_SHA256
-from inflector_data.research_profile import DatasetBinding, ProductionResearchProfile
+from inflector_data.research_profile import (
+    DatasetBinding,
+    ProductionResearchProfile,
+    load_profile_financial_primitive_policy,
+)
 from inflector_database.models import (
     DataProvider,
     ModelVersion,
@@ -78,6 +82,10 @@ def bind_production_policy(
     *,
     repository_root: Path,
 ) -> BoundProductionPolicy:
+    try:
+        load_profile_financial_primitive_policy(profile, repository_root)
+    except ValueError as error:
+        raise ProductionPolicyBindingError(str(error)) from error
     dataset_ids = resolve_profile_datasets(session, profile, require_optional=True)
     financial_id = dataset_ids["financial"]
     if financial_id is None:

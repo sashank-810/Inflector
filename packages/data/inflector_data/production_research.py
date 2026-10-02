@@ -49,6 +49,7 @@ from inflector_data.financial_features import (
     FinancialInflectionFeatures,
     GrowthAccelerationValue,
 )
+from inflector_data.financial_primitive_policy import FinancialPrimitivePolicy
 from inflector_data.financial_snapshots import InstantFinancialSnapshotReader
 from inflector_data.growth_history_features import GrowthHistoryFeatures
 from inflector_data.market_adjustments import MarketAdjustmentPrimitives
@@ -96,16 +97,27 @@ class ProductionResearchEvidence:
     delivery_status: str
     delivery_observation_count: int
     delivery_pit_cutoff: datetime | None
+    financial_primitive_policy: dict[str, str] | None
+    revenue_source_status: str
+    reported_ebitda_status: str
+    debt_source_status: dict[str, str]
+    total_debt_status: str
 
 
 class ProductionResearchAssembler:
     """Read persisted facts and call only accepted PIT feature primitives."""
 
-    def __init__(self, session: Session, profile: ProductionResearchProfile) -> None:
+    def __init__(
+        self,
+        session: Session,
+        profile: ProductionResearchProfile,
+        primitive_policy: FinancialPrimitivePolicy | None = None,
+    ) -> None:
         self._session = session
         self._profile = profile
         self._financial_reader = PointInTimeFinancialReader(session)
-        self._quarters = FiscalQuarterNormalizer(self._financial_reader)
+        self._primitive_policy = primitive_policy
+        self._quarters = FiscalQuarterNormalizer(self._financial_reader, primitive_policy)
         self._financial_features = FinancialInflectionFeatures(self._quarters)
         self._growth = GrowthHistoryFeatures(self._financial_features)
         self._ttm = TrailingTwelveMonthNormalizer(self._quarters)
@@ -289,6 +301,28 @@ class ProductionResearchAssembler:
             delivery_status=delivery_status,
             delivery_observation_count=delivery_count,
             delivery_pit_cutoff=delivery_feature.available_at,
+            financial_primitive_policy=(
+                {
+                    "code": self._primitive_policy.financial_primitive_policy_code,
+                    "checksum_sha256": self._primitive_policy.checksum_sha256,
+                }
+                if self._primitive_policy is not None
+                else None
+            ),
+            revenue_source_status=self._primitive_status("revenue"),
+            reported_ebitda_status=self._primitive_status("ebitda_reported"),
+            debt_source_status={
+                "borrowings_current": self._primitive_status("borrowings_current"),
+                "borrowings_non_current": self._primitive_status("borrowings_non_current"),
+            },
+            total_debt_status=self._primitive_status("total_debt"),
+        )
+
+    def _primitive_status(self, metric_code: str) -> str:
+        return (
+            self._primitive_policy.status(metric_code)
+            if self._primitive_policy is not None
+            else "policy_not_configured"
         )
 
     def _financial_candidate(

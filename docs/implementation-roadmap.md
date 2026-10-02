@@ -347,7 +347,7 @@ Task Scheduler runner/registration dry run. Preserve partial V5 success and all
 existing missing-evidence semantics; add no scoring, alert, backtest,
 recommendation, or frontend behavior.
 
-### Production Data Activation F — Official Delivery Evidence & Valuation Source Qualification (acceptance pending)
+### Production Data Activation F — Official Delivery Evidence & Valuation Source Qualification (complete)
 
 Activate archive-first official NSE Full Bhavcopy daily delivery evidence as a
 separate immutable observation, expose it through exact PIT selection to the
@@ -356,6 +356,16 @@ through versioned Research/Operations V2 profiles. Preserve V1 assets and all
 scoring semantics. Qualify official market-cap candidates against the exact
 valuation contract; add no market-cap implementation or substitute when the
 gate is not fully proven.
+
+### Production Data Activation G — Official Financial Primitive Expansion (acceptance pending)
+
+Qualify exact structured concepts from the accepted NSE Integrated Filing XBRL
+family through a versioned semantic policy. Preserve direct finance-cost,
+depreciation/amortisation, and current/non-current borrowing facts; allow the
+explicit lineage-preserving operating-revenue-to-revenue normalization while
+leaving reported EBITDA and total debt unavailable. Reuse existing PIT,
+period, feature, context and V5 paths without scorer changes, migration,
+valuation/analyst work, automatic quarter discovery, or frontend work.
 
 ## Phase 6 — announcement and catalyst evidence
 

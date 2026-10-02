@@ -53,6 +53,16 @@ qualification. Delivery features can remain unavailable, and a correct partial
 snapshot is expected.
 The existing financial context resolver remains authoritative.
 
+Research V3 preserves V2 and explicitly binds
+`nse_indas_financial_primitives_v1`. Its policy-aware period normalizer may
+expose `RevenueFromOperations`/`operating_revenue` as generic `revenue` without
+creating a second source fact; complete nested lineage retains the source fact
+and policy checksum. Direct current/non-current borrowings, finance cost and
+depreciation/amortisation are available as their own exact metrics. Reported
+EBITDA and total debt remain unapproved, so their dependent evidence remains
+missing. See
+[`production-financial-primitives.md`](production-financial-primitives.md).
+
 ## GDELT news methodology
 
 GDELT DOC 2.0 is called only at `api.gdeltproject.org` with

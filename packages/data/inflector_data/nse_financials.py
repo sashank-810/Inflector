@@ -20,14 +20,13 @@ from inflector_core.providers import (
     ProviderBatch,
     ProviderMetadata,
 )
+from inflector_data.financial_primitive_policy import FinancialPrimitivePolicy
 from inflector_data.nse_http import AcquiredNSEArtifact, NSEHttpClient, validate_nse_url
 from inflector_data.nse_providers import NSEArtifactSource
 
 NSE_FINANCIAL_DATASET_CODE = "nse_integrated_financials_xbrl"
 NSE_INTEGRATED_FINANCIAL_MAPPING_VERSION = "nse_integrated_financial_mapping_v1"
-NSE_INTEGRATED_FINANCIAL_DISCOVERY_URL = (
-    "https://www.nseindia.com/api/integrated-filing-results"
-)
+NSE_INTEGRATED_FINANCIAL_DISCOVERY_URL = "https://www.nseindia.com/api/integrated-filing-results"
 MINIMUM_SUPPORTED_QUARTER_END = date(2025, 3, 31)
 MAXIMUM_DISCOVERY_DATE_RANGE_DAYS = 366
 MAXIMUM_FINANCIAL_XBRL_BYTES = 10_000_000
@@ -260,6 +259,7 @@ class NSEIntegratedFinancialsProvider:
         filing: NSEFinancialFiling,
         *,
         expected_isin: str,
+        primitive_policy: FinancialPrimitivePolicy | None = None,
     ) -> None:
         if source.source_uri != filing.xbrl_uri:
             raise ValueError("financial source URI must equal the discovered XBRL URI")
@@ -267,6 +267,28 @@ class NSEIntegratedFinancialsProvider:
         self._metadata = metadata
         self._filing = filing
         self._expected_isin = expected_isin
+        if primitive_policy is not None:
+            if primitive_policy.source_family != "nse_official/nse_integrated_financials_xbrl":
+                raise ValueError("financial primitive policy source family is incompatible")
+            if frozenset(primitive_policy.allowed_taxonomy_namespaces) != frozenset(
+                SUPPORTED_TAXONOMY_NAMESPACES
+            ):
+                raise ValueError("financial primitive policy taxonomy namespaces are incompatible")
+        self._primitive_policy = primitive_policy
+        self._mapping = dict(NSE_INTEGRATED_FINANCIAL_MAPPING_V1)
+        self._instant_metrics = set(_INSTANT_METRICS)
+        if primitive_policy is not None:
+            for concept, metric in primitive_policy.direct_source_mappings().items():
+                for namespace in primitive_policy.allowed_taxonomy_namespaces:
+                    qualified_concept = f"{{{namespace}}}{concept}"
+                    existing_metric = self._mapping.get(qualified_concept)
+                    if existing_metric is not None and existing_metric != metric:
+                        raise ValueError(
+                            "financial primitive policy contradicts the accepted XBRL mapping"
+                        )
+                    self._mapping[qualified_concept] = metric
+                if primitive_policy.qualifications[metric].period_type == "instant":
+                    self._instant_metrics.add(metric)
         self._retrieved_at: datetime | None = None
         self._recognized_source_facts = 0
         self._unsupported_reason: str | None = None
@@ -295,6 +317,19 @@ class NSEIntegratedFinancialsProvider:
     @property
     def mapped_metric_codes(self) -> tuple[str, ...]:
         return self._mapped_metric_codes
+
+    @property
+    def primitive_policy_identity(self) -> dict[str, object] | None:
+        if self._primitive_policy is None:
+            return None
+        return {
+            "code": self._primitive_policy.financial_primitive_policy_code,
+            "checksum_sha256": self._primitive_policy.checksum_sha256,
+            "qualification_statuses": {
+                code: qualification.status
+                for code, qualification in self._primitive_policy.qualifications.items()
+            },
+        }
 
     def fetch_financials(self) -> ProviderBatch[FinancialRecord]:
         artifact = self._source.acquire()
@@ -350,7 +385,7 @@ class NSEIntegratedFinancialsProvider:
         }
         candidates: dict[tuple[str, str], list[_FactCandidate]] = defaultdict(list)
         for ordinal, element in enumerate(root, start=1):
-            metric = NSE_INTEGRATED_FINANCIAL_MAPPING_V1.get(element.tag)
+            metric = self._mapping.get(element.tag)
             if metric is None:
                 continue
             context_id = element.attrib.get("contextRef")
@@ -364,7 +399,7 @@ class NSEIntegratedFinancialsProvider:
             expected_unit = "INR/share" if metric in _EPS_METRICS else "INR"
             if units.get(unit_id) != expected_unit:
                 continue
-            if (metric in _INSTANT_METRICS) != (context.start is None):
+            if (metric in self._instant_metrics) != (context.start is None):
                 continue
             text = (element.text or "").strip()
             if element.attrib.get("{http://www.w3.org/2001/XMLSchema-instance}nil") == "true":
@@ -544,10 +579,14 @@ def _units(root: ET.Element, namespaces: dict[str, str]) -> dict[str, str]:
         has_divide = any(_local_name(descendant.tag) == "divide" for descendant in element.iter())
         if measures == [f"{{{ISO4217_NAMESPACE}}}INR"] and not has_divide:
             units[unit_id] = "INR"
-        elif measures == [
-            f"{{{ISO4217_NAMESPACE}}}INR",
-            f"{{{XBRL_INSTANCE_NAMESPACE}}}shares",
-        ] and has_divide:
+        elif (
+            measures
+            == [
+                f"{{{ISO4217_NAMESPACE}}}INR",
+                f"{{{XBRL_INSTANCE_NAMESPACE}}}shares",
+            ]
+            and has_divide
+        ):
             units[unit_id] = "INR/share"
     return units
 
@@ -593,9 +632,7 @@ def _scope_for_context(
     return next(iter(matching)) if len(matching) == 1 else None
 
 
-def _period_for_context(
-    context: _Context, contexts: dict[str, _Context]
-) -> _Period | None:
+def _period_for_context(context: _Context, contexts: dict[str, _Context]) -> _Period | None:
     if context.has_dimensions:
         return None
     if context.start is not None:
@@ -620,19 +657,13 @@ def _duration_period(start: date, end: date) -> _Period | None:
         return _Period("quarter", start, end, start.year, 2, False)
     if (start.month, start.day, end.month, end.day) == (10, 1, 12, 31) and end.year == start.year:
         return _Period("quarter", start, end, start.year, 3, False)
-    if (
-        (start.month, start.day, end.month, end.day) == (1, 1, 3, 31)
-        and end.year == start.year
-    ):
+    if (start.month, start.day, end.month, end.day) == (1, 1, 3, 31) and end.year == start.year:
         return _Period("quarter", start, end, start.year - 1, 4, False)
     if (start.month, start.day, end.month, end.day) == (4, 1, 9, 30) and end.year == start.year:
         return _Period("half_year", start, end, start.year, 2, True)
     if (start.month, start.day, end.month, end.day) == (4, 1, 12, 31) and end.year == start.year:
         return _Period("nine_month", start, end, start.year, 3, True)
-    if (
-        (start.month, start.day, end.month, end.day) == (4, 1, 3, 31)
-        and end.year == start.year + 1
-    ):
+    if (start.month, start.day, end.month, end.day) == (4, 1, 3, 31) and end.year == start.year + 1:
         return _Period("annual", start, end, start.year, 4, False)
     return None
 

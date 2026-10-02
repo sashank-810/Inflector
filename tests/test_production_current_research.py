@@ -28,13 +28,17 @@ from inflector_data.gdelt_attention import (
     validate_gdelt_url,
 )
 from inflector_data.production_policy import bind_production_policy, initialize_production_model
+from inflector_data.production_research import ProductionResearchAssembler
 from inflector_data.providers import (
     CSVBenchmarkDataProvider,
     CSVFinancialsProvider,
     CSVMarketDataProvider,
 )
 from inflector_data.research_cli import _run_symbol
-from inflector_data.research_profile import load_research_profile
+from inflector_data.research_profile import (
+    load_profile_financial_primitive_policy,
+    load_research_profile,
+)
 from inflector_data.service import IngestionService
 from inflector_database.models import (
     AttentionObservation,
@@ -50,6 +54,7 @@ from inflector_database.models import (
 
 ROOT = Path(__file__).parents[1]
 PROFILE = ROOT / "config" / "research" / "production_research_v1.json"
+PROFILE_V3 = ROOT / "config" / "research" / "production_research_v3.json"
 START = datetime(2026, 9, 1, tzinfo=UTC)
 END = datetime(2026, 9, 4, tzinfo=UTC)
 RETRIEVED = datetime(2026, 10, 1, 8, tzinfo=UTC)
@@ -462,6 +467,12 @@ def test_production_evidence_assembles_partial_v5_without_fabricated_values(
         (
             ProviderDataset(
                 provider_id=nse.id,
+                code="nse_cash_market_delivery_daily",
+                licence_class="official-source-terms-reviewed-locally",
+                redistributable=False,
+            ),
+            ProviderDataset(
+                provider_id=nse.id,
                 code="nse_corporate_actions",
                 licence_class="official-source-terms-reviewed-locally",
                 redistributable=False,
@@ -492,7 +503,7 @@ def test_production_evidence_assembles_partial_v5_without_fabricated_values(
     )
     session.commit()
 
-    profile = load_research_profile(PROFILE)
+    profile = load_research_profile(PROFILE_V3)
     initialized = initialize_production_model(
         session,
         profile=profile,
@@ -502,9 +513,30 @@ def test_production_evidence_assembles_partial_v5_without_fabricated_values(
         git_sha="a" * 40,
         effective_from=datetime(2026, 9, 1, tzinfo=UTC),
     )
+    bound = bind_production_policy(session, profile, repository_root=ROOT)
+    assembled = ProductionResearchAssembler(
+        session,
+        profile,
+        load_profile_financial_primitive_policy(profile, ROOT),
+    ).assemble(
+        symbol="FICTPROD",
+        fiscal_year=2025,
+        fiscal_quarter=4,
+        knowledge_cutoff=datetime(2026, 10, 1, tzinfo=UTC),
+        dataset_ids=initialized.dataset_ids,
+        policy=bound.policy,
+    )
+    standalone = next(
+        candidate
+        for candidate in assembled.cross_domain_context_candidates
+        if candidate.filing_scope == "standalone"
+    )
+    assert standalone.financial_inflection is not None
+    assert standalone.financial_inflection.revenue_acceleration is not None
+    assert standalone.financial_inflection.revenue_acceleration.metric_code == "revenue"
     args = Namespace(
         model_family="production_test_v1",
-        research_profile=PROFILE,
+        research_profile=PROFILE_V3,
         fiscal_year=2025,
         fiscal_quarter=4,
         knowledge_cutoff=datetime(2026, 10, 1, tzinfo=UTC),
@@ -527,6 +559,17 @@ def test_production_evidence_assembles_partial_v5_without_fabricated_values(
 
     assert first["snapshot_status"] == "partial_component_set", json.dumps(first, default=str)
     assert first["final_score"] is None
+    assert first["financial_primitive_policy"] == {
+        "code": "nse_indas_financial_primitives_v1",
+        "checksum_sha256": "d41513bf624f24f11c5a54a3979b4865a0f524514a77cf5849693f57ace95d92",
+    }
+    assert first["revenue_source_status"] == "APPROVED_DERIVED"
+    assert first["reported_ebitda_status"] == "NOT_APPROVED"
+    assert first["debt_source_status"] == {
+        "borrowings_current": "APPROVED_DIRECT",
+        "borrowings_non_current": "APPROVED_DIRECT",
+    }
+    assert first["total_debt_status"] == "NOT_APPROVED"
     assert first["selected_financial_context"] == {
         "provider_dataset_id": initialized.dataset_ids["financial"],
         "filing_scope": "standalone",

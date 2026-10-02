@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from uuid import UUID
 
+from inflector_data.financial_primitive_policy import FinancialPrimitivePolicy
 from inflector_data.pit import PointInTimeFinancialFact, PointInTimeFinancialReader
 
 PERIOD_NORMALIZATION_VERSION = "period_normalization_v1"
@@ -47,8 +48,13 @@ class QuarterizedFinancialValue:
 class FiscalQuarterNormalizer:
     """Produce only supported individual quarters from point-in-time facts."""
 
-    def __init__(self, reader: PointInTimeFinancialReader) -> None:
+    def __init__(
+        self,
+        reader: PointInTimeFinancialReader,
+        primitive_policy: FinancialPrimitivePolicy | None = None,
+    ) -> None:
         self._reader = reader
+        self._primitive_policy = primitive_policy
 
     def quarter_as_of(
         self,
@@ -66,19 +72,26 @@ class FiscalQuarterNormalizer:
         if fiscal_quarter not in {1, 2, 3, 4}:
             raise ValueError("fiscal_quarter must be between 1 and 4")
         cutoff = self._knowledge_cutoff(as_of)
+        source_metric_code = self._source_metric_code(metric_code)
         facts = self._reader.financial_series_as_of(
             provider_dataset_id=provider_dataset_id,
             company_id=company_id,
             filing_scope=filing_scope,
-            metric_code=metric_code,
+            metric_code=source_metric_code,
             as_of=cutoff,
         )
         reported = self._reported_quarter(facts, fiscal_year, fiscal_quarter)
         if reported is not None:
-            return self._reported_value(reported, cutoff)
+            return self._normalized_metric(
+                self._reported_value(reported, cutoff), metric_code, source_metric_code
+            )
         if not self._is_additive_monetary_metric(facts):
             return None
-        return self._derive(facts, fiscal_year, fiscal_quarter, cutoff)
+        return self._normalized_metric(
+            self._derive(facts, fiscal_year, fiscal_quarter, cutoff),
+            metric_code,
+            source_metric_code,
+        )
 
     def quarter_series_as_of(
         self,
@@ -92,21 +105,24 @@ class FiscalQuarterNormalizer:
         """Return available reported/derived quarters without filling missing values."""
 
         cutoff = self._knowledge_cutoff(as_of)
+        source_metric_code = self._source_metric_code(metric_code)
         facts = self._reader.financial_series_as_of(
             provider_dataset_id=provider_dataset_id,
             company_id=company_id,
             filing_scope=filing_scope,
-            metric_code=metric_code,
+            metric_code=source_metric_code,
             as_of=cutoff,
         )
         years = sorted({fact.fiscal_period.fiscal_year for fact in facts})
         values = [
-            value
+            normalized
             for fiscal_year in years
             for fiscal_quarter in (1, 2, 3, 4)
             if (
-                value := self._quarter_from_facts(
-                    facts, fiscal_year, fiscal_quarter, cutoff
+                normalized := self._normalized_metric(
+                    self._quarter_from_facts(facts, fiscal_year, fiscal_quarter, cutoff),
+                    metric_code,
+                    source_metric_code,
                 )
             )
             is not None
@@ -118,6 +134,35 @@ class FiscalQuarterNormalizer:
                 value.fiscal_year,
                 value.fiscal_quarter,
             ),
+        )
+
+    def _source_metric_code(self, requested_metric_code: str) -> str:
+        if self._primitive_policy is None:
+            return requested_metric_code
+        return (
+            self._primitive_policy.normalized_identity_source(requested_metric_code)
+            or requested_metric_code
+        )
+
+    def _normalized_metric(
+        self,
+        value: QuarterizedFinancialValue | None,
+        requested_metric_code: str,
+        source_metric_code: str,
+    ) -> QuarterizedFinancialValue | None:
+        if value is None or requested_metric_code == source_metric_code:
+            return value
+        assert self._primitive_policy is not None
+        operation = (
+            f"semantic_identity:{self._primitive_policy.financial_primitive_policy_code}:"
+            f"{self._primitive_policy.checksum_sha256}:{source_metric_code}_to_"
+            f"{requested_metric_code}:{value.operation}"
+        )
+        return replace(
+            value,
+            metric_code=requested_metric_code,
+            derivation_kind="semantic_normalized_identity",
+            operation=operation,
         )
 
     def _quarter_from_facts(
