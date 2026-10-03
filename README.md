@@ -159,6 +159,21 @@ history is not backdated, partial V5 snapshots remain in the dataset, and cash
 dividends are excluded from the declared adjusted-close price return. See
 [historical PIT backtesting](docs/production-historical-pit-backtesting.md).
 
+Production K freezes current opportunity-discovery runs from already persisted
+V5 snapshots. The only headline merit key is the accepted `final_score`; stale,
+partial, ineligible, ambiguous, mismatched, and unavailable states remain
+explicit and unranked:
+
+```powershell
+python -m inflector_data.opportunity_cli build-ranking <explicit policy/profile/cutoff/symbol arguments>
+python -m inflector_data.opportunity_cli summarize <explicit policy/run arguments>
+```
+
+Dense score ranks preserve equal-score ties, while symbol/security ordering is
+display-only. No backtest outcomes, market-cap substitute, analyst estimate,
+recommendation, portfolio, or alert affects discovery. See
+[production opportunity discovery](docs/production-opportunity-discovery.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 
@@ -284,7 +299,7 @@ Integrated Filing Ind-AS financial XBRL mapping, corporate actions, bounded
 announcement/document catalyst evidence, and official Full Bhavcopy daily
 delivery observations. Financial-industry/legacy taxonomies remain deferred.
 It does not yet cover BSE, approved market capitalization, analyst coverage,
-authentication, alerts, backtesting, recommendations, charts, or
+authentication, alerts, strategy simulation, recommendations, charts, or
 watchlist/notes persistence. Production scoring is not activated.
 
 Delivery range ingestion is explicit and bounded:

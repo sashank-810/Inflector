@@ -1,4 +1,4 @@
-"""CLI for strict PIT snapshot, forward-outcome, and descriptive analysis stages."""
+"""CLI for deterministic persisted V5 opportunity discovery and export."""
 
 from __future__ import annotations
 
@@ -16,98 +16,76 @@ from uuid import UUID
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from inflector_data.backtest_analysis import summarize_backtest
-from inflector_data.backtest_outcomes import build_forward_outcomes
-from inflector_data.backtest_policy import (
-    load_backtest_policy,
-    load_historical_availability_manifest,
+from inflector_data.opportunity_discovery import (
+    build_opportunity_discovery,
+    normalize_discovery_symbols,
 )
-from inflector_data.historical_dataset import (
-    build_historical_dataset,
-    normalize_symbols,
-)
+from inflector_data.opportunity_policy import load_opportunity_discovery_policy
+from inflector_data.opportunity_summary import summarize_opportunity_discovery
 from inflector_data.research_profile import load_research_profile
 
 LATEST_MIGRATION = "20261003_0019"
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Strict knowledge-time V5 backtesting")
+    parser = argparse.ArgumentParser(description="Current V5 opportunity discovery")
     commands = parser.add_subparsers(dest="command", required=True)
 
-    dataset = commands.add_parser("build-dataset")
-    _database_policy_arguments(dataset)
-    dataset.add_argument("--availability-manifest", type=Path, required=True)
-    dataset.add_argument("--research-profile", type=Path, required=True)
-    dataset.add_argument("--model-family", required=True)
-    dataset.add_argument("--symbols-file", type=Path, required=True)
-    dataset.add_argument("--max-symbols", type=int, default=25)
-    dataset.add_argument("--from-cutoff", type=datetime.fromisoformat, required=True)
-    dataset.add_argument("--to-cutoff", type=datetime.fromisoformat, required=True)
-
-    outcomes = commands.add_parser("build-outcomes")
-    _database_policy_arguments(outcomes)
-    outcomes.add_argument("--research-profile", type=Path, required=True)
-    outcomes.add_argument("--run-id", type=UUID, required=True)
-    outcomes.add_argument("--outcome-data-cutoff", type=datetime.fromisoformat, required=True)
+    build = commands.add_parser("build-ranking")
+    _database_policy_arguments(build)
+    build.add_argument("--research-profile", type=Path, required=True)
+    build.add_argument("--model-family", required=True)
+    build.add_argument("--discovery-cutoff", type=datetime.fromisoformat, required=True)
+    build.add_argument("--symbols-file", type=Path, required=True)
+    build.add_argument("--max-symbols", type=int, default=5000)
 
     summary = commands.add_parser("summarize")
     _database_policy_arguments(summary)
     summary.add_argument("--run-id", type=UUID, required=True)
+    summary.add_argument("--limit", type=int)
     summary.add_argument("--export-csv", type=Path)
     return parser
 
 
 def _database_policy_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--database-url", required=True)
-    parser.add_argument("--backtest-policy", type=Path, required=True)
+    parser.add_argument("--discovery-policy", type=Path, required=True)
 
 
 def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
     _preflight(session)
     root = Path(__file__).resolve().parents[3]
-    policy = load_backtest_policy(args.backtest_policy, repository_root=root)
-    if args.command == "build-dataset":
-        manifest = load_historical_availability_manifest(args.availability_manifest)
-        profile = load_research_profile(args.research_profile)
+    policy = load_opportunity_discovery_policy(args.discovery_policy, repository_root=root)
+    if args.command == "build-ranking":
         if args.max_symbols < 1 or args.max_symbols > policy.maximum_symbols:
             raise ValueError(f"max-symbols must be between 1 and {policy.maximum_symbols}")
-        symbols = normalize_symbols(
+        symbols = normalize_discovery_symbols(
             args.symbols_file.read_text(encoding="utf-8-sig").splitlines(),
             maximum=args.max_symbols,
         )
-        result = build_historical_dataset(
+        profile = load_research_profile(args.research_profile)
+        result = build_opportunity_discovery(
             session,
             policy=policy,
-            manifest=manifest,
             research_profile=profile,
             model_family=args.model_family,
             symbols=symbols,
-            cutoff_start=args.from_cutoff,
-            cutoff_end=args.to_cutoff,
+            discovery_cutoff=args.discovery_cutoff,
             repository_root=root,
         )
         return {"status": "completed", **asdict(result)}
-    if args.command == "build-outcomes":
-        profile = load_research_profile(args.research_profile)
-        result = build_forward_outcomes(
-            session,
-            run_id=args.run_id,
-            policy=policy,
-            research_profile=profile,
-            outcome_data_cutoff=args.outcome_data_cutoff,
-        )
-        return {"status": "completed", **asdict(result)}
-    result = summarize_backtest(
+    result = summarize_opportunity_discovery(
         session,
         run_id=args.run_id,
         policy=policy,
+        limit=args.limit,
         export_csv=args.export_csv,
     )
     return {
         "status": "completed",
         "run_id": result.run_id,
         "summary": result.summary,
+        "items": result.items,
         "export_csv": result.export_path,
     }
 

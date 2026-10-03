@@ -1355,3 +1355,121 @@ class BacktestOutcome(Base):
     )
 
     observation: Mapped[BacktestObservation] = relationship(back_populates="outcomes")
+
+
+class OpportunityDiscoveryRun(Base):
+    """Immutable identity and completed audit for one current discovery ranking."""
+
+    __tablename__ = "opportunity_discovery_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_opportunity_discovery_run_key"),
+        CheckConstraint(
+            "status IN ('planned','completed','failed')",
+            name="ck_opportunity_discovery_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    discovery_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    discovery_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    scoring_configuration_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    research_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    financial_primitive_policy_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    financial_endpoint_policy_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    discovery_cutoff: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    universe_mode: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordered_symbols_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    symbol_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    snapshot_selection_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    ranking_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    items: Mapped[list[OpportunityDiscoveryItem]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class OpportunityDiscoveryItem(Base):
+    """One frozen selected-snapshot decision and optional dense V5 score rank."""
+
+    __tablename__ = "opportunity_discovery_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_discovery_run_id",
+            "symbol",
+            name="uq_opportunity_discovery_item_symbol",
+        ),
+        CheckConstraint(
+            "(rankable = true AND unranked_reason IS NULL AND score_rank IS NOT NULL "
+            "AND display_order IS NOT NULL) OR "
+            "(rankable = false AND unranked_reason IS NOT NULL AND score_rank IS NULL "
+            "AND display_order IS NULL)",
+            name="ck_opportunity_discovery_item_rankability",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    opportunity_discovery_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_discovery_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unranked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    display_order: Mapped[int | None] = mapped_column(nullable=True)
+    snapshot_age_days: Mapped[int | None] = mapped_column(nullable=True)
+    freshness_state: Mapped[str] = mapped_column(String(32), nullable=False)
+    selected_snapshot_fingerprint_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[OpportunityDiscoveryRun] = relationship(back_populates="items")
+    score_snapshot: Mapped[ScoreSnapshot | None] = relationship(lazy="selectin")

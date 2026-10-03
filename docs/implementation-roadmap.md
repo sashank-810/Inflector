@@ -385,7 +385,7 @@ company-level coverage, archiveability, or PIT provenance cannot be proven.
 Preserve missingness, partial V5 results, all accepted profiles/policies, and
 scorer semantics; add no substitute provider or derived evidence.
 
-### Production Data Activation J — Historical PIT Dataset & Leakage-Safe Backtesting (acceptance pending)
+### Production Data Activation J — Historical PIT Dataset & Leakage-Safe Backtesting (complete)
 
 Freeze bounded month-end V5 research observations using only actual persisted
 knowledge availability, then compute split/bonus-adjusted forward price and
@@ -395,6 +395,17 @@ endpoint checksums; retain partial snapshots and explicit missing outcomes.
 Provide deterministic descriptive summaries and CSV export without model
 tuning, universe backprojection, portfolio simulation, ranking, alerts,
 recommendations, or frontend work.
+
+### Production K — Deterministic Opportunity Discovery & Ranking (acceptance pending)
+
+Freeze the latest visible immutable V5 snapshot for every exact requested
+current NSE security at an explicit cutoff. Rank only fresh, eligible snapshots
+with persisted final scores by `final_score DESC`; preserve dense equal-score
+ranks and deterministic display-only symbol/security ordering. Persist complete
+audit and unranked reasons, expose mechanical component contributions, and
+support deterministic CSV export without reading Production J outcomes,
+recomputing scores, adding thresholds, recommendations, portfolios, alerts, or
+frontend work.
 
 ## Phase 6 — announcement and catalyst evidence
 

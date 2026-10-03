@@ -167,3 +167,9 @@ selection, financial context choice, partial V5 behavior, and every component
 formula remain the accepted production implementation. Snapshot construction
 cannot import or query forward outcomes. See
 [`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).
+
+Production K consumes these immutable current V5 snapshots without rerunning
+research or scoring. Only fresh, eligible snapshots with a persisted final
+score enter deterministic discovery ranking; partial snapshots remain an
+unranked coverage queue. See
+[`production-opportunity-discovery.md`](production-opportunity-discovery.md).

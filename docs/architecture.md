@@ -486,6 +486,15 @@ snapshot input/fingerprint blobs. No scoring, provider selection, write,
 migration, or frontend behavior enters this boundary. See
 [`opportunity-score-read-api.md`](opportunity-score-read-api.md).
 
+Production K adds a separate immutable discovery consumer over persisted V5
+snapshots. It freezes the latest bound snapshot per exact current security at an
+explicit cutoff, applies a binary seven-calendar-day freshness gate, and dense-
+ranks only eligible non-null final scores. The ranking path never invokes the
+scorer and has no dependency on Production J outcomes. Two append-only tables
+retain run identity and per-symbol classification; explanations read persisted
+component contributions. See
+[`production-opportunity-discovery.md`](production-opportunity-discovery.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

@@ -1,0 +1,30 @@
+{
+  "opportunity_discovery_policy_code": "production_opportunity_discovery_v1",
+  "policy_version": "1",
+  "scoring_policy_asset": "config/scoring/production_opportunity_v5.json",
+  "scoring_policy_asset_checksum_sha256": "702fb4d4e934542091f09b832777498fcc59c920acd87645f31dab8fd7d61569",
+  "research_profile_asset": "config/research/production_research_v4.json",
+  "research_profile_checksum_sha256": "f5d07ec154851f2a75b622ac2fa9742447e0e415572ff6c67986bc669e18d7b1",
+  "financial_primitive_policy_checksum_sha256": "d41513bf624f24f11c5a54a3979b4865a0f524514a77cf5849693f57ace95d92",
+  "financial_endpoint_policy_checksum_sha256": "8d101bbec5c58c6939cb0650aa7ed428d9aa2b34ea01913aa48a2b5ce84661d5",
+  "snapshot_selection_version": "latest_visible_bound_score_snapshot_v1",
+  "snapshot_selection_semantics": "latest_knowledge_cutoff_per_security_at_or_before_discovery_cutoff",
+  "ranking_version": "v5_final_score_dense_rank_v1",
+  "ranking_key": "final_score_desc",
+  "maximum_snapshot_age_days": 7,
+  "freshness_semantics": "calendar_date_age_binary_gate_v1",
+  "score_tie_semantics": "dense_equal_final_score_rank_v1",
+  "display_tie_order": ["symbol_asc", "security_id_asc"],
+  "universe_mode": "explicit_symbols_file",
+  "maximum_symbols": 5000,
+  "unranked_reason_priority": [
+    "identity_unavailable",
+    "no_visible_snapshot",
+    "configuration_mismatch",
+    "ambiguous_latest_snapshot",
+    "invalid_snapshot_state",
+    "stale_snapshot",
+    "v5_ineligible",
+    "partial_score"
+  ]
+}
