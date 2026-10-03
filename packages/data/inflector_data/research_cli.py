@@ -45,6 +45,7 @@ from inflector_data.production_policy import (
 from inflector_data.production_research import (
     ProductionResearchAssembler,
     ProductionResearchAssemblyError,
+    ProductionSecurityContext,
 )
 from inflector_data.research_profile import (
     load_profile_financial_endpoint_policy,
@@ -206,6 +207,7 @@ def _run_symbol(
     symbol: str,
     repository_root: Path,
     endpoint_result: FinancialEndpointResult | None = None,
+    identity_override: ProductionSecurityContext | None = None,
 ) -> dict[str, object]:
     profile = load_research_profile(args.research_profile)
     cutoff = _aware_utc(args.knowledge_cutoff, "knowledge_cutoff")
@@ -253,6 +255,7 @@ def _run_symbol(
         financial_scope_override=(
             endpoint_result.filing_scope if endpoint_result is not None else None
         ),
+        identity_override=identity_override,
     )
     security = evidence.identity.security
     result = _orchestrator(session).orchestrate_opportunity_score_and_persist(
@@ -329,6 +332,7 @@ def _run_symbol_auto(
     args: argparse.Namespace,
     symbol: str,
     repository_root: Path,
+    identity_override: ProductionSecurityContext | None = None,
 ) -> dict[str, object]:
     profile = load_research_profile(args.research_profile)
     endpoint_policy = load_profile_financial_endpoint_policy(profile, repository_root)
@@ -336,7 +340,7 @@ def _run_symbol_auto(
         raise ValueError("automatic research requires an explicit financial endpoint policy")
     primitive_policy = load_profile_financial_primitive_policy(profile, repository_root)
     assembler = ProductionResearchAssembler(session, profile, primitive_policy)
-    identity = assembler.resolve_symbol(symbol)
+    identity = identity_override or assembler.resolve_symbol(symbol)
     dataset_ids = resolve_profile_datasets(session, profile)
     financial_id = dataset_ids.get("financial")
     if financial_id is None:
@@ -369,12 +373,21 @@ def _run_symbol_auto(
             "fiscal_quarter": endpoint.fiscal_quarter,
         }
     )
+    if identity_override is None:
+        return _run_symbol(
+            session,
+            args=explicit_args,
+            symbol=symbol,
+            repository_root=repository_root,
+            endpoint_result=endpoint,
+        )
     return _run_symbol(
         session,
         args=explicit_args,
         symbol=symbol,
         repository_root=repository_root,
         endpoint_result=endpoint,
+        identity_override=identity,
     )
 
 

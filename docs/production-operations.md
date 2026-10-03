@@ -167,3 +167,10 @@ and public JSON carry null fiscal coordinates and `financial_endpoint_mode =
 auto`. Manual V1/V2 cycles continue to require explicit fiscal coordinates.
 Resume, lease, and completed-run reuse semantics are unchanged. See
 [`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).
+
+Production J remains outside the unattended Production E/H cycle. Historical
+dataset, forward-outcome, and summary commands are explicit bounded evaluation
+jobs with their own immutable run ledger. They reuse production snapshots but
+do not add a scheduler stage, change Operations V3 identity, or make future
+outcomes available to current research. See
+[`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).

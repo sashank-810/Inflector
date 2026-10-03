@@ -1,0 +1,66 @@
+{
+  "historical_availability_manifest_code": "production_historical_availability_v1",
+  "manifest_version": "1",
+  "classifications": {
+    "canonical_nse_universe": {
+      "dataset_code": "nse_equity_universe",
+      "classification": "B",
+      "treatment": "usable_only_from_observed_identity_creation_and_pit_visible_market_evidence",
+      "rationale": "Listings have historical valid_from/valid_to fields but no independently qualified historical dissemination clock. Current identities are never back-projected before their persisted creation time."
+    },
+    "financials": {
+      "dataset_code": "nse_integrated_financials_xbrl",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Historical filings downloaded later remain unknown before observed retrieval availability."
+    },
+    "prices": {
+      "dataset_code": "nse_cash_market_udiff_daily",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Trading date is economic time; the accepted archive does not backdate knowledge time to market close."
+    },
+    "benchmark": {
+      "dataset_code": "nse_indices_daily",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Index date is economic time and observed retrieval availability remains authoritative."
+    },
+    "delivery": {
+      "dataset_code": "nse_cash_market_delivery_daily",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Historical delivery artifacts fetched later are current-research evidence only after retrieval."
+    },
+    "corporate_actions": {
+      "dataset_code": "nse_corporate_actions",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Ex-date and record date do not replace the observed knowledge clock."
+    },
+    "business_events": {
+      "dataset_code": "nse_corporate_announcements",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Announcement timestamps are not adopted as historical knowledge time in the accepted ingestion policy."
+    },
+    "news_attention": {
+      "dataset_code": "gdelt_doc_company_news_mentions",
+      "classification": "B",
+      "treatment": "actual_persisted_available_at_only",
+      "rationale": "Only successfully archived aggregate responses are visible after observed retrieval."
+    },
+    "analyst_attention": {
+      "dataset_code": null,
+      "classification": "D",
+      "treatment": "not_configured",
+      "rationale": "No analyst-coverage source is approved."
+    },
+    "market_cap": {
+      "dataset_code": null,
+      "classification": "C",
+      "treatment": "unavailable_historically",
+      "rationale": "No security-level market-cap source or derivation is approved."
+    }
+  }
+}

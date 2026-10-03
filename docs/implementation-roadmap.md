@@ -376,7 +376,7 @@ the existing Production G evidence and V5 orchestration path. Preserve explicit
 manual FY/Q research, scope priority, revisions, partial snapshots, leases and
 resume behavior. Never fall back to an older, more complete period.
 
-### Production Data Activation I — Remaining Evidence Gap Qualification & Coverage Completion (acceptance pending)
+### Production Data Activation I — Remaining Evidence Gap Qualification & Coverage Completion (complete)
 
 Re-evaluate official market-cap and first-party analyst-coverage candidates
 against the exact accepted valuation and Low Market Attention contracts. Record
@@ -384,6 +384,17 @@ independent `NOT_APPROVED` outcomes when daily atomic semantics, complete
 company-level coverage, archiveability, or PIT provenance cannot be proven.
 Preserve missingness, partial V5 results, all accepted profiles/policies, and
 scorer semantics; add no substitute provider or derived evidence.
+
+### Production Data Activation J — Historical PIT Dataset & Leakage-Safe Backtesting (acceptance pending)
+
+Freeze bounded month-end V5 research observations using only actual persisted
+knowledge availability, then compute split/bonus-adjusted forward price and
+compatible NIFTY 50 outcomes in a separate append-only stage. Bind every run to
+versioned policy, historical-availability, scoring, research, primitive and
+endpoint checksums; retain partial snapshots and explicit missing outcomes.
+Provide deterministic descriptive summaries and CSV export without model
+tuning, universe backprojection, portfolio simulation, ranking, alerts,
+recommendations, or frontend work.
 
 ## Phase 6 — announcement and catalyst evidence
 

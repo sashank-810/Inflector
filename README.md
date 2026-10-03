@@ -144,6 +144,21 @@ of active analysts covering each company. Both remain `NOT_APPROVED`; Research
 V4 and Operations V3 stay current, and missing evidence remains missing. See
 [evidence-gap qualification](docs/production-evidence-gap-qualification.md).
 
+Production J adds bounded strict knowledge-time evaluation without changing
+V5 research semantics. Research snapshots are frozen first; forward adjusted
+price outcomes are built in a separate command and summarized descriptively:
+
+```powershell
+python -m inflector_data.backtest_cli build-dataset <explicit policy/profile/cutoff arguments>
+python -m inflector_data.backtest_cli build-outcomes <explicit run/outcome-cutoff arguments>
+python -m inflector_data.backtest_cli summarize <explicit run arguments>
+```
+
+Only actual persisted `available_at` is authoritative. Current downloaded
+history is not backdated, partial V5 snapshots remain in the dataset, and cash
+dividends are excluded from the declared adjusted-close price return. See
+[historical PIT backtesting](docs/production-historical-pit-backtesting.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

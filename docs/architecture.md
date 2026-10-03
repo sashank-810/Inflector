@@ -118,6 +118,15 @@ bounded filing source and resolves FY/Q per company; it stores no mutable
 latest-period pointer and adds no scorer. See
 [`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).
 
+Production Data Activation J adds a one-way evaluation boundary:
+`immutable PIT evidence -> existing V5 snapshot -> forward outcome -> descriptive
+summary`. A historical dataset references existing `ScoreSnapshot` rows rather
+than duplicating score payloads. Outcome modules may read frozen snapshots and
+later market evidence; research and scoring modules never import outcome data.
+The run identity binds all semantic policy checksums plus the source state
+visible at the requested cutoff range. See
+[`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).
+
 Phase 3E-A adds `InstantFinancialSnapshotReader`, a read-only same-period
 selection layer over PIT financial facts. It intersects eligible instant
 monetary INR facts by exact stored `FiscalPeriod.id` and defines latest by

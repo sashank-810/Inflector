@@ -307,3 +307,13 @@ It orders their authoritative persisted fiscal endpoints under the bound
 from older endpoints nor mixes scopes. Historical filings fetched today remain
 invisible to earlier cutoffs. Details are in
 [`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).
+
+## Historical availability for strict evaluation
+
+Production J does not change ingestion timestamps. Its versioned historical
+availability manifest classifies the current NSE financial, price, benchmark,
+delivery, action, announcement, and GDELT datasets as usable only from their
+actual persisted availability onward. Analyst coverage remains unconfigured and
+market capitalization remains unavailable. Historical economic dates never
+replace knowledge time. Details and commands are in
+[`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).

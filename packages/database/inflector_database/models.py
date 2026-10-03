@@ -1192,3 +1192,166 @@ class OperationalRunSymbol(Base):
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     run: Mapped[OperationalRun] = relationship(back_populates="symbols")
+
+
+class BacktestRun(Base):
+    """Immutable identity and bounded lifecycle for one historical evaluation."""
+
+    __tablename__ = "backtest_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_backtest_run_key"),
+        CheckConstraint(
+            "status IN ('planned','snapshots_built','outcomes_built','completed','failed')",
+            name="ck_backtest_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    backtest_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    backtest_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    availability_manifest_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    availability_manifest_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    scoring_configuration_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    research_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    financial_primitive_policy_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    financial_endpoint_policy_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    source_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    cutoff_start: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cutoff_end: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    cutoff_cadence: Mapped[str] = mapped_column(String(64), nullable=False)
+    universe_policy: Mapped[str] = mapped_column(String(64), nullable=False)
+    benchmark_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    return_horizons_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    ordered_symbols_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    symbol_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    outcome_data_cutoff: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    observations: Mapped[list[BacktestObservation]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class BacktestObservation(Base):
+    """One audited universe decision and optional immutable V5 snapshot reference."""
+
+    __tablename__ = "backtest_observations"
+    __table_args__ = (
+        UniqueConstraint(
+            "backtest_run_id",
+            "security_id",
+            "knowledge_cutoff",
+            name="uq_backtest_observation_identity",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    backtest_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    knowledge_cutoff: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, index=True
+    )
+    observation_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    selected_fiscal_year: Mapped[int | None] = mapped_column(nullable=True)
+    selected_fiscal_quarter: Mapped[int | None] = mapped_column(nullable=True)
+    selected_filing_scope: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    selected_period_end: Mapped[date | None] = mapped_column(Date, nullable=True)
+    snapshot_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_fingerprint_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    research_state_projection_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    research_state_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    research_state_changed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[BacktestRun] = relationship(back_populates="observations")
+    outcomes: Mapped[list[BacktestOutcome]] = relationship(
+        back_populates="observation", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class BacktestOutcome(Base):
+    """Append-only forward price outcome computed after a research state is frozen."""
+
+    __tablename__ = "backtest_outcomes"
+    __table_args__ = (
+        UniqueConstraint(
+            "backtest_observation_id",
+            "horizon_observations",
+            name="uq_backtest_outcome_horizon",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    backtest_observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_observations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    horizon_observations: Mapped[int] = mapped_column(nullable=False)
+    outcome_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    entry_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    exit_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    entry_adjusted_close: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    exit_adjusted_close: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    security_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    benchmark_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    excess_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    provenance_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    observation: Mapped[BacktestObservation] = relationship(back_populates="outcomes")

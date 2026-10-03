@@ -159,11 +159,20 @@ class ProductionResearchAssembler:
         dataset_ids: dict[str, UUID | None],
         policy: InflectionScoringPolicy,
         financial_scope_override: str | None = None,
+        identity_override: ProductionSecurityContext | None = None,
     ) -> ProductionResearchEvidence:
         cutoff = _aware_utc(knowledge_cutoff, "knowledge_cutoff")
         if fiscal_quarter not in {1, 2, 3, 4}:
             raise ValueError("fiscal_quarter must be between 1 and 4")
-        identity = self.resolve_symbol(symbol)
+        identity = identity_override or self.resolve_symbol(symbol)
+        if (
+            identity.listing.security_id != identity.security.id
+            or identity.listing.exchange != "NSE"
+            or identity.listing.symbol != symbol.strip().upper()
+        ):
+            raise ProductionResearchAssemblyError(
+                "explicit research identity does not match the requested NSE symbol"
+            )
         security = identity.security
         company = security.company
         financial_id = _required_dataset(dataset_ids, "financial")

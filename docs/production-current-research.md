@@ -160,3 +160,10 @@ available. Once AUTO selects an endpoint, it delegates to that same accepted
 research assembler and V5 orchestrator with the selected FY, quarter, and
 scope. See
 [`production-financial-endpoint-discovery.md`](production-financial-endpoint-discovery.md).
+
+Production J evaluates this unchanged current-research path at explicit
+historical cutoffs. It does not add a historical scorer: automatic endpoint
+selection, financial context choice, partial V5 behavior, and every component
+formula remain the accepted production implementation. Snapshot construction
+cannot import or query forward outcomes. See
+[`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).
