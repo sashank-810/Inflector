@@ -980,7 +980,7 @@ def test_migration_0018_creates_only_backtest_evaluation_tables(tmp_path: Path) 
     assert {"backtest_runs", "backtest_observations", "backtest_outcomes"} <= tables
     with engine.connect() as connection:
         assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == (
-            "20261003_0019"
+            "20261003_0020"
         )
     engine.dispose()
     command.downgrade(config, "20261002_0017")

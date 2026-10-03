@@ -1,4 +1,4 @@
-"""CLI for deterministic persisted V5 opportunity discovery and export."""
+"""CLI for deterministic comparison of completed Production K discovery runs."""
 
 from __future__ import annotations
 
@@ -16,68 +16,56 @@ from uuid import UUID
 from sqlalchemy import Engine, create_engine, text
 from sqlalchemy.orm import Session, sessionmaker
 
-from inflector_data.opportunity_discovery import (
-    build_opportunity_discovery,
-    normalize_discovery_symbols,
+from inflector_data.opportunity_change import (
+    IncompatibleDiscoveryRunsError,
+    build_opportunity_change,
 )
-from inflector_data.opportunity_policy import load_opportunity_discovery_policy
-from inflector_data.opportunity_summary import summarize_opportunity_discovery
-from inflector_data.research_profile import load_research_profile
+from inflector_data.opportunity_change_policy import load_opportunity_change_policy
+from inflector_data.opportunity_change_summary import summarize_opportunity_change
 
 LATEST_MIGRATION = "20261003_0020"
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Current V5 opportunity discovery")
+    parser = argparse.ArgumentParser(description="Production K research-state comparison")
     commands = parser.add_subparsers(dest="command", required=True)
-
-    build = commands.add_parser("build-ranking")
-    _database_policy_arguments(build)
-    build.add_argument("--research-profile", type=Path, required=True)
-    build.add_argument("--model-family", required=True)
-    build.add_argument("--discovery-cutoff", type=datetime.fromisoformat, required=True)
-    build.add_argument("--symbols-file", type=Path, required=True)
-    build.add_argument("--max-symbols", type=int, default=5000)
-
+    compare = commands.add_parser("compare")
+    _common(compare)
+    compare.add_argument("--baseline-run-id", type=UUID, required=True)
+    compare.add_argument("--current-run-id", type=UUID, required=True)
     summary = commands.add_parser("summarize")
-    _database_policy_arguments(summary)
-    summary.add_argument("--run-id", type=UUID, required=True)
+    _common(summary)
+    summary.add_argument("--change-run-id", type=UUID, required=True)
+    summary.add_argument("--changed-only", action="store_true")
+    summary.add_argument("--change-code")
     summary.add_argument("--limit", type=int)
     summary.add_argument("--export-csv", type=Path)
     return parser
 
 
-def _database_policy_arguments(parser: argparse.ArgumentParser) -> None:
+def _common(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--database-url", required=True)
-    parser.add_argument("--discovery-policy", type=Path, required=True)
+    parser.add_argument("--change-policy", type=Path, required=True)
 
 
 def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
     _preflight(session)
     root = Path(__file__).resolve().parents[3]
-    policy = load_opportunity_discovery_policy(args.discovery_policy, repository_root=root)
-    if args.command == "build-ranking":
-        if args.max_symbols < 1 or args.max_symbols > policy.maximum_symbols:
-            raise ValueError(f"max-symbols must be between 1 and {policy.maximum_symbols}")
-        symbols = normalize_discovery_symbols(
-            args.symbols_file.read_text(encoding="utf-8-sig").splitlines(),
-            maximum=args.max_symbols,
-        )
-        profile = load_research_profile(args.research_profile)
-        result = build_opportunity_discovery(
+    policy = load_opportunity_change_policy(args.change_policy, repository_root=root)
+    if args.command == "compare":
+        result = build_opportunity_change(
             session,
             policy=policy,
-            research_profile=profile,
-            model_family=args.model_family,
-            symbols=symbols,
-            discovery_cutoff=args.discovery_cutoff,
-            repository_root=root,
+            baseline_run_id=args.baseline_run_id,
+            current_run_id=args.current_run_id,
         )
         return {"status": "completed", **asdict(result)}
-    result = summarize_opportunity_discovery(
+    result = summarize_opportunity_change(
         session,
-        run_id=args.run_id,
+        run_id=args.change_run_id,
         policy=policy,
+        changed_only=args.changed_only,
+        change_code=args.change_code,
         limit=args.limit,
         export_csv=args.export_csv,
     )
@@ -100,6 +88,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             payload = _execute(args, session)
         print(json.dumps(payload, default=_json_default, sort_keys=True))
         return 0
+    except IncompatibleDiscoveryRunsError as error:
+        print(json.dumps({"status": error.status, "error": str(error)}, sort_keys=True))
+        return 1
     except (OSError, ValueError, RuntimeError) as error:
         print(json.dumps({"status": "failed", "error": str(error)}, sort_keys=True))
         return 1

@@ -495,6 +495,15 @@ retain run identity and per-symbol classification; explanations read persisted
 component contributions. See
 [`production-opportunity-discovery.md`](production-opportunity-discovery.md).
 
+Production L is a separate immutable K-to-K comparison layer. It accepts only
+completed semantically compatible discovery runs, matches persisted items by
+security identity, and records exact snapshot, rankability, score/rank,
+freshness, eligibility, coverage and top-level component transitions. Its two
+append-only tables bind the exact K run keys and selected-snapshot-set
+checksums. It never invokes research, scoring, ranking, or historical outcome
+code and does not schedule or deliver alerts. See
+[`production-opportunity-change-detection.md`](production-opportunity-change-detection.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

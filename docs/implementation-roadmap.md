@@ -396,7 +396,7 @@ Provide deterministic descriptive summaries and CSV export without model
 tuning, universe backprojection, portfolio simulation, ranking, alerts,
 recommendations, or frontend work.
 
-### Production K — Deterministic Opportunity Discovery & Ranking (acceptance pending)
+### Production K — Deterministic Opportunity Discovery & Ranking (complete)
 
 Freeze the latest visible immutable V5 snapshot for every exact requested
 current NSE security at an explicit cutoff. Rank only fresh, eligible snapshots
@@ -405,6 +405,17 @@ ranks and deterministic display-only symbol/security ordering. Persist complete
 audit and unranked reasons, expose mechanical component contributions, and
 support deterministic CSV export without reading Production J outcomes,
 recomputing scores, adding thresholds, recommendations, portfolios, alerts, or
+frontend work.
+
+### Production L — Change Detection & Research Watch-State (acceptance pending)
+
+Compare two compatible immutable Production K discovery runs and persist one
+canonical factual transition record per security identity. Keep universe
+entry/exit distinct from rankability, compare only persisted scores, dense
+ranks, confidence, coverage and top-level components, and bind the frozen
+comparison to both K run and snapshot-set identities. Provide deterministic
+CLI summaries and CSV export without research/scoring recomputation, severity
+scores, recommendations, alerts, user watchlists, portfolios, scheduling, or
 frontend work.
 
 ## Phase 6 — announcement and catalyst evidence

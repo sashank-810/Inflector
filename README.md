@@ -174,6 +174,15 @@ display-only. No backtest outcomes, market-cap substitute, analyst estimate,
 recommendation, portfolio, or alert affects discovery. See
 [production opportunity discovery](docs/production-opportunity-discovery.md).
 
+Production L compares two completed Production K runs without rerunning
+research, scoring, or ranking. It persists exact score/rank, rankability,
+freshness, eligibility, coverage, component, symbol, and compared-universe
+transitions. Score deltas exist only when both sides were rankable; display
+order is never treated as merit. Commands are
+`python -m inflector_data.opportunity_change_cli compare ...` and
+`python -m inflector_data.opportunity_change_cli summarize ...`. See
+[production opportunity change detection](docs/production-opportunity-change-detection.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

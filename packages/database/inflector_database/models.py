@@ -1473,3 +1473,135 @@ class OpportunityDiscoveryItem(Base):
 
     run: Mapped[OpportunityDiscoveryRun] = relationship(back_populates="items")
     score_snapshot: Mapped[ScoreSnapshot | None] = relationship(lazy="selectin")
+
+
+class OpportunityChangeRun(Base):
+    """Immutable comparison of two completed opportunity discovery runs."""
+
+    __tablename__ = "opportunity_change_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_opportunity_change_run_key"),
+        CheckConstraint(
+            "status IN ('planned','completed','failed','incompatible_runs')",
+            name="ck_opportunity_change_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    change_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    change_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_discovery_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_discovery_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    current_discovery_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_discovery_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    baseline_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    baseline_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    current_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    comparison_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    items: Mapped[list[OpportunityChangeItem]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class OpportunityChangeItem(Base):
+    """Canonical factual research-state change for one matched K identity."""
+
+    __tablename__ = "opportunity_change_items"
+    __table_args__ = (
+        UniqueConstraint(
+            "opportunity_change_run_id",
+            "identity_key",
+            name="uq_opportunity_change_item_identity",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    opportunity_change_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_change_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    identity_key: Mapped[str] = mapped_column(String(160), nullable=False)
+    identity_basis: Mapped[str] = mapped_column(String(32), nullable=False)
+    company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    baseline_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    current_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_discovery_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("opportunity_discovery_items.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    current_discovery_item_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("opportunity_discovery_items.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
+    baseline_score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    current_score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    change_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    changed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    baseline_rankable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    current_rankable: Mapped[bool | None] = mapped_column(Boolean, nullable=True)
+    baseline_unranked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    current_unranked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    baseline_final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    current_final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    score_delta: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    baseline_score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    current_score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    rank_delta: Mapped[int | None] = mapped_column(nullable=True)
+    baseline_confidence: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    current_confidence: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    confidence_delta: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    components_gained_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    components_lost_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    component_change_detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[OpportunityChangeRun] = relationship(back_populates="items")
