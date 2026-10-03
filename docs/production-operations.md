@@ -174,3 +174,20 @@ jobs with their own immutable run ledger. They reuse production snapshots but
 do not add a scheduler stage, change Operations V3 identity, or make future
 outcomes available to current research. See
 [`production-historical-pit-backtesting.md`](production-historical-pit-backtesting.md).
+
+## Operations V4 opportunity monitoring
+
+`nse_daily_operations_v4` preserves V3 evidence and endpoint behavior and
+appends `opportunity_discovery` then `opportunity_change` after current
+research. K receives the persisted operational `knowledge_cutoff` and exact
+ordered symbols; neither value changes on resume. The stage ledger records
+bounded K/L run references rather than copying their artifacts.
+
+L baselines come only from prior completed compatible V4 operational discovery
+stages. Manual K runs are excluded, the latest strictly earlier compatible
+cutoff wins, and the selected baseline is committed before L starts. A first
+run or stream with no compatible baseline completes successfully with
+`no_compatible_baseline` and no fabricated change run. Existing leases,
+retries, completed-stage skips, stale-run recovery, missed-job handling, and
+the single scheduled task remain unchanged. See
+[`production-opportunity-monitoring.md`](production-opportunity-monitoring.md).

@@ -141,7 +141,8 @@ evidence standards. Official market-cap candidates do not yet provide an
 approved archiveable daily atomic value compatible with the UDiFF bar, and
 official analyst/meeting/registry sources do not provide a complete dated count
 of active analysts covering each company. Both remain `NOT_APPROVED`; Research
-V4 and Operations V3 stay current, and missing evidence remains missing. See
+V4 remains current, Operations V4 only adds monitoring orchestration, and
+missing evidence remains missing. See
 [evidence-gap qualification](docs/production-evidence-gap-qualification.md).
 
 Production J adds bounded strict knowledge-time evaluation without changing
@@ -182,6 +183,15 @@ order is never treated as merit. Commands are
 `python -m inflector_data.opportunity_change_cli compare ...` and
 `python -m inflector_data.opportunity_change_cli summarize ...`. See
 [production opportunity change detection](docs/production-opportunity-change-detection.md).
+
+Production M adds Operations V4 to run the accepted current-research, K, and L
+chain as one resumable daily cycle. The operational cutoff and symbol tuple are
+shared with K; L selects only a prior compatible K run referenced by a
+completed monitored operational stage, then freezes that baseline before
+comparison. A first run with no baseline succeeds without fabricating a change
+run. Existing leases, retries, stale recovery, missed-job handling, and the
+single Windows scheduled task are reused. See
+[production opportunity monitoring](docs/production-opportunity-monitoring.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:

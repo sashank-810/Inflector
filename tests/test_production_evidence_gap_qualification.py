@@ -60,7 +60,6 @@ def test_accepted_profiles_remain_immutable_and_no_gap_profiles_are_created() ->
     assert research[-1].analyst_coverage_source is None
     assert research[-1].provider_datasets["analyst_attention"] is None
     assert not (ROOT / "config/research/production_research_v5.json").exists()
-    assert not (ROOT / "config/operations/production_operations_v4.json").exists()
 
 
 def test_official_udiff_market_evidence_does_not_fabricate_market_cap() -> None:

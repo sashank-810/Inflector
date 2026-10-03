@@ -32,6 +32,16 @@ class ProductionOperationsProfile:
     maximum_documents: int
     recent_runs_limit: int
     recent_runs_hard_limit: int
+    opportunity_monitoring_enabled: bool
+    opportunity_discovery_policy_asset: str | None
+    opportunity_discovery_policy_code: str | None
+    opportunity_discovery_policy_checksum_sha256: str | None
+    opportunity_change_policy_asset: str | None
+    opportunity_change_policy_code: str | None
+    opportunity_change_policy_checksum_sha256: str | None
+    opportunity_discovery_cutoff_semantics: str | None
+    opportunity_change_baseline_semantics: str | None
+    opportunity_change_no_baseline_behavior: str | None
     checksum_sha256: str
 
 
@@ -67,10 +77,24 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
     supported = set(expected)
     supported.add("delivery_history_calendar_lookback_days")
     supported_auto = {*supported, "automatic_financial_endpoint"}
+    monitoring_fields = {
+        "opportunity_monitoring_enabled",
+        "opportunity_discovery_policy_asset",
+        "opportunity_discovery_policy_code",
+        "opportunity_discovery_policy_checksum_sha256",
+        "opportunity_change_policy_asset",
+        "opportunity_change_policy_code",
+        "opportunity_change_policy_checksum_sha256",
+        "opportunity_discovery_cutoff_semantics",
+        "opportunity_change_baseline_semantics",
+        "opportunity_change_no_baseline_behavior",
+    }
+    supported_monitoring = {*supported_auto, *monitoring_fields}
     if frozenset(value) not in {
         frozenset(expected),
         frozenset(supported),
         frozenset(supported_auto),
+        frozenset(supported_monitoring),
     }:
         raise ValueError("operations profile fields are incomplete or unsupported")
     timezone = _text(value, "timezone")
@@ -90,6 +114,37 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
     recent_hard_limit = _integer(value, "recent_runs_hard_limit", minimum=1, maximum=100)
     recent_default = _integer(value, "recent_runs_limit", minimum=1, maximum=recent_hard_limit)
     canonical = json.dumps(value, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    monitoring_enabled = (
+        _boolean(value, "opportunity_monitoring_enabled")
+        if "opportunity_monitoring_enabled" in value
+        else False
+    )
+    if monitoring_enabled:
+        _exact_text(
+            value,
+            "opportunity_discovery_policy_code",
+            "production_opportunity_discovery_v1",
+        )
+        _exact_text(
+            value, "opportunity_change_policy_code", "production_opportunity_change_v1"
+        )
+        _sha256(value, "opportunity_discovery_policy_checksum_sha256")
+        _sha256(value, "opportunity_change_policy_checksum_sha256")
+        _exact_text(
+            value,
+            "opportunity_discovery_cutoff_semantics",
+            "operational_knowledge_cutoff_v1",
+        )
+        _exact_text(
+            value,
+            "opportunity_change_baseline_semantics",
+            "latest_prior_compatible_completed_monitoring_stage_v1",
+        )
+        _exact_text(
+            value,
+            "opportunity_change_no_baseline_behavior",
+            "complete_without_change_run_v1",
+        )
     return ProductionOperationsProfile(
         operations_profile_code=_text(value, "operations_profile_code"),
         profile_version=_text(value, "profile_version"),
@@ -119,6 +174,52 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         maximum_documents=_integer(value, "maximum_documents", minimum=0, maximum=500),
         recent_runs_limit=recent_default,
         recent_runs_hard_limit=recent_hard_limit,
+        opportunity_monitoring_enabled=monitoring_enabled,
+        opportunity_discovery_policy_asset=(
+            _text(value, "opportunity_discovery_policy_asset")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_discovery_policy_code=(
+            _text(value, "opportunity_discovery_policy_code")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_discovery_policy_checksum_sha256=(
+            _sha256(value, "opportunity_discovery_policy_checksum_sha256")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_change_policy_asset=(
+            _text(value, "opportunity_change_policy_asset")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_change_policy_code=(
+            _text(value, "opportunity_change_policy_code")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_change_policy_checksum_sha256=(
+            _sha256(value, "opportunity_change_policy_checksum_sha256")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_discovery_cutoff_semantics=(
+            _text(value, "opportunity_discovery_cutoff_semantics")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_change_baseline_semantics=(
+            _text(value, "opportunity_change_baseline_semantics")
+            if monitoring_enabled
+            else None
+        ),
+        opportunity_change_no_baseline_behavior=(
+            _text(value, "opportunity_change_no_baseline_behavior")
+            if monitoring_enabled
+            else None
+        ),
         checksum_sha256=sha256(canonical).hexdigest(),
     )
 
@@ -148,6 +249,13 @@ def _boolean(value: dict[str, Any], field: str) -> bool:
     item = value.get(field)
     if not isinstance(item, bool):
         raise ValueError(f"{field} must be a boolean")
+    return item
+
+
+def _sha256(value: dict[str, Any], field: str) -> str:
+    item = _text(value, field)
+    if len(item) != 64 or any(character not in "0123456789abcdef" for character in item):
+        raise ValueError(f"{field} must be lowercase SHA-256")
     return item
 
 

@@ -20,6 +20,11 @@ from sqlalchemy.orm import Session
 from inflector_data import nse_cli, research_cli
 from inflector_data.nse_cli import production_preflight
 from inflector_data.operations_profile import ProductionOperationsProfile
+from inflector_data.opportunity_monitoring import (
+    OpportunityMonitoringOrchestrator,
+    load_monitoring_policies,
+    monitoring_baseline_status,
+)
 from inflector_data.production_policy import resolve_profile_datasets
 from inflector_data.research_profile import ProductionResearchProfile
 from inflector_database.models import ModelVersion, OperationalRun, ScoreSnapshot
@@ -46,13 +51,16 @@ RESEARCH_STATE_PROJECTION_VERSION = "research_state_projection_v1"
 def operational_stage_definitions(
     profile: ProductionOperationsProfile,
 ) -> tuple[tuple[str, bool], ...]:
-    if profile.delivery_history_calendar_lookback_days is None:
-        return OPERATIONAL_STAGE_DEFINITIONS
-    return (
-        *OPERATIONAL_STAGE_DEFINITIONS[:3],
-        ("delivery_history", False),
-        *OPERATIONAL_STAGE_DEFINITIONS[3:],
-    )
+    stages = OPERATIONAL_STAGE_DEFINITIONS
+    if profile.delivery_history_calendar_lookback_days is not None:
+        stages = (
+            *stages[:3],
+            ("delivery_history", False),
+            *stages[3:],
+        )
+    if profile.opportunity_monitoring_enabled:
+        stages = (*stages, ("opportunity_discovery", True), ("opportunity_change", True))
+    return stages
 
 
 @dataclass(frozen=True, slots=True)
@@ -133,6 +141,13 @@ def plan_cycle(
         raise ValueError("cycle endpoint mode must match the operations profile")
     if automatic_endpoint and research_profile.financial_endpoint_policy_checksum_sha256 is None:
         raise ValueError("automatic cycles require a bound financial endpoint policy")
+    monitoring_policies = None
+    if operations_profile.opportunity_monitoring_enabled:
+        if research_profile.research_profile_code != "nse_current_research_v4":
+            raise ValueError("opportunity monitoring requires accepted Research V4")
+        monitoring_policies = load_monitoring_policies(
+            operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
     if inputs.symbols != normalize_symbols(
         inputs.symbols_file, maximum=operations_profile.maximum_symbols_per_cycle
     ):
@@ -171,6 +186,28 @@ def plan_cycle(
         "model_effective_from": aware_utc(
             inputs.model_effective_from, "model_effective_from"
         ).isoformat(),
+        "opportunity_monitoring_enabled": operations_profile.opportunity_monitoring_enabled,
+        "opportunity_discovery_policy_code": (
+            monitoring_policies.discovery.code if monitoring_policies else None
+        ),
+        "opportunity_discovery_policy_checksum_sha256": (
+            monitoring_policies.discovery.checksum_sha256 if monitoring_policies else None
+        ),
+        "opportunity_change_policy_code": (
+            monitoring_policies.change.code if monitoring_policies else None
+        ),
+        "opportunity_change_policy_checksum_sha256": (
+            monitoring_policies.change.checksum_sha256 if monitoring_policies else None
+        ),
+        "opportunity_discovery_cutoff_semantics": (
+            operations_profile.opportunity_discovery_cutoff_semantics
+        ),
+        "opportunity_change_baseline_semantics": (
+            operations_profile.opportunity_change_baseline_semantics
+        ),
+        "opportunity_change_no_baseline_behavior": (
+            operations_profile.opportunity_change_no_baseline_behavior
+        ),
     }
     identity = {
         "operations_profile_code": operations_profile.operations_profile_code,
@@ -204,6 +241,24 @@ def plan_cycle(
         "model_semantic_version": persisted["model_semantic_version"],
         "git_sha": persisted["git_sha"],
         "model_effective_from": persisted["model_effective_from"],
+        "opportunity_monitoring": {
+            "enabled": persisted["opportunity_monitoring_enabled"],
+            "discovery_policy_code": persisted["opportunity_discovery_policy_code"],
+            "discovery_policy_checksum_sha256": persisted[
+                "opportunity_discovery_policy_checksum_sha256"
+            ],
+            "change_policy_code": persisted["opportunity_change_policy_code"],
+            "change_policy_checksum_sha256": persisted[
+                "opportunity_change_policy_checksum_sha256"
+            ],
+            "discovery_cutoff_semantics": persisted[
+                "opportunity_discovery_cutoff_semantics"
+            ],
+            "baseline_semantics": persisted["opportunity_change_baseline_semantics"],
+            "no_baseline_behavior": persisted[
+                "opportunity_change_no_baseline_behavior"
+            ],
+        },
     }
     run_key = sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -279,6 +334,25 @@ def doctor(
     except RuntimeError:
         bindings = {}
         binding_status = "initialization_required"
+    monitoring: dict[str, object] = {"enabled": False}
+    if plan.operations_profile.opportunity_monitoring_enabled:
+        policies = load_monitoring_policies(
+            plan.operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
+        monitoring = {
+            "enabled": True,
+            "opportunity_discovery": {
+                "status": "ready",
+                "policy_code": policies.discovery.code,
+                "policy_checksum_sha256": policies.discovery.checksum_sha256,
+            },
+            "opportunity_change": {
+                "status": "ready",
+                "policy_code": policies.change.code,
+                "policy_checksum_sha256": policies.change.checksum_sha256,
+            },
+            "prior_baseline": monitoring_baseline_status(session, plan),
+        }
     return {
         "status": "passed",
         "migration_head": migration,
@@ -286,6 +360,11 @@ def doctor(
         "operations_profile_checksum": plan.operations_profile.checksum_sha256,
         "research_profile_code": plan.research_profile.research_profile_code,
         "research_profile_checksum": plan.research_profile.checksum_sha256,
+        "research": {
+            "status": "ready",
+            "profile_code": plan.research_profile.research_profile_code,
+            "profile_checksum_sha256": plan.research_profile.checksum_sha256,
+        },
         "financial_endpoint_policy": {
             "code": plan.research_profile.financial_endpoint_policy_code,
             "checksum_sha256": plan.research_profile.financial_endpoint_policy_checksum_sha256,
@@ -294,6 +373,7 @@ def doctor(
         "symbols": list(plan.inputs.symbols),
         "provider_bindings_status": binding_status,
         "provider_bindings": bindings,
+        "opportunity_monitoring": monitoring,
     }
 
 
@@ -484,6 +564,14 @@ class AcceptedProductionStageExecutor:
             # Per-symbol failure is recorded by the operations layer, not treated as a
             # dependency failure that erases successful later-symbol work.
             return payload, True
+        if stage == "opportunity_discovery":
+            return OpportunityMonitoringOrchestrator(
+                Path(__file__).resolve().parents[3]
+            ).execute_discovery(session, plan)
+        if stage == "opportunity_change":
+            return OpportunityMonitoringOrchestrator(
+                Path(__file__).resolve().parents[3]
+            ).execute_change(session, plan)
         raise ValueError(f"unsupported operational stage: {stage}")
 
 
@@ -594,7 +682,11 @@ class ProductionCycleService:
                 result = json_safe(result)
             except Exception as error:
                 self._session.rollback()
-                result = {"status": "failed"}
+                failed_run = self._required_run(run_id)
+                failed_stage = next(
+                    item for item in failed_run.stages if item.stage_name == definition_name
+                )
+                result = {**failed_stage.result_summary_json, "status": "failed"}
                 succeeded = False
                 error_code = type(error).__name__
                 error_message = str(error)

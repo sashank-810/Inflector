@@ -504,6 +504,15 @@ checksums. It never invokes research, scoring, ranking, or historical outcome
 code and does not schedule or deliver alerts. See
 [`production-opportunity-change-detection.md`](production-opportunity-change-detection.md).
 
+Production M is a thin orchestration layer over current Research V4, K, and L.
+Operations V4 appends discovery and change stages to the existing resumable
+ledger, passes K the frozen operational cutoff and exact ordered cycle
+universe, and selects L baselines only through prior completed monitored-stage
+references. Baseline identity is committed before L execution, so retries do
+not drift after backfills. K/L tables remain authoritative; M adds no schema or
+ranking/change logic. See
+[`production-opportunity-monitoring.md`](production-opportunity-monitoring.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

@@ -407,7 +407,7 @@ support deterministic CSV export without reading Production J outcomes,
 recomputing scores, adding thresholds, recommendations, portfolios, alerts, or
 frontend work.
 
-### Production L — Change Detection & Research Watch-State (acceptance pending)
+### Production L — Change Detection & Research Watch-State (complete)
 
 Compare two compatible immutable Production K discovery runs and persist one
 canonical factual transition record per security identity. Keep universe
@@ -417,6 +417,17 @@ comparison to both K run and snapshot-set identities. Provide deterministic
 CLI summaries and CSV export without research/scoring recomputation, severity
 scores, recommendations, alerts, user watchlists, portfolios, scheduling, or
 frontend work.
+
+### Production M — Scheduled Opportunity Monitoring Orchestration (acceptance pending)
+
+Extend the existing resumable production cycle with accepted K discovery and
+L change stages. Share the frozen operational cutoff and ordered universe,
+restrict baselines to compatible prior monitored-stage lineage, freeze the
+chosen baseline before L execution, and treat first-run no-baseline as success.
+Reuse existing leases, retries, stale recovery, missed-job and single-scheduler
+behavior without changing research, scoring, K/L semantics, or persistence
+schema. Add no alerts, notifications, recommendations, portfolios, API, or
+frontend behavior.
 
 ## Phase 6 — announcement and catalyst evidence
 
