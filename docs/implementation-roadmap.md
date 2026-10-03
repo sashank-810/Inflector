@@ -429,7 +429,7 @@ behavior without changing research, scoring, K/L semantics, or persistence
 schema. Add no alerts, notifications, recommendations, portfolios, API, or
 frontend behavior.
 
-### Production N — Deterministic Research Alert Projection & Notification Outbox (acceptance pending)
+### Production N — Deterministic Research Alert Projection & Notification Outbox (complete)
 
 Project configured high-level factual Production L changes into one immutable
 pending transport-neutral notification per eligible L item. Bind every event to
@@ -438,6 +438,16 @@ structured null-preserving payload. Add Operations V5 and migration 0021 while
 retaining existing leases, retries, scheduler, research, K/L and score
 semantics. Do not deliver notifications, add thresholds or severity, generate
 recommendations, or add watchlists, portfolio, API, or frontend behavior.
+
+### Production O — Reliable Notification Delivery Lifecycle + Telegram Transport V1 (acceptance pending)
+
+Deliver immutable N events through a separate deterministic event/target/policy
+lifecycle with expiring transactional claims, append-only attempt audit,
+bounded deterministic retry, dead-letter state, and factual Telegram rendering.
+Add Operations V6 and migration 0022 while keeping N payloads and all upstream
+research/K/L semantics immutable. External Telegram delivery is at-least-once
+across the provider-success/local-commit crash window. Add no other transport,
+recommendation, watchlist, portfolio, API, frontend, or Production P behavior.
 
 ## Phase 6 — announcement and catalyst evidence
 

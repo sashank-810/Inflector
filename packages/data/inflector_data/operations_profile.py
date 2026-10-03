@@ -48,6 +48,12 @@ class ProductionOperationsProfile:
     research_alert_policy_checksum_sha256: str | None
     notification_projection_semantics: str | None
     notification_no_change_run_behavior: str | None
+    notification_delivery_enabled: bool
+    notification_delivery_policy_asset: str | None
+    notification_delivery_policy_code: str | None
+    notification_delivery_policy_checksum_sha256: str | None
+    notification_delivery_stage_semantics: str | None
+    notification_delivery_transport_unavailable_behavior: str | None
     checksum_sha256: str
 
 
@@ -105,12 +111,22 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         "notification_no_change_run_behavior",
     }
     supported_notifications = {*supported_monitoring, *notification_fields}
+    delivery_fields = {
+        "notification_delivery_enabled",
+        "notification_delivery_policy_asset",
+        "notification_delivery_policy_code",
+        "notification_delivery_policy_checksum_sha256",
+        "notification_delivery_stage_semantics",
+        "notification_delivery_transport_unavailable_behavior",
+    }
+    supported_delivery = {*supported_notifications, *delivery_fields}
     if frozenset(value) not in {
         frozenset(expected),
         frozenset(supported),
         frozenset(supported_auto),
         frozenset(supported_monitoring),
         frozenset(supported_notifications),
+        frozenset(supported_delivery),
     }:
         raise ValueError("operations profile fields are incomplete or unsupported")
     timezone = _text(value, "timezone")
@@ -184,6 +200,30 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
             value,
             "notification_no_change_run_behavior",
             "complete_without_outbox_rows_v1",
+        )
+    delivery_enabled = (
+        _boolean(value, "notification_delivery_enabled")
+        if "notification_delivery_enabled" in value
+        else False
+    )
+    if delivery_enabled:
+        if not notification_enabled:
+            raise ValueError("notification delivery requires notification projection")
+        _exact_text(
+            value,
+            "notification_delivery_policy_code",
+            "production_notification_delivery_v1",
+        )
+        _sha256(value, "notification_delivery_policy_checksum_sha256")
+        _exact_text(
+            value,
+            "notification_delivery_stage_semantics",
+            "prepare_claim_send_record_v1",
+        )
+        _exact_text(
+            value,
+            "notification_delivery_transport_unavailable_behavior",
+            "complete_with_pending_backlog_v1",
         )
     return ProductionOperationsProfile(
         operations_profile_code=_text(value, "operations_profile_code"),
@@ -284,6 +324,32 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         notification_no_change_run_behavior=(
             _text(value, "notification_no_change_run_behavior")
             if notification_enabled
+            else None
+        ),
+        notification_delivery_enabled=delivery_enabled,
+        notification_delivery_policy_asset=(
+            _text(value, "notification_delivery_policy_asset")
+            if delivery_enabled
+            else None
+        ),
+        notification_delivery_policy_code=(
+            _text(value, "notification_delivery_policy_code")
+            if delivery_enabled
+            else None
+        ),
+        notification_delivery_policy_checksum_sha256=(
+            _sha256(value, "notification_delivery_policy_checksum_sha256")
+            if delivery_enabled
+            else None
+        ),
+        notification_delivery_stage_semantics=(
+            _text(value, "notification_delivery_stage_semantics")
+            if delivery_enabled
+            else None
+        ),
+        notification_delivery_transport_unavailable_behavior=(
+            _text(value, "notification_delivery_transport_unavailable_behavior")
+            if delivery_enabled
             else None
         ),
         checksum_sha256=sha256(canonical).hexdigest(),

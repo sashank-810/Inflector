@@ -737,7 +737,7 @@ def test_migration_0019_adds_only_discovery_tables(tmp_path: Path) -> None:
     assert {"backtest_runs", "backtest_observations", "backtest_outcomes"} <= tables
     with engine.connect() as connection:
         assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == (
-            "20261003_0021"
+            "20261003_0022"
         )
     engine.dispose()
     command.downgrade(config, "20261003_0018")

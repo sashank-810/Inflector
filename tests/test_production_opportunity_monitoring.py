@@ -530,7 +530,7 @@ def test_doctor_v4_reports_policy_readiness_and_informational_no_baseline(
     plan = _plan(tmp_path)
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
-        text("INSERT INTO alembic_version (version_num) VALUES ('20261003_0021')")
+        text("INSERT INTO alembic_version (version_num) VALUES ('20261003_0022')")
     )
     monkeypatch.setattr(production_operations, "production_preflight", lambda *args: None)
     result = doctor(session, plan=plan)

@@ -202,6 +202,15 @@ changes do not trigger alone, multiple matching codes remain one event, and
 null values remain null. See
 [production research notification outbox](docs/production-research-notification-outbox.md).
 
+Production O adds Operations V6 and a separate reliable delivery lifecycle for
+immutable N events. Telegram V1 uses deterministic internal identities,
+transactional expiring claims, append-only attempts, bounded retries, and a
+factual plain-text renderer. Bot token and chat ID remain runtime-only secrets;
+missing credentials leave backlog pending without invalidating research. The
+external guarantee is explicitly at-least-once because Telegram cannot bind an
+application idempotency key across the provider-success/local-commit crash
+window. See [production notification delivery](docs/production-notification-delivery.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

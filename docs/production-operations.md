@@ -208,3 +208,21 @@ validates the policy, L checksum binding, and migration 0021 without requiring
 transport credentials. Scheduling remains the existing single Asia/Kolkata
 20:00 task. See
 [`production-research-notification-outbox.md`](production-research-notification-outbox.md).
+
+## Operations V6 notification delivery
+
+`nse_daily_operations_v6` preserves V5 and appends required ledger stage
+`notification_delivery` after projection. The stage calls the Production O
+service: it prepares deterministic delivery rows from N, claims due backlog,
+performs bounded Telegram requests outside database transactions, and records
+append-only attempt outcomes. It does not inspect L/K/research to revisit
+eligibility.
+
+Transport failures become `retry_wait` or `dead_letter` delivery facts, so they
+do not invalidate completed research/K/L/N work. An integrity or program error
+fails only the delivery stage; resume skips all completed predecessors. Missing
+credentials completes as `transport_unavailable`, creates no attempt, and keeps
+backlog pending. Doctor validates migration 0022 and the bound O/N checksums and
+reports credential availability without values. The existing single
+Asia/Kolkata 20:00 task is unchanged. See
+[`production-notification-delivery.md`](production-notification-delivery.md).

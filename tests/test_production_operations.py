@@ -227,7 +227,7 @@ def test_doctor_is_read_only_and_reports_initialization_requirement(
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
         text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
-        {"version": "20261003_0021"},
+        {"version": "20261003_0022"},
     )
     before = session.scalar(select(func.count()).select_from(OperationalRun))
 

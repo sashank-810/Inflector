@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 from argparse import Namespace
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -18,6 +19,10 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from inflector_data import nse_cli, research_cli
+from inflector_data.notification_delivery_operations import (
+    NotificationDeliveryOrchestrator,
+    load_bound_notification_delivery_policy,
+)
 from inflector_data.notification_operations import (
     NotificationProjectionOrchestrator,
     load_bound_research_alert_policy,
@@ -66,6 +71,8 @@ def operational_stage_definitions(
         stages = (*stages, ("opportunity_discovery", True), ("opportunity_change", True))
     if profile.notification_projection_enabled:
         stages = (*stages, ("notification_projection", True))
+    if profile.notification_delivery_enabled:
+        stages = (*stages, ("notification_delivery", True))
     return stages
 
 
@@ -159,6 +166,11 @@ def plan_cycle(
         notification_policy = load_bound_research_alert_policy(
             operations_profile, repository_root=Path(__file__).resolve().parents[3]
         )
+    delivery_policy = None
+    if operations_profile.notification_delivery_enabled:
+        delivery_policy = load_bound_notification_delivery_policy(
+            operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
     if inputs.symbols != normalize_symbols(
         inputs.symbols_file, maximum=operations_profile.maximum_symbols_per_cycle
     ):
@@ -234,6 +246,21 @@ def plan_cycle(
         "notification_no_change_run_behavior": (
             operations_profile.notification_no_change_run_behavior
         ),
+        "notification_delivery_enabled": (
+            operations_profile.notification_delivery_enabled
+        ),
+        "notification_delivery_policy_code": (
+            delivery_policy.code if delivery_policy else None
+        ),
+        "notification_delivery_policy_checksum_sha256": (
+            delivery_policy.checksum_sha256 if delivery_policy else None
+        ),
+        "notification_delivery_stage_semantics": (
+            operations_profile.notification_delivery_stage_semantics
+        ),
+        "notification_delivery_transport_unavailable_behavior": (
+            operations_profile.notification_delivery_transport_unavailable_behavior
+        ),
     }
     identity = {
         "operations_profile_code": operations_profile.operations_profile_code,
@@ -296,6 +323,17 @@ def plan_cycle(
                 "notification_no_change_run_behavior"
             ],
         },
+        "notification_delivery": {
+            "enabled": persisted["notification_delivery_enabled"],
+            "delivery_policy_code": persisted["notification_delivery_policy_code"],
+            "delivery_policy_checksum_sha256": persisted[
+                "notification_delivery_policy_checksum_sha256"
+            ],
+            "stage_semantics": persisted["notification_delivery_stage_semantics"],
+            "transport_unavailable_behavior": persisted[
+                "notification_delivery_transport_unavailable_behavior"
+            ],
+        },
     }
     run_key = sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -341,7 +379,7 @@ def doctor(
     session: Session,
     *,
     plan: CyclePlan,
-    expected_migration: str = "20261003_0021",
+    expected_migration: str = "20261003_0022",
 ) -> dict[str, object]:
     session.execute(text("SELECT 1"))
     migration = session.execute(
@@ -406,6 +444,30 @@ def doctor(
             ),
             "transport_credentials_required": False,
         }
+    delivery: dict[str, object] = {"enabled": False}
+    if plan.operations_profile.notification_delivery_enabled:
+        policy = load_bound_notification_delivery_policy(
+            plan.operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
+        token_available = bool(
+            os.environ.get("INFLECTOR_TELEGRAM_BOT_TOKEN", "").strip()
+        )
+        chat_available = bool(
+            os.environ.get("INFLECTOR_TELEGRAM_CHAT_ID", "").strip()
+        )
+        delivery = {
+            "enabled": True,
+            "status": "configured",
+            "policy_code": policy.code,
+            "policy_checksum_sha256": policy.checksum_sha256,
+            "transport_code": policy.transport_code,
+            "target_code": policy.target_code,
+            "telegram_credentials": (
+                "available" if token_available and chat_available else "unavailable"
+            ),
+            "bot_token_available": token_available,
+            "chat_id_available": chat_available,
+        }
     return {
         "status": "passed",
         "migration_head": migration,
@@ -428,6 +490,7 @@ def doctor(
         "provider_bindings": bindings,
         "opportunity_monitoring": monitoring,
         "notification_projection": notification,
+        "notification_delivery": delivery,
     }
 
 
@@ -628,6 +691,10 @@ class AcceptedProductionStageExecutor:
             ).execute_change(session, plan)
         if stage == "notification_projection":
             return NotificationProjectionOrchestrator(
+                Path(__file__).resolve().parents[3]
+            ).execute(session, plan)
+        if stage == "notification_delivery":
+            return NotificationDeliveryOrchestrator(
                 Path(__file__).resolve().parents[3]
             ).execute(session, plan)
         raise ValueError(f"unsupported operational stage: {stage}")

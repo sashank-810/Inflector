@@ -583,7 +583,7 @@ def test_v5_does_not_change_v4_identity(session) -> None:
 
 def test_v5_schema_remains_unchanged_by_later_operations_and_evaluation_migrations() -> None:
     versions = tuple((Path("migrations/versions")).glob("*.py"))
-    assert len(versions) == 21
+    assert len(versions) == 22
     assert any("20260929_0015_attention_observations" in item.name for item in versions)
     assert any("20261002_0016_operational_runs" in item.name for item in versions)
     assert any("20261002_0017_market_delivery_observations" in item.name for item in versions)
@@ -591,3 +591,6 @@ def test_v5_schema_remains_unchanged_by_later_operations_and_evaluation_migratio
     assert any("20261003_0019_opportunity_discovery" in item.name for item in versions)
     assert any("20261003_0020_opportunity_change_detection" in item.name for item in versions)
     assert any("20261003_0021_research_notification_outbox" in item.name for item in versions)
+    assert any(
+        "20261003_0022_research_notification_delivery" in item.name for item in versions
+    )

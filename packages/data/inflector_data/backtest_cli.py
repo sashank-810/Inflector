@@ -28,7 +28,7 @@ from inflector_data.historical_dataset import (
 )
 from inflector_data.research_profile import load_research_profile
 
-LATEST_MIGRATION = "20261003_0021"
+LATEST_MIGRATION = "20261003_0022"
 
 
 def _parser() -> argparse.ArgumentParser:

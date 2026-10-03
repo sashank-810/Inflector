@@ -1661,3 +1661,110 @@ class ResearchNotificationOutbox(Base):
 
     source_change_run: Mapped[OpportunityChangeRun] = relationship(lazy="selectin")
     source_change_item: Mapped[OpportunityChangeItem] = relationship(lazy="selectin")
+
+
+class ResearchNotificationDelivery(Base):
+    """Mutable delivery lifecycle for one immutable N event and logical target."""
+
+    __tablename__ = "research_notification_deliveries"
+    __table_args__ = (
+        UniqueConstraint(
+            "delivery_key_sha256", name="uq_research_notification_delivery_key"
+        ),
+        CheckConstraint(
+            "status IN ('pending','claimed','retry_wait','delivered','dead_letter')",
+            name="ck_research_notification_delivery_status",
+        ),
+        CheckConstraint(
+            "attempt_count >= 0", name="ck_research_notification_delivery_attempt_count"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    delivery_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    outbox_id: Mapped[UUID] = mapped_column(
+        ForeignKey("research_notification_outbox.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    notification_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    delivery_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    delivery_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    transport_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    target_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    rendering_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="pending", index=True)
+    attempt_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    claim_owner_token: Mapped[str | None] = mapped_column(String(160), nullable=True)
+    claimed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    claim_expires_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    last_error_code: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    last_error_detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    provider_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    delivered_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    outbox: Mapped[ResearchNotificationOutbox] = relationship(lazy="selectin")
+    attempts: Mapped[list[ResearchNotificationDeliveryAttempt]] = relationship(
+        back_populates="delivery", lazy="selectin"
+    )
+
+
+class ResearchNotificationDeliveryAttempt(Base):
+    """Append-only audit of one started Telegram delivery attempt."""
+
+    __tablename__ = "research_notification_delivery_attempts"
+    __table_args__ = (
+        UniqueConstraint(
+            "delivery_id",
+            "attempt_number",
+            name="uq_research_notification_delivery_attempt_number",
+        ),
+        CheckConstraint(
+            "outcome IS NULL OR outcome IN "
+            "('delivered','retryable_failure','permanent_failure')",
+            name="ck_research_notification_delivery_attempt_outcome",
+        ),
+        CheckConstraint(
+            "attempt_number > 0",
+            name="ck_research_notification_delivery_attempt_number_positive",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    delivery_id: Mapped[UUID] = mapped_column(
+        ForeignKey("research_notification_deliveries.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    attempt_number: Mapped[int] = mapped_column(nullable=False)
+    worker_token: Mapped[str] = mapped_column(String(160), nullable=False)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    outcome: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    http_status: Mapped[int | None] = mapped_column(nullable=True)
+    telegram_error_code: Mapped[int | None] = mapped_column(nullable=True)
+    provider_message_id: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    error_code: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+
+    delivery: Mapped[ResearchNotificationDelivery] = relationship(
+        back_populates="attempts"
+    )

@@ -522,6 +522,15 @@ does not mutate K/L, and adds no network delivery or recommendation semantics.
 Operations V5 appends this stage after change detection. See
 [`production-research-notification-outbox.md`](production-research-notification-outbox.md).
 
+Production O is a separate mutable delivery lifecycle over immutable N rows.
+Migration 0022 adds one deterministic event/target/policy delivery row and an
+append-only attempt audit. Operations V6 appends delivery after projection;
+Telegram rendering and HTTP transport remain separate from state transitions.
+Claims are transactional and recoverable, while network calls occur outside
+database transactions. Internal state is idempotent; Telegram delivery is
+at-least-once across the provider-success/local-commit crash window. See
+[`production-notification-delivery.md`](production-notification-delivery.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or
