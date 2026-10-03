@@ -530,7 +530,7 @@ def test_doctor_v4_reports_policy_readiness_and_informational_no_baseline(
     plan = _plan(tmp_path)
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
-        text("INSERT INTO alembic_version (version_num) VALUES ('20261003_0020')")
+        text("INSERT INTO alembic_version (version_num) VALUES ('20261003_0021')")
     )
     monkeypatch.setattr(production_operations, "production_preflight", lambda *args: None)
     result = doctor(session, plan=plan)
@@ -565,6 +565,5 @@ def test_monitoring_module_only_orchestrates_accepted_k_l_apis() -> None:
 
 def test_production_m_adds_no_migration() -> None:
     versions = tuple((ROOT / "migrations/versions").glob("*.py"))
-    assert len(versions) == 20
     assert any("20261003_0020_opportunity_change_detection" in item.name for item in versions)
-    assert not any("0021" in item.name for item in versions)
+    assert not any("opportunity_monitoring" in item.name for item in versions)

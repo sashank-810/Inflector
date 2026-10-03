@@ -513,6 +513,15 @@ not drift after backfills. K/L tables remain authoritative; M adds no schema or
 ranking/change logic. See
 [`production-opportunity-monitoring.md`](production-opportunity-monitoring.md).
 
+Production N is an append-only factual projection over the exact L run
+referenced by the current monitored operational stage. A versioned trigger
+policy creates at most one transport-neutral pending outbox row per eligible L
+item, with deterministic policy/run/item/trigger/schema identity and exact
+structured lineage. Projection reads no evidence, scores, or backtest outcomes,
+does not mutate K/L, and adds no network delivery or recommendation semantics.
+Operations V5 appends this stage after change detection. See
+[`production-research-notification-outbox.md`](production-research-notification-outbox.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

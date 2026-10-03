@@ -89,6 +89,7 @@ Operations V4. The existing single Windows scheduled task and
 profile selects the V4 stage chain. Doctor reports policy readiness and prior
 baseline availability; absence of a baseline is informational.
 
-Production M adds no migration or table. Migration head remains
-`20261003_0020`. It sends no alerts, creates no notification outbox or user
-watchlist, and adds no recommendation, portfolio, API, or frontend behavior.
+Production M itself added no migration or table. Production N later advances
+the repository head to `20261003_0021` with a separate notification outbox; M
+still sends no alerts and adds no recommendation, portfolio, API, or frontend
+behavior.

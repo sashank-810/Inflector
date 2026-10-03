@@ -1605,3 +1605,59 @@ class OpportunityChangeItem(Base):
     )
 
     run: Mapped[OpportunityChangeRun] = relationship(back_populates="items")
+
+
+class ResearchNotificationOutbox(Base):
+    """Immutable transport-neutral notification projected from one L item."""
+
+    __tablename__ = "research_notification_outbox"
+    __table_args__ = (
+        UniqueConstraint(
+            "notification_key_sha256", name="uq_research_notification_outbox_key"
+        ),
+        CheckConstraint(
+            "delivery_status = 'pending'",
+            name="ck_research_notification_outbox_pending",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    notification_key_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )
+    alert_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    alert_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    payload_schema_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    source_change_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_change_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_change_item_id: Mapped[UUID] = mapped_column(
+        ForeignKey("opportunity_change_items.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    baseline_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    current_symbol: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    matched_trigger_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    payload_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    delivery_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="pending", index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    source_change_run: Mapped[OpportunityChangeRun] = relationship(lazy="selectin")
+    source_change_item: Mapped[OpportunityChangeItem] = relationship(lazy="selectin")

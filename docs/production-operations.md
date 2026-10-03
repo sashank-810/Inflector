@@ -191,3 +191,20 @@ run or stream with no compatible baseline completes successfully with
 retries, completed-stage skips, stale-run recovery, missed-job handling, and
 the single scheduled task remain unchanged. See
 [`production-opportunity-monitoring.md`](production-opportunity-monitoring.md).
+
+## Operations V5 notification projection
+
+`nse_daily_operations_v5` preserves the complete V4 chain and appends required
+`notification_projection` after `opportunity_change`. It binds the exact
+Production N policy asset/checksum and projects only the L run ID already
+persisted by that operational stage. It never searches arbitrary or manual L
+runs. First-run `no_compatible_baseline` becomes successful `no_change_run`
+with zero outbox rows.
+
+The outbox insert and stage completion share the existing operations
+transaction. Failure leaves completed research/K/L immutable; resume skips
+them and retries projection. Deterministic keys safely reuse prior rows. Doctor
+validates the policy, L checksum binding, and migration 0021 without requiring
+transport credentials. Scheduling remains the existing single Asia/Kolkata
+20:00 task. See
+[`production-research-notification-outbox.md`](production-research-notification-outbox.md).

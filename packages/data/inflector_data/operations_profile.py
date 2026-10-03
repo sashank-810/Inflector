@@ -42,6 +42,12 @@ class ProductionOperationsProfile:
     opportunity_discovery_cutoff_semantics: str | None
     opportunity_change_baseline_semantics: str | None
     opportunity_change_no_baseline_behavior: str | None
+    notification_projection_enabled: bool
+    research_alert_policy_asset: str | None
+    research_alert_policy_code: str | None
+    research_alert_policy_checksum_sha256: str | None
+    notification_projection_semantics: str | None
+    notification_no_change_run_behavior: str | None
     checksum_sha256: str
 
 
@@ -90,11 +96,21 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         "opportunity_change_no_baseline_behavior",
     }
     supported_monitoring = {*supported_auto, *monitoring_fields}
+    notification_fields = {
+        "notification_projection_enabled",
+        "research_alert_policy_asset",
+        "research_alert_policy_code",
+        "research_alert_policy_checksum_sha256",
+        "notification_projection_semantics",
+        "notification_no_change_run_behavior",
+    }
+    supported_notifications = {*supported_monitoring, *notification_fields}
     if frozenset(value) not in {
         frozenset(expected),
         frozenset(supported),
         frozenset(supported_auto),
         frozenset(supported_monitoring),
+        frozenset(supported_notifications),
     }:
         raise ValueError("operations profile fields are incomplete or unsupported")
     timezone = _text(value, "timezone")
@@ -144,6 +160,30 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
             value,
             "opportunity_change_no_baseline_behavior",
             "complete_without_change_run_v1",
+        )
+    notification_enabled = (
+        _boolean(value, "notification_projection_enabled")
+        if "notification_projection_enabled" in value
+        else False
+    )
+    if notification_enabled:
+        if not monitoring_enabled:
+            raise ValueError("notification projection requires opportunity monitoring")
+        _exact_text(
+            value,
+            "research_alert_policy_code",
+            "production_research_alert_policy_v1",
+        )
+        _sha256(value, "research_alert_policy_checksum_sha256")
+        _exact_text(
+            value,
+            "notification_projection_semantics",
+            "configured_l_change_trigger_projection_v1",
+        )
+        _exact_text(
+            value,
+            "notification_no_change_run_behavior",
+            "complete_without_outbox_rows_v1",
         )
     return ProductionOperationsProfile(
         operations_profile_code=_text(value, "operations_profile_code"),
@@ -218,6 +258,32 @@ def load_operations_profile(path: Path) -> ProductionOperationsProfile:
         opportunity_change_no_baseline_behavior=(
             _text(value, "opportunity_change_no_baseline_behavior")
             if monitoring_enabled
+            else None
+        ),
+        notification_projection_enabled=notification_enabled,
+        research_alert_policy_asset=(
+            _text(value, "research_alert_policy_asset")
+            if notification_enabled
+            else None
+        ),
+        research_alert_policy_code=(
+            _text(value, "research_alert_policy_code")
+            if notification_enabled
+            else None
+        ),
+        research_alert_policy_checksum_sha256=(
+            _sha256(value, "research_alert_policy_checksum_sha256")
+            if notification_enabled
+            else None
+        ),
+        notification_projection_semantics=(
+            _text(value, "notification_projection_semantics")
+            if notification_enabled
+            else None
+        ),
+        notification_no_change_run_behavior=(
+            _text(value, "notification_no_change_run_behavior")
+            if notification_enabled
             else None
         ),
         checksum_sha256=sha256(canonical).hexdigest(),

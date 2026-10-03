@@ -18,6 +18,10 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from inflector_data import nse_cli, research_cli
+from inflector_data.notification_operations import (
+    NotificationProjectionOrchestrator,
+    load_bound_research_alert_policy,
+)
 from inflector_data.nse_cli import production_preflight
 from inflector_data.operations_profile import ProductionOperationsProfile
 from inflector_data.opportunity_monitoring import (
@@ -60,6 +64,8 @@ def operational_stage_definitions(
         )
     if profile.opportunity_monitoring_enabled:
         stages = (*stages, ("opportunity_discovery", True), ("opportunity_change", True))
+    if profile.notification_projection_enabled:
+        stages = (*stages, ("notification_projection", True))
     return stages
 
 
@@ -148,6 +154,11 @@ def plan_cycle(
         monitoring_policies = load_monitoring_policies(
             operations_profile, repository_root=Path(__file__).resolve().parents[3]
         )
+    notification_policy = None
+    if operations_profile.notification_projection_enabled:
+        notification_policy = load_bound_research_alert_policy(
+            operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
     if inputs.symbols != normalize_symbols(
         inputs.symbols_file, maximum=operations_profile.maximum_symbols_per_cycle
     ):
@@ -208,6 +219,21 @@ def plan_cycle(
         "opportunity_change_no_baseline_behavior": (
             operations_profile.opportunity_change_no_baseline_behavior
         ),
+        "notification_projection_enabled": (
+            operations_profile.notification_projection_enabled
+        ),
+        "research_alert_policy_code": (
+            notification_policy.code if notification_policy else None
+        ),
+        "research_alert_policy_checksum_sha256": (
+            notification_policy.checksum_sha256 if notification_policy else None
+        ),
+        "notification_projection_semantics": (
+            operations_profile.notification_projection_semantics
+        ),
+        "notification_no_change_run_behavior": (
+            operations_profile.notification_no_change_run_behavior
+        ),
     }
     identity = {
         "operations_profile_code": operations_profile.operations_profile_code,
@@ -259,6 +285,17 @@ def plan_cycle(
                 "opportunity_change_no_baseline_behavior"
             ],
         },
+        "notification_projection": {
+            "enabled": persisted["notification_projection_enabled"],
+            "alert_policy_code": persisted["research_alert_policy_code"],
+            "alert_policy_checksum_sha256": persisted[
+                "research_alert_policy_checksum_sha256"
+            ],
+            "projection_semantics": persisted["notification_projection_semantics"],
+            "no_change_run_behavior": persisted[
+                "notification_no_change_run_behavior"
+            ],
+        },
     }
     run_key = sha256(
         json.dumps(identity, sort_keys=True, separators=(",", ":")).encode("utf-8")
@@ -304,7 +341,7 @@ def doctor(
     session: Session,
     *,
     plan: CyclePlan,
-    expected_migration: str = "20261003_0020",
+    expected_migration: str = "20261003_0021",
 ) -> dict[str, object]:
     session.execute(text("SELECT 1"))
     migration = session.execute(
@@ -353,6 +390,22 @@ def doctor(
             },
             "prior_baseline": monitoring_baseline_status(session, plan),
         }
+    notification: dict[str, object] = {"enabled": False}
+    if plan.operations_profile.notification_projection_enabled:
+        policy = load_bound_research_alert_policy(
+            plan.operations_profile, repository_root=Path(__file__).resolve().parents[3]
+        )
+        notification = {
+            "enabled": True,
+            "status": "ready",
+            "policy_code": policy.code,
+            "policy_checksum_sha256": policy.checksum_sha256,
+            "source_change_policy_code": policy.opportunity_change_policy_code,
+            "source_change_policy_checksum_sha256": (
+                policy.opportunity_change_policy_checksum_sha256
+            ),
+            "transport_credentials_required": False,
+        }
     return {
         "status": "passed",
         "migration_head": migration,
@@ -374,6 +427,7 @@ def doctor(
         "provider_bindings_status": binding_status,
         "provider_bindings": bindings,
         "opportunity_monitoring": monitoring,
+        "notification_projection": notification,
     }
 
 
@@ -572,6 +626,10 @@ class AcceptedProductionStageExecutor:
             return OpportunityMonitoringOrchestrator(
                 Path(__file__).resolve().parents[3]
             ).execute_change(session, plan)
+        if stage == "notification_projection":
+            return NotificationProjectionOrchestrator(
+                Path(__file__).resolve().parents[3]
+            ).execute(session, plan)
         raise ValueError(f"unsupported operational stage: {stage}")
 
 

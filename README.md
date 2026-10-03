@@ -193,6 +193,15 @@ run. Existing leases, retries, stale recovery, missed-job handling, and the
 single Windows scheduled task are reused. See
 [production opportunity monitoring](docs/production-opportunity-monitoring.md).
 
+Production N adds Operations V5 and a deterministic factual projection from
+the exact monitored L run into an immutable transport-neutral pending outbox.
+Eligibility is only the versioned intersection of persisted L change codes and
+configured high-level triggers: there are no numeric thresholds, severity,
+recommendations, or delivery. Low-level snapshot/confidence/component-internal
+changes do not trigger alone, multiple matching codes remain one event, and
+null values remain null. See
+[production research notification outbox](docs/production-research-notification-outbox.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

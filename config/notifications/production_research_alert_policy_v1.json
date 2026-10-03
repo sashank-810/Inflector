@@ -1,0 +1,32 @@
+{
+  "research_alert_policy_code": "production_research_alert_policy_v1",
+  "policy_version": "1",
+  "opportunity_change_policy_code": "production_opportunity_change_v1",
+  "opportunity_change_policy_asset": "config/opportunity/production_opportunity_change_v1.json",
+  "opportunity_change_policy_checksum_sha256": "2189bdcf6243545524fa8cca8721cd4c5301b775a8c9f89f83c481c55bd646a9",
+  "eligibility_semantics_version": "configured_change_code_intersection_v1",
+  "included_trigger_codes": [
+    "entered_compared_universe",
+    "left_compared_universe",
+    "symbol_changed",
+    "became_rankable",
+    "lost_rankability",
+    "score_increased",
+    "score_decreased",
+    "rank_moved_up",
+    "rank_moved_down",
+    "coverage_completed",
+    "coverage_regressed",
+    "components_gained",
+    "components_lost",
+    "became_eligible",
+    "became_ineligible",
+    "became_stale",
+    "recovered_from_stale",
+    "unranked_reason_changed"
+  ],
+  "payload_schema_version": "research_notification_payload_v1",
+  "deduplication_semantics": "policy_change_run_item_matched_triggers_payload_schema_v1",
+  "ordering_semantics": "policy_trigger_order_then_identity_v1",
+  "no_severity_semantics": "peer_events_without_severity_v1"
+}

@@ -418,7 +418,7 @@ CLI summaries and CSV export without research/scoring recomputation, severity
 scores, recommendations, alerts, user watchlists, portfolios, scheduling, or
 frontend work.
 
-### Production M — Scheduled Opportunity Monitoring Orchestration (acceptance pending)
+### Production M — Scheduled Opportunity Monitoring Orchestration (complete)
 
 Extend the existing resumable production cycle with accepted K discovery and
 L change stages. Share the frozen operational cutoff and ordered universe,
@@ -428,6 +428,16 @@ Reuse existing leases, retries, stale recovery, missed-job and single-scheduler
 behavior without changing research, scoring, K/L semantics, or persistence
 schema. Add no alerts, notifications, recommendations, portfolios, API, or
 frontend behavior.
+
+### Production N — Deterministic Research Alert Projection & Notification Outbox (acceptance pending)
+
+Project configured high-level factual Production L changes into one immutable
+pending transport-neutral notification per eligible L item. Bind every event to
+versioned policy, exact monitored L lineage, ordered matched triggers, and a
+structured null-preserving payload. Add Operations V5 and migration 0021 while
+retaining existing leases, retries, scheduler, research, K/L and score
+semantics. Do not deliver notifications, add thresholds or severity, generate
+recommendations, or add watchlists, portfolio, API, or frontend behavior.
 
 ## Phase 6 — announcement and catalyst evidence
 
