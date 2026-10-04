@@ -1,0 +1,23 @@
+{
+  "historical_universe_policy_code": "production_historical_universe_v1",
+  "policy_version": "1",
+  "exchange": "NSE",
+  "source_provider_code": "nse_official",
+  "source_dataset_code": "nse_cm_mii_security_daily",
+  "eligible_series": ["EQ"],
+  "security_types": ["equity"],
+  "cutoff_cadence": "calendar_month_end_utc",
+  "identity_resolution_semantics": "exact_isin_then_exact_historical_symbol_interval_v1",
+  "survivorship_handling": "include_historical_members_regardless_of_current_status",
+  "ambiguity_handling": "explicit_ambiguous_identity_fail_closed",
+  "unresolved_handling": "persist_explicit_unresolved_identity",
+  "current_status_filtering": "forbidden",
+  "source_semantics": "official_nse_cm_mii_daily_security_master_historical_snapshot_v1",
+  "source_filename_pattern": "NSE_CM_security_ddmmyyyy.csv.gz",
+  "source_snapshot_semantics": "single_completed_ingestion_single_archived_mii_artifact_v1",
+  "complete_member_set_semantics": "exact_accepted_eligible_source_record_set_equality_v1",
+  "semantic_row_verification_version": "nse_cm_mii_security_semantic_row_sha256_v1",
+  "cohort_source_date_semantics": "latest_complete_mii_security_snapshot_in_cutoff_month_v1",
+  "shard_ordering": ["security_id_asc", "historical_isin_asc", "historical_symbol_asc", "member_fingerprint_asc"],
+  "maximum_symbols_per_backtest_shard": 25
+}

@@ -1357,6 +1357,236 @@ class BacktestOutcome(Base):
     observation: Mapped[BacktestObservation] = relationship(back_populates="outcomes")
 
 
+class HistoricalUniverseRun(Base):
+    """Immutable authoritative historical NSE cohort projection."""
+
+    __tablename__ = "historical_universe_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_historical_universe_run_key"),
+        CheckConstraint(
+            "status IN ('planned','completed','failed')",
+            name="ck_historical_universe_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    universe_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    universe_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    member_count: Mapped[int] = mapped_column(nullable=False, default=0)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    members: Mapped[list[HistoricalUniverseMemberRecord]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class HistoricalUniverseMemberRecord(Base):
+    """One historical artifact member with explicit identity-resolution state."""
+
+    __tablename__ = "historical_universe_members"
+    __table_args__ = (
+        UniqueConstraint(
+            "historical_universe_run_id",
+            "member_fingerprint_sha256",
+            name="uq_historical_universe_member_fingerprint",
+        ),
+        CheckConstraint(
+            "membership_status IN "
+            "('eligible','unresolved_identity','ambiguous_identity',"
+            "'unsupported_security_type','excluded_exchange','excluded_series')",
+            name="ck_historical_universe_member_status",
+        ),
+        CheckConstraint(
+            "membership_status != 'eligible' OR "
+            "(company_id IS NOT NULL AND security_id IS NOT NULL "
+            "AND exchange_listing_id IS NOT NULL AND reason_code IS NULL)",
+            name="ck_historical_universe_member_eligible_identity",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    historical_universe_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("historical_universe_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    historical_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    historical_isin: Mapped[str | None] = mapped_column(String(12), nullable=True)
+    exchange: Mapped[str] = mapped_column(String(16), nullable=False)
+    series: Mapped[str] = mapped_column(String(16), nullable=False)
+    membership_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    company_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    security_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    exchange_listing_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("exchange_listings.id", ondelete="RESTRICT"), nullable=True
+    )
+    membership_status: Mapped[str] = mapped_column(String(48), nullable=False)
+    reason_code: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    member_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    provenance_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[HistoricalUniverseRun] = relationship(back_populates="members")
+
+
+class MultibaggerLabelRun(Base):
+    """Immutable evaluation run over frozen J observations and outcome data."""
+
+    __tablename__ = "multibagger_label_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_multibagger_label_run_key"),
+        CheckConstraint(
+            "status IN ('planned','completed','failed')",
+            name="ck_multibagger_label_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    label_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    label_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_backtest_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_backtest_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    market_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False
+    )
+    corporate_action_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordered_contracts_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    algorithm_versions_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    labels: Mapped[list[MultibaggerOutcomeLabel]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerOutcomeLabel(Base):
+    """Append-only factual contract label independent of score or rank."""
+
+    __tablename__ = "multibagger_outcome_labels"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_label_run_id",
+            "backtest_observation_id",
+            "contract_code",
+            name="uq_multibagger_outcome_label_contract",
+        ),
+        UniqueConstraint(
+            "label_fingerprint_sha256", name="uq_multibagger_outcome_label_fingerprint"
+        ),
+        CheckConstraint(
+            "classification IN ('positive','negative','unmatured','unavailable')",
+            name="ck_multibagger_outcome_label_classification",
+        ),
+        CheckConstraint(
+            "(classification IN ('positive','negative') "
+            "AND label_matured_at IS NOT NULL AND unavailable_reason IS NULL) OR "
+            "(classification = 'unmatured' AND label_matured_at IS NULL "
+            "AND unavailable_reason IS NULL) OR "
+            "(classification = 'unavailable' AND unavailable_reason IS NOT NULL)",
+            name="ck_multibagger_outcome_label_state_fields",
+        ),
+        CheckConstraint(
+            "threshold_multiple > 1 AND horizon_calendar_years > 0 "
+            "AND trading_observations_available >= 0",
+            name="ck_multibagger_outcome_label_measurement_bounds",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_label_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_label_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    backtest_observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_observations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    classification: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    unavailable_reason: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    threshold_multiple: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    horizon_calendar_years: Mapped[int] = mapped_column(nullable=False)
+    entry_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    adjusted_entry_close: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    horizon_end_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    first_threshold_hit_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    trading_observations_available: Mapped[int] = mapped_column(nullable=False, default=0)
+    peak_adjusted_close: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    peak_price_multiple: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    maximum_forward_price_return: Mapped[Decimal | None] = mapped_column(
+        ExactDecimal(), nullable=True
+    )
+    endpoint_adjusted_close: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    endpoint_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    calendar_days_to_threshold: Mapped[int | None] = mapped_column(nullable=True)
+    trading_observations_to_threshold: Mapped[int | None] = mapped_column(nullable=True)
+    maximum_drawdown: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    listing_valid_to: Mapped[date | None] = mapped_column(Date, nullable=True)
+    label_matured_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    provenance_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    label_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[MultibaggerLabelRun] = relationship(back_populates="labels")
+
+
 class OpportunityDiscoveryRun(Base):
     """Immutable identity and completed audit for one current discovery ranking."""
 

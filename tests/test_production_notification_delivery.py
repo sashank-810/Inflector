@@ -620,7 +620,7 @@ def test_doctor_v6_reports_credential_availability_without_values(
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
         text(
-            "INSERT INTO alembic_version (version_num) VALUES ('20261003_0022')"
+            "INSERT INTO alembic_version (version_num) VALUES ('20261004_0023')"
         )
     )
     monkeypatch.setattr(production_operations, "production_preflight", lambda *args: None)

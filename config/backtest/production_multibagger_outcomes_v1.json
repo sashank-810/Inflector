@@ -1,0 +1,22 @@
+{
+  "multibagger_outcome_policy_code": "production_multibagger_outcomes_v1",
+  "policy_version": "1",
+  "source_backtest_policy_code": "production_backtest_v1",
+  "source_backtest_policy_checksum_sha256": "e1f1f886f686045f7f2774be355674a726b155db1a32c9080999c32becd35984",
+  "entry_observation_rule": "exact_pit_visible_raw_entry_bar_rebased_on_outcome_adjusted_series_v1",
+  "return_price_basis": "corporate_action_adjusted_close_price_multiple_v1",
+  "corporate_action_treatment": "existing_split_bonus_adjusted_market_price_v1",
+  "cash_dividend_treatment": "excluded_price_return_only",
+  "positive_maturation_semantics": "raw_entry_hit_and_intervening_adjustment_evidence_v1",
+  "negative_maturation_semantics": "full_calendar_horizon_with_complete_nse_session_coverage_v1",
+  "outcome_window_completeness_algorithm": "nifty50_session_dates_full_security_bar_coverage_v1",
+  "unmatured_semantics": "horizon_not_elapsed_without_threshold_hit_v1",
+  "unavailable_semantics": "explicit_reason_without_negative_imputation_v1",
+  "maximum_drawdown_algorithm": "running_peak_adjusted_close_within_contract_window_v1",
+  "label_fingerprint_version": "multibagger_outcome_label_fingerprint_v1",
+  "contracts": [
+    {"code": "MB_2X_2Y", "threshold_multiple": "2", "horizon_calendar_years": 2},
+    {"code": "MB_3X_3Y", "threshold_multiple": "3", "horizon_calendar_years": 3},
+    {"code": "MB_5X_5Y", "threshold_multiple": "5", "horizon_calendar_years": 5}
+  ]
+}

@@ -449,15 +449,27 @@ research/K/L semantics immutable. External Telegram delivery is at-least-once
 across the provider-success/local-commit crash window. Add no other transport,
 recommendation, watchlist, portfolio, API, frontend, or Production P behavior.
 
-### Production P — Production Readiness, CI/CD Portability & Operator Health (acceptance pending)
+### Production P — Production Readiness, CI/CD Portability & Operator Health (complete)
 
-Keep Operations V6, migration 0022, and all Research/K/L/M/N/O semantics
-unchanged. Make the scheduler DryRun contract portable to PowerShell Core on
+Keep Operations V6, the then-current migration 0022, and all Research/K/L/M/N/O
+semantics unchanged. Make the scheduler DryRun contract portable to PowerShell Core on
 Ubuntu CI while retaining Windows/timezone enforcement for real registration,
 and add deterministic read-only operator health diagnostics for accepted asset
 bindings, runtime configuration, operational runs, notification backlog, and
 delivery stuck states. Add no schema, runtime policy, mutation, transport,
 recommendation, API, frontend, or Production Q behavior.
+
+### Production Q — Historical Universe & Multibagger Outcome Contracts (acceptance pending)
+
+Add authoritative, survivorship-aware historical NSE cohort projection and
+deterministic 2x/2Y, 3x/3Y, and 5x/5Y factual labels over frozen Production J
+observations. Preserve positive, negative, unmatured, and unavailable states,
+label-maturation time, exact Decimal diagnostics, source provenance, and
+complete single-snapshot CM MII security-master membership proof. Missing,
+extra, duplicate, and mixed-snapshot cohort inputs fail closed. Preserve
+deterministic <=25-symbol sharding. Add migration 0023 without changing J V1,
+research, scoring, K/L/M/N/O, Operations V6, scheduler, API, or frontend
+semantics. Do not train a model or calculate TP/FP/FN/TN.
 
 ## Phase 6 — announcement and catalyst evidence
 

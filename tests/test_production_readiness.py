@@ -169,7 +169,7 @@ def test_database_connected_health_reports_state_and_is_read_only(
     latest = cast(dict[str, object], runs["latest"])
     notifications = cast(dict[str, object], database["notifications"])
     delivery = cast(dict[str, object], database["deliveries"])
-    assert migration["current"] == "20261003_0022"
+    assert migration["current"] == "20261004_0023"
     assert latest["id"] == latest_run.id
     assert notifications["pending_outbox"] == 1
     assert delivery["counts_by_status"] == {
@@ -244,7 +244,7 @@ def _migration(session: Session) -> None:
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
         text("INSERT INTO alembic_version (version_num) VALUES (:version)"),
-        {"version": "20261003_0022"},
+        {"version": "20261004_0023"},
     )
 
 

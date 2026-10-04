@@ -543,7 +543,7 @@ def test_doctor_v5_validates_notification_without_transport_credentials(
     plan = _plan(tmp_path)
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
     session.execute(
-        text("INSERT INTO alembic_version (version_num) VALUES ('20261003_0022')")
+        text("INSERT INTO alembic_version (version_num) VALUES ('20261004_0023')")
     )
     monkeypatch.setattr(production_operations, "production_preflight", lambda *args: None)
     result = doctor(session, plan=plan)

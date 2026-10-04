@@ -539,6 +539,18 @@ V6 chain, then performs read-only database counts and stuck-state diagnostics;
 it never invokes workflow, scoring, or delivery services. See
 [`production-readiness.md`](production-readiness.md).
 
+Production Q is an evaluation-only layer above frozen Production J
+observations. It projects authoritative historical NSE membership from one
+complete archived CM MII daily security-master ingestion, requires exact
+evidence-set equality, and binds the raw artifact and complete-member checksum.
+It applies no current-status filtering, retains unresolved identities, and deterministically
+shards resolved cohorts without changing J's 25-symbol safety limit. Separate
+immutable label runs compute exact Decimal 2x/2Y, 3x/3Y, and 5x/5Y
+adjusted-close outcomes with explicit maturation and missingness. No production
+research, score, discovery, change, notification, or delivery module depends on
+these tables. See
+[`production-historical-multibagger-evaluation.md`](production-historical-multibagger-evaluation.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

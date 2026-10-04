@@ -214,9 +214,20 @@ window. See [production notification delivery](docs/production-notification-deli
 Production P keeps Operations V6 and all research/delivery semantics frozen
 while making scheduler DryRun portable across Windows PowerShell and `pwsh` on
 Linux CI. A deterministic read-only `ops_cli health` report validates the
-accepted Research/K/L/N/O/V6 chain, migration 0022, runtime configuration, and
+accepted Research/K/L/N/O/V6 chain, migration 0023, runtime configuration, and
 operational notification/delivery state without acquiring leases or mutating
 data. See [production readiness](docs/production-readiness.md).
+
+Production Q adds a separate factual ground-truth layer over frozen Production
+J observations. Each cohort binds the complete accepted `EQ` projection of one
+archived official NSE CM MII daily security-master ingestion; missing, extra,
+duplicate, or mixed-snapshot evidence fails closed. Historical members are
+projected into survivorship-aware cohorts with explicit unresolved identities and stable
+25-member shards. Independent 2x/2Y, 3x/3Y, and 5x/5Y adjusted-close contracts
+persist positive, negative, unmatured, or unavailable labels plus maturity and
+continuous diagnostics. Q does not tune scores, read ranks, train a model, or
+calculate TP/FP/FN/TN. See
+[historical multibagger evaluation](docs/production-historical-multibagger-evaluation.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:

@@ -82,6 +82,11 @@ market-wide unbiased history. A missing future price after a known delisting is
 `outcome_unavailable_due_to_delisting`; no terminal value means no imputed zero
 return.
 
+Production Q supplements this limitation with a separate authoritative
+historical-membership projection and deterministic sharding layer; it does not
+change J's observed-PIT research-universe semantics or 25-symbol guard. See
+[historical multibagger evaluation](production-historical-multibagger-evaluation.md).
+
 ## Three-stage workflow
 
 Build research snapshots without reading future outcomes:
@@ -174,3 +179,7 @@ coverage remain unavailable, cash dividends are excluded from price returns,
 and complete historical universe/delisting settlement evidence is not yet
 available. These limitations constrain inference and must accompany every
 reported result.
+
+The Q layer can retain historical/delisted members when an accepted
+authoritative artifact exists, but it still reports data gaps explicitly and
+does not invent a delisting terminal value.
