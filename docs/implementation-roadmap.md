@@ -439,7 +439,7 @@ retaining existing leases, retries, scheduler, research, K/L and score
 semantics. Do not deliver notifications, add thresholds or severity, generate
 recommendations, or add watchlists, portfolio, API, or frontend behavior.
 
-### Production O — Reliable Notification Delivery Lifecycle + Telegram Transport V1 (acceptance pending)
+### Production O — Reliable Notification Delivery Lifecycle + Telegram Transport V1 (complete)
 
 Deliver immutable N events through a separate deterministic event/target/policy
 lifecycle with expiring transactional claims, append-only attempt audit,
@@ -448,6 +448,16 @@ Add Operations V6 and migration 0022 while keeping N payloads and all upstream
 research/K/L semantics immutable. External Telegram delivery is at-least-once
 across the provider-success/local-commit crash window. Add no other transport,
 recommendation, watchlist, portfolio, API, frontend, or Production P behavior.
+
+### Production P — Production Readiness, CI/CD Portability & Operator Health (acceptance pending)
+
+Keep Operations V6, migration 0022, and all Research/K/L/M/N/O semantics
+unchanged. Make the scheduler DryRun contract portable to PowerShell Core on
+Ubuntu CI while retaining Windows/timezone enforcement for real registration,
+and add deterministic read-only operator health diagnostics for accepted asset
+bindings, runtime configuration, operational runs, notification backlog, and
+delivery stuck states. Add no schema, runtime policy, mutation, transport,
+recommendation, API, frontend, or Production Q behavior.
 
 ## Phase 6 — announcement and catalyst evidence
 

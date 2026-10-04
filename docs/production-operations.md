@@ -226,3 +226,14 @@ backlog pending. Doctor validates migration 0022 and the bound O/N checksums and
 reports credential availability without values. The existing single
 Asia/Kolkata 20:00 task is unchanged. See
 [`production-notification-delivery.md`](production-notification-delivery.md).
+
+## Production P readiness and portable scheduler validation
+
+Operations V6 remains the current profile. Scheduler registration DryRun is
+valid under Windows PowerShell and PowerShell Core without host-timezone or
+Task Scheduler side effects; real registration still requires Windows and an
+Asia/Kolkata/India Standard Time host. The read-only `ops_cli health` command
+validates the frozen V6 policy chain and migration 0022 and reports operational,
+outbox, delivery backlog, expired-claim, model, raw-root, and credential-
+presence state. It creates no ledger rows, claims, attempts, or network calls.
+See [`production-readiness.md`](production-readiness.md).

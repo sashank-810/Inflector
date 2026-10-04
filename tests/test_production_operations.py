@@ -3,7 +3,9 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 from decimal import Decimal
@@ -606,10 +608,12 @@ def test_scheduler_wrapper_materializes_one_cycle_time_and_propagates_exit() -> 
     assert "Write-Host $env:INFLECTOR_PRODUCTION_DATABASE_URL" not in source
 
 
-def test_task_registration_dry_run_creates_no_task() -> None:
+def test_task_registration_dry_run_creates_no_task(
+    powershell_executable: str,
+) -> None:
     script = ROOT / "scripts/register_inflector_scheduled_task.ps1"
     command_line = [
-        "powershell.exe",
+        powershell_executable,
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
@@ -618,7 +622,7 @@ def test_task_registration_dry_run_creates_no_task() -> None:
         "-RepositoryPath",
         str(ROOT),
         "-PythonExecutable",
-        str(ROOT / ".venv/Scripts/python.exe"),
+        sys.executable,
         "-OperationsProfile",
         str(OPERATIONS_PROFILE),
         "-ResearchProfile",
@@ -644,7 +648,91 @@ def test_task_registration_dry_run_creates_no_task() -> None:
     result = subprocess.run(command_line, capture_output=True, check=True, text=True)
     preview = json.loads(result.stdout)
     assert preview["task_name"] == "Inflector-Fictional-Dry-Run"
+    assert preview["executable"] == "powershell.exe"
+    assert str(ROOT / "scripts/run_inflector_scheduled.ps1") in preview["arguments"]
+    assert str(OPERATIONS_PROFILE) in preview["arguments"]
+    assert str(RESEARCH_PROFILE) in preview["arguments"]
+    assert str(ROOT / "README.md") in preview["arguments"]
+    assert "fictional_operations_v1" in preview["arguments"]
+    assert "1.0.0" in preview["arguments"]
+    assert "a" * 40 in preview["arguments"]
+    assert "2026-10-01T00:00:00Z" in preview["arguments"]
+    assert "-FiscalYear 2025" in preview["arguments"]
+    assert "-FiscalQuarter 4" in preview["arguments"]
+    assert preview["scheduled_local_time"] == "20:00"
+    assert preview["timezone"] == "Asia/Kolkata"
     assert preview["one_instance"] is True
     assert preview["start_when_available"] is True
     assert preview["secrets_in_command_line"] is False
     assert "Register-ScheduledTask" not in result.stdout
+
+
+def test_task_registration_dry_run_precedes_platform_timezone_and_scheduler_calls() -> None:
+    source = (ROOT / "scripts/register_inflector_scheduled_task.ps1").read_text(
+        encoding="utf-8"
+    )
+    dry_run_return = source.index("if ($DryRun -or $WhatIfPreference)")
+    platform_guard = source.index("Real task registration requires Windows Task Scheduler")
+    timezone_guard = source.index("Task Scheduler uses the host timezone")
+    registration = source.index("$action = New-ScheduledTaskAction")
+
+    assert dry_run_return < platform_guard < timezone_guard < registration
+
+
+@pytest.mark.skipif(os.name == "nt", reason="non-Windows platform guard regression")
+def test_real_task_registration_fails_closed_outside_windows(
+    powershell_executable: str,
+) -> None:
+    script = ROOT / "scripts/register_inflector_scheduled_task.ps1"
+    result = subprocess.run(
+        [
+            powershell_executable,
+            "-NoProfile",
+            "-File",
+            str(script),
+            "-RepositoryPath",
+            str(ROOT),
+            "-PythonExecutable",
+            sys.executable,
+            "-OperationsProfile",
+            str(OPERATIONS_PROFILE),
+            "-ResearchProfile",
+            str(RESEARCH_PROFILE),
+            "-ModelFamily",
+            "fictional_operations_v1",
+            "-SymbolsFile",
+            str(ROOT / "README.md"),
+            "-FiscalYear",
+            "2025",
+            "-FiscalQuarter",
+            "4",
+            "-ModelSemanticVersion",
+            "1.0.0",
+            "-GitSha",
+            "a" * 40,
+            "-ModelEffectiveFrom",
+            "2026-10-01T00:00:00Z",
+        ],
+        capture_output=True,
+        check=False,
+        text=True,
+    )
+
+    assert result.returncode != 0
+    assert "Real task registration requires Windows Task Scheduler" in result.stderr
+
+
+def test_scheduler_tests_use_portable_shell_and_active_python() -> None:
+    sources = (
+        (ROOT / "tests/test_production_operations.py").read_text(encoding="utf-8"),
+        (ROOT / "tests/test_production_financial_endpoint.py").read_text(
+            encoding="utf-8"
+        ),
+    )
+
+    for source in sources:
+        assert not any(line.strip() == '"powershell.exe",' for line in source.splitlines())
+        assert not any(
+            line.strip() == 'str(ROOT / ".venv/Scripts/python.exe"),'
+            for line in source.splitlines()
+        )

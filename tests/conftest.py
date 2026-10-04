@@ -1,5 +1,7 @@
 """Shared SQLite database fixture."""
 
+import os
+import shutil
 from collections.abc import Generator
 
 import pytest
@@ -8,6 +10,20 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from inflector_database.base import Base
+
+
+@pytest.fixture(scope="session")
+def powershell_executable() -> str:
+    """Resolve portable PowerShell Core in CI and supported shells on Windows."""
+
+    candidates = (
+        ("pwsh", "powershell.exe", "powershell") if os.name == "nt" else ("pwsh",)
+    )
+    for candidate in candidates:
+        executable = shutil.which(candidate)
+        if executable is not None:
+            return executable
+    pytest.fail(f"PowerShell executable is required; checked: {', '.join(candidates)}")
 
 
 @pytest.fixture()

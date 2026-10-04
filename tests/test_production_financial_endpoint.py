@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import subprocess
+import sys
 from dataclasses import replace
 from datetime import UTC, date, datetime, timedelta
 from pathlib import Path
@@ -701,10 +702,12 @@ def test_auto_mode_delegates_selected_endpoint_to_existing_manual_path(monkeypat
         )
 
 
-def test_operations_v3_task_dry_run_requires_no_global_fiscal_endpoint() -> None:
+def test_operations_v3_task_dry_run_requires_no_global_fiscal_endpoint(
+    powershell_executable: str,
+) -> None:
     script = ROOT / "scripts/register_inflector_scheduled_task.ps1"
     command_line = [
-        "powershell.exe",
+        powershell_executable,
         "-NoProfile",
         "-ExecutionPolicy",
         "Bypass",
@@ -713,7 +716,7 @@ def test_operations_v3_task_dry_run_requires_no_global_fiscal_endpoint() -> None
         "-RepositoryPath",
         str(ROOT),
         "-PythonExecutable",
-        str(ROOT / ".venv/Scripts/python.exe"),
+        sys.executable,
         "-OperationsProfile",
         str(OPERATIONS[2]),
         "-ResearchProfile",

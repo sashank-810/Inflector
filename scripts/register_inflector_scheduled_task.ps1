@@ -36,11 +36,6 @@ if (-not $automaticEndpoint -and ($FiscalYear -lt 2000 -or $FiscalQuarter -lt 1)
     throw 'Explicit operations profiles require FiscalYear and FiscalQuarter.'
 }
 $runAt = [DateTime]::ParseExact($profile.scheduled_local_time, 'HH:mm', $null)
-$localTimezone = [TimeZoneInfo]::Local.Id
-$acceptedTimezoneIds = @('Asia/Kolkata', 'India Standard Time')
-if ($profile.timezone -eq 'Asia/Kolkata' -and $localTimezone -notin $acceptedTimezoneIds) {
-    throw 'Task Scheduler uses the host timezone; configure this host for Asia/Kolkata first.'
-}
 
 function Quote-Argument([string]$Value) {
     return '"' + $Value.Replace('"', '\"') + '"'
@@ -79,6 +74,20 @@ $preview = [ordered]@{
 if ($DryRun -or $WhatIfPreference) {
     $preview | ConvertTo-Json -Depth 4
     return
+}
+
+$isWindowsHost = if (Get-Variable IsWindows -ErrorAction SilentlyContinue) {
+    [bool]$IsWindows
+} else {
+    $env:OS -eq 'Windows_NT'
+}
+if (-not $isWindowsHost) {
+    throw 'Real task registration requires Windows Task Scheduler.'
+}
+$localTimezone = [TimeZoneInfo]::Local.Id
+$acceptedTimezoneIds = @('Asia/Kolkata', 'India Standard Time')
+if ($profile.timezone -eq 'Asia/Kolkata' -and $localTimezone -notin $acceptedTimezoneIds) {
+    throw 'Task Scheduler uses the host timezone; configure this host for Asia/Kolkata first.'
 }
 
 $action = New-ScheduledTaskAction `

@@ -531,6 +531,14 @@ database transactions. Internal state is idempotent; Telegram delivery is
 at-least-once across the provider-success/local-commit crash window. See
 [`production-notification-delivery.md`](production-notification-delivery.md).
 
+Production P adds no runtime layer, policy version, or schema. It makes the
+existing scheduler DryRun contract cross-platform while retaining Windows and
+Asia/Kolkata enforcement for real task registration. Its operator health
+module loads and checksum-validates the accepted Research V4 through Operations
+V6 chain, then performs read-only database counts and stuck-state diagnostics;
+it never invokes workflow, scoring, or delivery services. See
+[`production-readiness.md`](production-readiness.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

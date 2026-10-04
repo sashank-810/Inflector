@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import os
 import sys
 import tempfile
 from collections.abc import Sequence
@@ -17,6 +18,7 @@ from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import StaticPool
 
 from inflector_data.operations_profile import load_operations_profile
+from inflector_data.production_health import production_health
 from inflector_data.production_operations import (
     AcceptedProductionStageExecutor,
     CycleInputs,
@@ -66,6 +68,18 @@ def _parser() -> argparse.ArgumentParser:
     target = status.add_mutually_exclusive_group()
     target.add_argument("--run-id", type=UUID)
     target.add_argument("--last", type=int)
+
+    health = subparsers.add_parser(
+        "health", help="read-only accepted-pipeline readiness and operational health"
+    )
+    health.add_argument("--database-url")
+    health.add_argument(
+        "--repository-root", type=Path, default=Path(__file__).resolve().parents[3]
+    )
+    health.add_argument("--observed-at", type=datetime.fromisoformat, required=True)
+    health.add_argument("--raw-root", type=Path)
+    health.add_argument("--gdelt-raw-root", type=Path)
+    health.add_argument("--model-family")
 
     subparsers.add_parser("burn-in", help="run a deterministic no-network ledger burn-in")
     return parser
@@ -258,6 +272,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         payload, exit_code = _burn_in()
         print(json.dumps(json_safe(payload), sort_keys=True))
         return exit_code
+    if args.command == "health":
+        return _health(args)
     engine: Engine | None = None
     try:
         engine = create_engine(args.database_url, pool_pre_ping=True)
@@ -277,6 +293,62 @@ def main(argv: Sequence[str] | None = None) -> int:
     finally:
         if engine is not None:
             engine.dispose()
+
+
+def _health(args: argparse.Namespace) -> int:
+    database_url = args.database_url or os.getenv("INFLECTOR_PRODUCTION_DATABASE_URL")
+    raw_root_value = args.raw_root or _optional_path("INFLECTOR_PRODUCTION_RAW_ROOT")
+    gdelt_root_value = args.gdelt_raw_root or _optional_path("INFLECTOR_GDELT_RAW_ROOT")
+    model_family = args.model_family or os.getenv("INFLECTOR_MODEL_FAMILY")
+    engine: Engine | None = None
+    try:
+        if database_url is None:
+            payload = production_health(
+                repository_root=args.repository_root,
+                observed_at=args.observed_at,
+                session=None,
+                raw_root=raw_root_value,
+                gdelt_raw_root=gdelt_root_value,
+                model_family=model_family,
+                telegram_bot_token_present=bool(
+                    os.getenv("INFLECTOR_TELEGRAM_BOT_TOKEN")
+                ),
+                telegram_chat_id_present=bool(os.getenv("INFLECTOR_TELEGRAM_CHAT_ID")),
+            )
+        else:
+            engine = create_engine(database_url, pool_pre_ping=True)
+            factory = sessionmaker(bind=engine, autoflush=False)
+            with factory() as session:
+                payload = production_health(
+                    repository_root=args.repository_root,
+                    observed_at=args.observed_at,
+                    session=session,
+                    raw_root=raw_root_value,
+                    gdelt_raw_root=gdelt_root_value,
+                    model_family=model_family,
+                    telegram_bot_token_present=bool(
+                        os.getenv("INFLECTOR_TELEGRAM_BOT_TOKEN")
+                    ),
+                    telegram_chat_id_present=bool(
+                        os.getenv("INFLECTOR_TELEGRAM_CHAT_ID")
+                    ),
+                )
+    except Exception as error:
+        payload = {
+            "status": "broken",
+            "read_only": True,
+            "error_code": type(error).__name__,
+        }
+    finally:
+        if engine is not None:
+            engine.dispose()
+    print(json.dumps(json_safe(payload), sort_keys=True))
+    return {"ready": 0, "configuration_unavailable": 2}.get(str(payload["status"]), 1)
+
+
+def _optional_path(environment_name: str) -> Path | None:
+    value = os.getenv(environment_name)
+    return Path(value) if value else None
 
 
 if __name__ == "__main__":
