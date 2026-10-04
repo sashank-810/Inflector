@@ -712,6 +712,8 @@ def test_real_task_registration_fails_closed_outside_windows(
             "a" * 40,
             "-ModelEffectiveFrom",
             "2026-10-01T00:00:00Z",
+            "-TaskName",
+            "Inflector-Fictional-NonWindows-Guard",
         ],
         capture_output=True,
         check=False,
