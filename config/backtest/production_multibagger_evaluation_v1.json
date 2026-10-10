@@ -1,0 +1,28 @@
+{
+  "multibagger_evaluation_policy_code": "production_multibagger_evaluation_v1",
+  "policy_version": "1",
+  "source_backtest_policy_code": "production_backtest_v1",
+  "source_backtest_policy_checksum_sha256": "e1f1f886f686045f7f2774be355674a726b155db1a32c9080999c32becd35984",
+  "historical_universe_policy_code": "production_historical_universe_v1",
+  "historical_universe_policy_checksum_sha256": "ac0b519b8a0e82961d70ff697aa459566e02df2927a1613057a0287287137982",
+  "multibagger_outcome_policy_code": "production_multibagger_outcomes_v1",
+  "multibagger_outcome_policy_checksum_sha256": "3c901049e37dfa1764d70feb7e8fdfa8762b3c4733ea283f8b6d99c73475332f",
+  "research_profile_code": "nse_current_research_v4",
+  "research_profile_checksum_sha256": "f5d07ec154851f2a75b622ac2fa9742447e0e415572ff6c67986bc669e18d7b1",
+  "ranking_source": "persisted_v5_final_score_only",
+  "ranking_direction": "descending",
+  "tie_order": ["symbol_asc", "security_id_asc"],
+  "selection_contracts": [
+    {"code": "TOP_5", "kind": "count", "value": "5"},
+    {"code": "TOP_10", "kind": "count", "value": "10"},
+    {"code": "TOP_20", "kind": "count", "value": "20"},
+    {"code": "TOP_1_PERCENT", "kind": "percent", "value": "1"},
+    {"code": "TOP_5_PERCENT", "kind": "percent", "value": "5"},
+    {"code": "TOP_10_PERCENT", "kind": "percent", "value": "10"}
+  ],
+  "evaluation_views": ["end_to_end", "rankable_only"],
+  "prediction_integrity_version": "frozen_backtest_observation_v5_binding_v1",
+  "calendar_integrity_requirement": "verified_benchmark_session_archive_v1",
+  "score_bucket_source": "production_backtest_v1",
+  "algorithm_version": "multibagger_prediction_evaluation_v1"
+}

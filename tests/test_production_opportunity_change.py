@@ -810,7 +810,7 @@ def test_migration_0020_adds_only_change_tables(tmp_path: Path) -> None:
     assert {"opportunity_discovery_runs", "backtest_runs", "score_snapshots"} <= tables
     with engine.connect() as connection:
         assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == (
-            "20261004_0023"
+            "20261005_0024"
         )
     engine.dispose()
     command.downgrade(config, "20261003_0019")

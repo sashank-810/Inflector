@@ -551,6 +551,15 @@ research, score, discovery, change, notification, or delivery module depends on
 these tables. See
 [`production-historical-multibagger-evaluation.md`](production-historical-multibagger-evaluation.md).
 
+Production R consumes only those Q labels and the corresponding frozen J
+observations. It requires exact resolved-universe recomposition across all J
+shards, freezes V5-score ranking and predeclared display-order budgets before
+joining labels, and stores append-only prediction and confusion projections.
+The two views (`end_to_end` and `rankable_only`) keep ranking quality distinct
+from historical rankability coverage. It has no path back into research,
+scoring, or policy activation. See
+[`production-historical-multibagger-evaluation-results.md`](production-historical-multibagger-evaluation-results.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

@@ -25,7 +25,7 @@ from inflector_database.models import (
     ResearchNotificationOutbox,
 )
 
-LATEST_MIGRATION = "20261004_0023"
+LATEST_MIGRATION = "20261005_0024"
 ACCEPTED_CHECKSUMS = {
     "research_v4": "f5d07ec154851f2a75b622ac2fa9742447e0e415572ff6c67986bc669e18d7b1",
     "opportunity_discovery_v1": (

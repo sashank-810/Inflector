@@ -24,7 +24,7 @@ from inflector_data.opportunity_policy import load_opportunity_discovery_policy
 from inflector_data.opportunity_summary import summarize_opportunity_discovery
 from inflector_data.research_profile import load_research_profile
 
-LATEST_MIGRATION = "20261004_0023"
+LATEST_MIGRATION = "20261005_0024"
 
 
 def _parser() -> argparse.ArgumentParser:

@@ -214,7 +214,7 @@ window. See [production notification delivery](docs/production-notification-deli
 Production P keeps Operations V6 and all research/delivery semantics frozen
 while making scheduler DryRun portable across Windows PowerShell and `pwsh` on
 Linux CI. A deterministic read-only `ops_cli health` report validates the
-accepted Research/K/L/N/O/V6 chain, migration 0023, runtime configuration, and
+accepted Research/K/L/N/O/V6 chain, migration 0024, runtime configuration, and
 operational notification/delivery state without acquiring leases or mutating
 data. See [production readiness](docs/production-readiness.md).
 
@@ -228,6 +228,13 @@ persist positive, negative, unmatured, or unavailable labels plus maturity and
 continuous diagnostics. Q does not tune scores, read ranks, train a model, or
 calculate TP/FP/FN/TN. See
 [historical multibagger evaluation](docs/production-historical-multibagger-evaluation.md).
+
+Production R evaluates that ground truth against the prediction state frozen in
+the same historical observations. It exactly recomposes all J shards for each Q
+cohort, freezes score-only rank and fixed diagnostic budgets before labels are
+joined, and reports factual TP/FP/FN/TN in separate end-to-end and
+rankable-only views. It does not tune, train, promote, or otherwise modify the
+model. See [historical prediction evaluation](docs/production-historical-multibagger-evaluation-results.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:

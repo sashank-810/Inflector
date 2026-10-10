@@ -459,7 +459,17 @@ bindings, runtime configuration, operational runs, notification backlog, and
 delivery stuck states. Add no schema, runtime policy, mutation, transport,
 recommendation, API, frontend, or Production Q behavior.
 
-### Production Q — Historical Universe & Multibagger Outcome Contracts (acceptance pending)
+### Production Q — Historical Universe & Multibagger Outcome Contracts (complete)
+
+Production Q establishes authoritative historical NSE cohorts and independent,
+append-only 2x/2Y, 3x/3Y, and 5x/5Y factual labels. It does not use ranks or
+train a model.
+
+### Production R — Historical Prediction Evaluation (acceptance pending)
+
+Production R joins frozen J predictions with Q ground truth, recomposes all
+required shards, and reports factual confusion/rank diagnostics without tuning,
+promoting, or changing the model. Production S has not started.
 
 Add authoritative, survivorship-aware historical NSE cohort projection and
 deterministic 2x/2Y, 3x/3Y, and 5x/5Y factual labels over frozen Production J

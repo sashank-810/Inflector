@@ -1849,7 +1849,7 @@ def test_q_cli_rejects_invalid_contract_and_json_is_deterministic(session: Sessi
         completed_at=datetime(2026, 10, 4, tzinfo=UTC),
     )
     session.execute(text("CREATE TABLE alembic_version (version_num VARCHAR(32))"))
-    session.execute(text("INSERT INTO alembic_version (version_num) VALUES ('20261004_0023')"))
+    session.execute(text("INSERT INTO alembic_version (version_num) VALUES ('20261005_0024')"))
     args = _parser().parse_args(
         [
             "summarize-multibagger-labels",

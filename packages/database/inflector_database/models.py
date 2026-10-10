@@ -1211,17 +1211,13 @@ class BacktestRun(Base):
     backtest_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
     backtest_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     availability_manifest_code: Mapped[str] = mapped_column(String(120), nullable=False)
-    availability_manifest_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    availability_manifest_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     scoring_configuration_id: Mapped[UUID] = mapped_column(
         ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
         nullable=False,
         index=True,
     )
-    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     research_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
     research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     financial_primitive_policy_checksum_sha256: Mapped[str] = mapped_column(
@@ -1344,9 +1340,7 @@ class BacktestOutcome(Base):
     security_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     benchmark_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     excess_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
-    outcome_data_cutoff: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     provenance_json: Mapped[dict[str, object]] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
     )
@@ -1587,6 +1581,233 @@ class MultibaggerOutcomeLabel(Base):
     run: Mapped[MultibaggerLabelRun] = relationship(back_populates="labels")
 
 
+class MultibaggerEvaluationRun(Base):
+    """Append-only Production R evaluation over frozen predictions and Q labels."""
+
+    __tablename__ = "multibagger_evaluation_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_multibagger_evaluation_run_key"),
+        CheckConstraint(
+            "status IN ('planned','completed','failed')",
+            name="ck_multibagger_evaluation_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    evaluation_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    evaluation_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    backtest_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    universe_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    ordered_bundle_checksums_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    selection_contracts_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    outcome_contracts_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    algorithm_versions_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    inputs_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="planned")
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    cohorts: Mapped[list[MultibaggerEvaluationCohort]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerEvaluationCohort(Base):
+    """One exactly recomposed historical universe cutoff in an R evaluation."""
+
+    __tablename__ = "multibagger_evaluation_cohorts"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_evaluation_run_id",
+            "historical_universe_run_id",
+            name="uq_multibagger_evaluation_cohort_universe",
+        ),
+        CheckConstraint(
+            "status IN ('completed','failed')", name="ck_multibagger_evaluation_cohort_status"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_evaluation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    historical_universe_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("historical_universe_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    historical_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    universe_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    eligible_resolved_count: Mapped[int] = mapped_column(nullable=False)
+    unresolved_count: Mapped[int] = mapped_column(nullable=False)
+    ambiguous_count: Mapped[int] = mapped_column(nullable=False)
+    unsupported_count: Mapped[int] = mapped_column(nullable=False)
+    ordered_security_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    backtest_run_ids_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    label_run_ids_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    bundle_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    rankable_count: Mapped[int] = mapped_column(nullable=False)
+    unrankable_count: Mapped[int] = mapped_column(nullable=False)
+    calendar_integrity_status: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False, default="completed")
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[MultibaggerEvaluationRun] = relationship(back_populates="cohorts")
+    predictions: Mapped[list[MultibaggerPredictionRow]] = relationship(
+        back_populates="cohort", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerPredictionRow(Base):
+    """Frozen historical model state, deliberately without future-label columns."""
+
+    __tablename__ = "multibagger_prediction_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_evaluation_cohort_id",
+            "security_id",
+            name="uq_multibagger_prediction_cohort_security",
+        ),
+        CheckConstraint(
+            "(rankable = true AND final_score IS NOT NULL AND dense_score_rank IS NOT NULL "
+            "AND display_order IS NOT NULL AND unranked_reason IS NULL) OR "
+            "(rankable = false AND final_score IS NULL AND dense_score_rank IS NULL "
+            "AND display_order IS NULL AND unranked_reason IS NOT NULL)",
+            name="ck_multibagger_prediction_rankability",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_evaluation_cohort_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_cohorts.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    backtest_observation_id: Mapped[UUID] = mapped_column(
+        ForeignKey("backtest_observations.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    historical_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    snapshot_fingerprint_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    snapshot_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unranked_reason: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    dense_score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    display_order: Mapped[int | None] = mapped_column(nullable=True)
+    available_component_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=list
+    )
+    prediction_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    cohort: Mapped[MultibaggerEvaluationCohort] = relationship(back_populates="predictions")
+    confusions: Mapped[list[MultibaggerConfusionRow]] = relationship(
+        back_populates="prediction", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerConfusionRow(Base):
+    """One factual selection/label join under a declared contract and view."""
+
+    __tablename__ = "multibagger_confusion_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_prediction_row_id",
+            "outcome_contract_code",
+            "selection_contract_code",
+            "evaluation_view",
+            name="uq_multibagger_confusion_identity",
+        ),
+        CheckConstraint(
+            "evaluation_view IN ('end_to_end','rankable_only')",
+            name="ck_multibagger_confusion_view",
+        ),
+        CheckConstraint(
+            "actual_label IN ('positive','negative','unmatured','unavailable')",
+            name="ck_multibagger_confusion_actual_label",
+        ),
+        CheckConstraint(
+            "confusion_class IN ('tp','fp','fn','tn','excluded_unmatured',"
+            "'excluded_unavailable','excluded_rankability_for_rankable_only')",
+            name="ck_multibagger_confusion_class",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_prediction_row_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_prediction_rows.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    multibagger_outcome_label_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_outcome_labels.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    outcome_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    selection_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    evaluation_view: Mapped[str] = mapped_column(String(32), nullable=False)
+    selected: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    actual_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    confusion_class: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    threshold_hit_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    endpoint_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    peak_price_multiple: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    maximum_drawdown: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    label_provenance_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    confusion_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    prediction: Mapped[MultibaggerPredictionRow] = relationship(back_populates="confusions")
+
+
 class OpportunityDiscoveryRun(Base):
     """Immutable identity and completed audit for one current discovery ranking."""
 
@@ -1608,9 +1829,7 @@ class OpportunityDiscoveryRun(Base):
         nullable=False,
         index=True,
     )
-    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     research_profile_code: Mapped[str] = mapped_column(String(120), nullable=False)
     research_profile_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     financial_primitive_policy_checksum_sha256: Mapped[str] = mapped_column(
@@ -1628,9 +1847,7 @@ class OpportunityDiscoveryRun(Base):
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
     )
     symbol_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    selected_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    selected_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     snapshot_selection_version: Mapped[str] = mapped_column(String(96), nullable=False)
     ranking_version: Mapped[str] = mapped_column(String(96), nullable=False)
     inputs_json: Mapped[dict[str, object]] = mapped_column(
@@ -1733,12 +1950,8 @@ class OpportunityChangeRun(Base):
     )
     baseline_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     current_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
-    baseline_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
-    current_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False
-    )
+    baseline_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    current_snapshot_set_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     comparison_version: Mapped[str] = mapped_column(String(96), nullable=False)
     inputs_json: Mapped[dict[str, object]] = mapped_column(
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
@@ -1842,9 +2055,7 @@ class ResearchNotificationOutbox(Base):
 
     __tablename__ = "research_notification_outbox"
     __table_args__ = (
-        UniqueConstraint(
-            "notification_key_sha256", name="uq_research_notification_outbox_key"
-        ),
+        UniqueConstraint("notification_key_sha256", name="uq_research_notification_outbox_key"),
         CheckConstraint(
             "delivery_status = 'pending'",
             name="ck_research_notification_outbox_pending",
@@ -1852,9 +2063,7 @@ class ResearchNotificationOutbox(Base):
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    notification_key_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True
-    )
+    notification_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     alert_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
     alert_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     payload_schema_version: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -1898,9 +2107,7 @@ class ResearchNotificationDelivery(Base):
 
     __tablename__ = "research_notification_deliveries"
     __table_args__ = (
-        UniqueConstraint(
-            "delivery_key_sha256", name="uq_research_notification_delivery_key"
-        ),
+        UniqueConstraint("delivery_key_sha256", name="uq_research_notification_delivery_key"),
         CheckConstraint(
             "status IN ('pending','claimed','retry_wait','delivered','dead_letter')",
             name="ck_research_notification_delivery_status",
@@ -1966,8 +2173,7 @@ class ResearchNotificationDeliveryAttempt(Base):
             name="uq_research_notification_delivery_attempt_number",
         ),
         CheckConstraint(
-            "outcome IS NULL OR outcome IN "
-            "('delivered','retryable_failure','permanent_failure')",
+            "outcome IS NULL OR outcome IN ('delivered','retryable_failure','permanent_failure')",
             name="ck_research_notification_delivery_attempt_outcome",
         ),
         CheckConstraint(
@@ -1995,6 +2201,4 @@ class ResearchNotificationDeliveryAttempt(Base):
         JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
     )
 
-    delivery: Mapped[ResearchNotificationDelivery] = relationship(
-        back_populates="attempts"
-    )
+    delivery: Mapped[ResearchNotificationDelivery] = relationship(back_populates="attempts")

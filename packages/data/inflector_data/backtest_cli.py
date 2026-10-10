@@ -28,12 +28,19 @@ from inflector_data.historical_dataset import (
 )
 from inflector_data.historical_evaluation_policy import (
     load_historical_universe_policy,
+    load_multibagger_evaluation_policy,
     load_multibagger_outcome_policy,
 )
 from inflector_data.historical_universe import (
     HistoricalUniverseEvidence,
     build_historical_universe,
     historical_universe_summary,
+)
+from inflector_data.multibagger_evaluation import (
+    build_multibagger_evaluation,
+    inspect_multibagger_errors,
+    load_evaluation_manifest,
+    summarize_multibagger_evaluation,
 )
 from inflector_data.multibagger_labels import (
     build_multibagger_labels,
@@ -44,7 +51,7 @@ from inflector_database.historical_evaluation_repository import (
     HistoricalEvaluationRepository,
 )
 
-LATEST_MIGRATION = "20261004_0023"
+LATEST_MIGRATION = "20261005_0024"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -98,6 +105,23 @@ def _parser() -> argparse.ArgumentParser:
     label_summary.add_argument("--multibagger-policy", type=Path, required=True)
     label_summary.add_argument("--run-id", type=UUID, required=True)
     label_summary.add_argument("--contract")
+
+    evaluation = commands.add_parser("build-multibagger-evaluation")
+    evaluation.add_argument("--database-url", required=True)
+    evaluation.add_argument("--evaluation-policy", type=Path, required=True)
+    evaluation.add_argument("--cohort-manifest", type=Path, required=True)
+    evaluation.add_argument("--completed-at", type=datetime.fromisoformat, required=True)
+
+    evaluation_summary = commands.add_parser("summarize-multibagger-evaluation")
+    evaluation_summary.add_argument("--database-url", required=True)
+    evaluation_summary.add_argument("--evaluation-policy", type=Path, required=True)
+    evaluation_summary.add_argument("--run-id", type=UUID, required=True)
+
+    errors = commands.add_parser("inspect-multibagger-errors")
+    errors.add_argument("--database-url", required=True)
+    errors.add_argument("--evaluation-policy", type=Path, required=True)
+    errors.add_argument("--run-id", type=UUID, required=True)
+    errors.add_argument("--class", dest="error_class", choices=("fp", "fn"))
     return parser
 
 
@@ -166,6 +190,29 @@ def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
             summary["contracts"] = {args.contract: contracts.get(args.contract)}
             payload["summary"] = summary
         return {"status": "completed", **payload}
+    if args.command == "build-multibagger-evaluation":
+        policy = load_multibagger_evaluation_policy(args.evaluation_policy, repository_root=root)
+        result = build_multibagger_evaluation(
+            session,
+            policy=policy,
+            bundles=load_evaluation_manifest(args.cohort_manifest),
+            completed_at=args.completed_at,
+        )
+        return {"status": "completed", **asdict(result)}
+    if args.command == "summarize-multibagger-evaluation":
+        policy = load_multibagger_evaluation_policy(args.evaluation_policy, repository_root=root)
+        result = summarize_multibagger_evaluation(session, run_id=args.run_id)
+        return {"status": "completed", "policy_checksum_sha256": policy.checksum_sha256, **result}
+    if args.command == "inspect-multibagger-errors":
+        policy = load_multibagger_evaluation_policy(args.evaluation_policy, repository_root=root)
+        result = inspect_multibagger_errors(
+            session, run_id=args.run_id, confusion_class=args.error_class
+        )
+        return {
+            "status": "completed",
+            "policy_checksum_sha256": policy.checksum_sha256,
+            "errors": result,
+        }
     policy = load_backtest_policy(args.backtest_policy, repository_root=root)
     if args.command == "build-dataset":
         manifest = load_historical_availability_manifest(args.availability_manifest)
