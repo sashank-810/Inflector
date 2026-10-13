@@ -1,0 +1,20 @@
+{
+  "temporal_split_policy_code": "production_multibagger_temporal_split_v1",
+  "policy_version": "1",
+  "source_evaluation_policy_code": "production_multibagger_evaluation_v1",
+  "source_evaluation_policy_checksum_sha256": "121236d373fc7a6c7b7fe53881217ddce2cf607125f4ca20c3e71c3d128d3a11",
+  "activation_policy_code": "production_historical_evaluation_activation_v1",
+  "activation_policy_checksum_sha256": "3d67d3bbe9522bfc5a88748e5e3bce6dc7ca6478eb2661a896e701bc2be237b1",
+  "maturity_contract": "common_all_contracts_longest_horizon",
+  "longest_horizon_calendar_years": 5,
+  "ordering": "historical_cutoff_ascending",
+  "development_percent": 60,
+  "validation_percent": 20,
+  "holdout_percent": 20,
+  "integer_partition_semantics": "floor_development_floor_validation_remainder_holdout_v1",
+  "minimum_validation_cutoffs": 12,
+  "minimum_holdout_cutoffs": 12,
+  "randomization": "forbidden",
+  "label_classification_dependency": "forbidden",
+  "algorithm_version": "chronological_common_maturity_60_20_20_v1"
+}

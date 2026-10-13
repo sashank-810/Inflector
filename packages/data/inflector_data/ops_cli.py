@@ -36,7 +36,7 @@ from inflector_database.base import Base
 from inflector_database.models import OperationalRun
 from inflector_database.operations_repository import OperationsRepository
 
-LATEST_MIGRATION = "20261005_0024"
+LATEST_MIGRATION = "20261006_0025"
 
 
 def _parser() -> argparse.ArgumentParser:

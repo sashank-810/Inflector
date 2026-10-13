@@ -1,0 +1,40 @@
+{
+  "error_analysis_policy_code": "production_multibagger_error_analysis_v1",
+  "policy_version": "1",
+  "source_evaluation_policy_code": "production_multibagger_evaluation_v1",
+  "source_evaluation_policy_checksum_sha256": "121236d373fc7a6c7b7fe53881217ddce2cf607125f4ca20c3e71c3d128d3a11",
+  "allowed_split_codes": ["development", "validation"],
+  "confusion_classes": ["fp", "fn"],
+  "dimensions": [
+    "outcome_contract",
+    "selection_contract",
+    "evaluation_view",
+    "temporal_split",
+    "calendar_year",
+    "score_bucket",
+    "rankability",
+    "snapshot_status",
+    "component_availability_pattern",
+    "unranked_reason",
+    "confusion_class",
+    "rank_distance_from_boundary",
+    "score_gap_from_boundary",
+    "threshold_time",
+    "peak_multiple",
+    "maximum_drawdown",
+    "endpoint_return"
+  ],
+  "score_bucket_source": "production_backtest_v1",
+  "error_signatures": [
+    "UNRANKABLE_POSITIVE_FN",
+    "RANKABLE_JUST_BELOW_BOUNDARY",
+    "HIGH_SCORE_NEGATIVE",
+    "LOW_SCORE_EVENTUAL_POSITIVE",
+    "OTHER_FACTUAL_FP",
+    "OTHER_FACTUAL_FN"
+  ],
+  "component_diagnostics": "frozen_v5_components_factual_association_v1",
+  "causal_claims": "forbidden",
+  "threshold_optimization": "forbidden",
+  "algorithm_version": "factual_fp_fn_error_analysis_v1"
+}

@@ -56,6 +56,11 @@ from inflector_data.nse_financials import (
     NSEIntegratedFinancialDiscovery,
     NSEIntegratedFinancialsProvider,
 )
+from inflector_data.nse_historical_mii import (
+    NSE_HISTORICAL_MII_DATASET_CODE,
+    NSEHistoricalMIISecurityProvider,
+    ingest_historical_mii,
+)
 from inflector_data.nse_http import (
     NSEAcquisitionError,
     NSEHttpClient,
@@ -195,12 +200,18 @@ def _parser() -> argparse.ArgumentParser:
         "ingest-corporate-actions",
         "ingest-announcements",
         "ingest-catalyst-evidence",
+        "ingest-historical-mii",
     ):
         subparser = subparsers.add_parser(command)
         subparser.add_argument("--database-url", required=True)
         subparser.add_argument("--raw-root", type=Path, required=True)
         subparser.add_argument("--license-class", required=True)
-        if command in {"ingest-market", "ingest-benchmarks", "ingest-daily"}:
+        if command in {
+            "ingest-market",
+            "ingest-benchmarks",
+            "ingest-daily",
+            "ingest-historical-mii",
+        }:
             subparser.add_argument("--date", type=date.fromisoformat, required=True)
         if command in {"ingest-market-range", "ingest-delivery-range"}:
             subparser.add_argument("--from-date", type=date.fromisoformat, required=True)
@@ -229,7 +240,7 @@ def _parser() -> argparse.ArgumentParser:
                 subparser.add_argument("--max-announcements", type=int, default=100)
             if command == "ingest-catalyst-evidence":
                 subparser.add_argument("--max-documents", type=int, default=100)
-        elif command == "ingest-universe":
+        elif command in {"ingest-universe", "ingest-historical-mii"}:
             _local_arguments(subparser, "")
         elif command == "ingest-market":
             _local_arguments(subparser, "")
@@ -332,6 +343,51 @@ def _execute(args: argparse.Namespace, session: Session) -> tuple[list[dict[str,
     service = IngestionService(session, LocalRawObjectStore(args.raw_root))
     client = NSEHttpClient()
     trading_date: date | None = getattr(args, "date", None)
+
+    if args.command == "ingest-historical-mii":
+        assert trading_date is not None
+        if args.file is None or args.source_uri is None:
+            raise ValueError(
+                "historical MII acquisition requires --file and explicit official --source-uri"
+            )
+        provider = NSEHistoricalMIISecurityProvider(
+            LocalNSEArtifactSource(args.file, args.source_uri),
+            _metadata(NSE_HISTORICAL_MII_DATASET_CODE, args.license_class),
+            trading_date,
+        )
+        result = ingest_historical_mii(
+            session,
+            archive=LocalRawObjectStore(args.raw_root),
+            provider=provider,
+        )
+        return [
+            {
+                "stage": "historical_mii",
+                "status": result.acquisition_status,
+                "acquisition_id": str(result.acquisition_id),
+                "acquisition_provenance": result.acquisition_provenance,
+                "run_id": None if result.ingestion is None else str(result.ingestion.run_id),
+                "provider_dataset_id": (
+                    None if result.provider_dataset_id is None else str(result.provider_dataset_id)
+                ),
+                "source_date": result.source_date.isoformat(),
+                "raw_content_sha256": result.raw_content_sha256,
+                "records_received": 0
+                if result.ingestion is None
+                else result.ingestion.records_received,
+                "records_accepted": 0
+                if result.ingestion is None
+                else result.ingestion.records_accepted,
+                "records_quarantined": 0
+                if result.ingestion is None
+                else result.ingestion.records_quarantined,
+                "records_duplicated": 0
+                if result.ingestion is None
+                else result.ingestion.records_duplicated,
+                "unsupported_rows": result.unsupported_row_count,
+                "reused": result.reused,
+            }
+        ], True
 
     stages: list[tuple[str, _ProductionProvider, Callable[[Any], IngestionResult]]] = []
     if args.command in {"ingest-universe", "ingest-daily"}:

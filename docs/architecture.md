@@ -560,6 +560,17 @@ from historical rankability coverage. It has no path back into research,
 scoring, or policy activation. See
 [`production-historical-multibagger-evaluation-results.md`](production-historical-multibagger-evaluation-results.md).
 
+Production S1 supplies the missing authoritative activation layer above R. One
+archive-first official NSE CM MII security-master artifact feeds Q membership;
+an independent persisted official-session projection verifies exact NIFTY 50
+date coverage. A label-independent chronological split freezes development,
+validation, and an untouched holdout before error analysis reads outcomes.
+Outcome-bearing S1 queries are restricted to persisted development/validation
+cohort IDs, and database constraints prohibit holdout analysis rows. S1 stores
+factual FP/FN and frozen component diagnostics only; there is no dependency back
+into research, scoring, J/Q/R policy, or Operations V6. See
+[`production-historical-evaluation-activation-and-error-analysis.md`](production-historical-evaluation-activation-and-error-analysis.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

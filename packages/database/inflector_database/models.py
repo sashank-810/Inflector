@@ -1808,6 +1808,440 @@ class MultibaggerConfusionRow(Base):
     prediction: Mapped[MultibaggerPredictionRow] = relationship(back_populates="confusions")
 
 
+class HistoricalMIIArtifactAcquisition(Base):
+    """Append-only acquisition provenance for one historical MII artifact."""
+
+    __tablename__ = "historical_mii_artifact_acquisitions"
+    __table_args__ = (
+        UniqueConstraint("acquisition_key_sha256", name="uq_historical_mii_acquisition_key"),
+        CheckConstraint(
+            "acquisition_provenance IN "
+            "('verified_official_https','operator_supplied_unverified','fixture_only')",
+            name="ck_historical_mii_acquisition_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('archived','accepted','reused_semantic_snapshot',"
+            "'revision_conflict','unverified','failed')",
+            name="ck_historical_mii_acquisition_status",
+        ),
+        CheckConstraint(
+            "acquisition_provenance = 'verified_official_https' OR "
+            "linked_ingestion_run_id IS NULL",
+            name="ck_historical_mii_unverified_has_no_ingestion",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    acquisition_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    requested_source_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    source_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expected_filename: Mapped[str] = mapped_column(String(160), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    provenance_status: Mapped[str] = mapped_column(String(48), nullable=False)
+    status: Mapped[str] = mapped_column(String(48), nullable=False)
+    linked_ingestion_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("ingestion_runs.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class HistoricalSessionArtifactAcquisition(Base):
+    """Archived candidate evidence for an independent official session calendar."""
+
+    __tablename__ = "historical_session_artifact_acquisitions"
+    __table_args__ = (
+        UniqueConstraint(
+            "acquisition_key_sha256", name="uq_historical_session_acquisition_key"
+        ),
+        CheckConstraint(
+            "acquisition_provenance IN "
+            "('verified_official_https','operator_supplied_unverified','fixture_only')",
+            name="ck_historical_session_acquisition_provenance",
+        ),
+        CheckConstraint(
+            "status IN ('archived','parsed','unsupported','failed')",
+            name="ck_historical_session_acquisition_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    acquisition_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    source_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_ingestion_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("ingestion_runs.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    source_record_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), nullable=True, index=True
+    )
+    source_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    parser_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    provenance_status: Mapped[str] = mapped_column(String(48), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    detail_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class HistoricalSessionCalendarRun(Base):
+    """Append-only verification of benchmark dates against official NSE sessions."""
+
+    __tablename__ = "historical_session_calendar_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_historical_session_calendar_run_key"),
+        CheckConstraint(
+            "status IN ('verified','incomplete','unsupported','failed')",
+            name="ck_historical_session_calendar_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    activation_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    activation_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_ingestion_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("ingestion_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_artifact_acquisition_id: Mapped[UUID] = mapped_column(
+        ForeignKey("historical_session_artifact_acquisitions.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False)
+    parser_version: Mapped[str] = mapped_column(String(96), nullable=False)
+    benchmark_provider_dataset_id: Mapped[UUID] = mapped_column(
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False
+    )
+    benchmark_series_id: Mapped[UUID] = mapped_column(
+        ForeignKey("benchmark_series.id", ondelete="RESTRICT"), nullable=False
+    )
+    raw_object_key: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_content_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_uri: Mapped[str] = mapped_column(Text, nullable=False)
+    source_published_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    source_retrieved_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
+    requested_from_date: Mapped[date] = mapped_column(Date, nullable=False)
+    requested_to_date: Mapped[date] = mapped_column(Date, nullable=False)
+    expected_count: Mapped[int] = mapped_column(nullable=False)
+    observed_count: Mapped[int] = mapped_column(nullable=False)
+    missing_dates_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    unexpected_dates_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    first_expected_session: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_expected_session: Mapped[date | None] = mapped_column(Date, nullable=True)
+    first_observed_session: Mapped[date | None] = mapped_column(Date, nullable=True)
+    last_observed_session: Mapped[date | None] = mapped_column(Date, nullable=True)
+    source_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    verification_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    dates: Mapped[list[HistoricalSessionCalendarDate]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class HistoricalSessionCalendarDate(Base):
+    """One officially asserted expected session and its benchmark observation state."""
+
+    __tablename__ = "historical_session_calendar_dates"
+    __table_args__ = (
+        UniqueConstraint(
+            "historical_session_calendar_run_id",
+            "session_date",
+            name="uq_historical_session_calendar_date",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    historical_session_calendar_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("historical_session_calendar_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
+    benchmark_observed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    source_record_id: Mapped[UUID] = mapped_column(
+        ForeignKey("source_records.id", ondelete="RESTRICT"), nullable=False
+    )
+    date_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[HistoricalSessionCalendarRun] = relationship(back_populates="dates")
+
+
+class MultibaggerTemporalSplitRun(Base):
+    """Frozen chronological development/validation/holdout assignment."""
+
+    __tablename__ = "multibagger_temporal_split_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_multibagger_temporal_split_run_key"),
+        CheckConstraint(
+            "status IN ('completed','data_blocked','failed')",
+            name="ck_multibagger_temporal_split_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    split_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    split_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_evaluation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_evaluation_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    session_calendar_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("historical_session_calendar_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    ordered_eligible_cutoffs_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    development_cutoffs_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    validation_cutoffs_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    holdout_cutoffs_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    split_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    outcome_data_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    cutoffs: Mapped[list[MultibaggerTemporalSplitCutoff]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerTemporalSplitCutoff(Base):
+    """One immutable cohort cutoff assignment; holdout identity contains no outcomes."""
+
+    __tablename__ = "multibagger_temporal_split_cutoffs"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_temporal_split_run_id",
+            "multibagger_evaluation_cohort_id",
+            name="uq_multibagger_temporal_split_cohort",
+        ),
+        CheckConstraint(
+            "split_code IN ('development','validation','holdout')",
+            name="ck_multibagger_temporal_split_code",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_temporal_split_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_temporal_split_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    multibagger_evaluation_cohort_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_cohorts.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    historical_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    assignment_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[MultibaggerTemporalSplitRun] = relationship(back_populates="cutoffs")
+
+
+class MultibaggerErrorAnalysisRun(Base):
+    """Append-only factual FP/FN analysis over development and validation only."""
+
+    __tablename__ = "multibagger_error_analysis_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_multibagger_error_analysis_run_key"),
+        CheckConstraint(
+            "status IN ('completed','data_blocked','failed')",
+            name="ck_multibagger_error_analysis_run_status",
+        ),
+        CheckConstraint(
+            "holdout_outcomes_accessed = false",
+            name="ck_multibagger_error_analysis_no_holdout_access",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    error_policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    error_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    temporal_split_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_temporal_split_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    temporal_split_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_evaluation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    evaluation_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    universe_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    scoring_configuration_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    holdout_outcomes_accessed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    rows: Mapped[list[MultibaggerErrorAnalysisRow]] = relationship(
+        back_populates="run", cascade="all, delete-orphan", lazy="selectin"
+    )
+
+
+class MultibaggerErrorAnalysisRow(Base):
+    """Factual error evidence with a database-enforced holdout exclusion."""
+
+    __tablename__ = "multibagger_error_analysis_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "multibagger_error_analysis_run_id",
+            "source_confusion_row_id",
+            name="uq_multibagger_error_analysis_source_confusion",
+        ),
+        CheckConstraint(
+            "split_code IN ('development','validation')",
+            name="ck_multibagger_error_analysis_split",
+        ),
+        CheckConstraint(
+            "confusion_class IN ('fp','fn')",
+            name="ck_multibagger_error_analysis_confusion",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    multibagger_error_analysis_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_error_analysis_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    temporal_split_cutoff_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_temporal_split_cutoffs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_confusion_row_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_confusion_rows.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    prediction_row_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_prediction_rows.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    historical_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    company_id: Mapped[UUID] = mapped_column(
+        ForeignKey("companies.id", ondelete="RESTRICT"), nullable=False
+    )
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False
+    )
+    historical_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    outcome_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    selection_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    evaluation_view: Mapped[str] = mapped_column(String(32), nullable=False)
+    confusion_class: Mapped[str] = mapped_column(String(8), nullable=False)
+    rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unranked_reason: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    snapshot_status: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    dense_score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    display_order: Mapped[int | None] = mapped_column(nullable=True)
+    selection_boundary_count: Mapped[int] = mapped_column(nullable=False)
+    selection_boundary_score: Mapped[Decimal | None] = mapped_column(
+        ExactDecimal(), nullable=True
+    )
+    rank_positions_below_boundary: Mapped[int | None] = mapped_column(nullable=True)
+    score_gap_to_boundary: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    threshold_hit_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    calendar_days_to_threshold: Mapped[int | None] = mapped_column(nullable=True)
+    trading_observations_to_threshold: Mapped[int | None] = mapped_column(nullable=True)
+    endpoint_return: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    peak_price_multiple: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    maximum_drawdown: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    available_component_codes_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    component_values_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    score_bucket: Mapped[str] = mapped_column(String(32), nullable=False)
+    error_signature: Mapped[str] = mapped_column(String(64), nullable=False)
+    factual_provenance_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    row_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    run: Mapped[MultibaggerErrorAnalysisRun] = relationship(back_populates="rows")
+
+
 class OpportunityDiscoveryRun(Base):
     """Immutable identity and completed audit for one current discovery ranking."""
 

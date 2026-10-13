@@ -214,7 +214,7 @@ window. See [production notification delivery](docs/production-notification-deli
 Production P keeps Operations V6 and all research/delivery semantics frozen
 while making scheduler DryRun portable across Windows PowerShell and `pwsh` on
 Linux CI. A deterministic read-only `ops_cli health` report validates the
-accepted Research/K/L/N/O/V6 chain, migration 0024, runtime configuration, and
+accepted Research/K/L/N/O/V6 chain, the current migration head, runtime configuration, and
 operational notification/delivery state without acquiring leases or mutating
 data. See [production readiness](docs/production-readiness.md).
 
@@ -235,6 +235,13 @@ cohort, freezes score-only rank and fixed diagnostic budgets before labels are
 joined, and reports factual TP/FP/FN/TN in separate end-to-end and
 rankable-only views. It does not tune, train, promote, or otherwise modify the
 model. See [historical prediction evaluation](docs/production-historical-multibagger-evaluation-results.md).
+
+Production S1 activates the real-evidence path without modifying the model. It
+adds an archive-first official NSE CM MII security-master adapter, independently
+persisted NSE-session verification against NIFTY 50 observations, a chronological
+60/20/20 development/validation/holdout freeze, and append-only factual FP/FN
+analysis for development and validation only. Holdout outcomes remain unread for
+Production T. See [historical evaluation activation and error analysis](docs/production-historical-evaluation-activation-and-error-analysis.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:

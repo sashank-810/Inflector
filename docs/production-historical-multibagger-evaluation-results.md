@@ -58,6 +58,11 @@ If the historical benchmark/session archive cannot independently establish
 coverage for the evaluated windows, real production evaluation is
 `DATA-BLOCKED`; fixture verification does not certify real data.
 
+Production S1 adds the independently persisted verification needed to activate
+that gate, then freezes chronological development, validation, and untouched
+holdout cutoff identities before factual error analysis. See
+[`production-historical-evaluation-activation-and-error-analysis.md`](production-historical-evaluation-activation-and-error-analysis.md).
+
 Commands extend `backtest_cli` and emit deterministic JSON:
 
 ```text
