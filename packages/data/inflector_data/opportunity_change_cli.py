@@ -23,7 +23,7 @@ from inflector_data.opportunity_change import (
 from inflector_data.opportunity_change_policy import load_opportunity_change_policy
 from inflector_data.opportunity_change_summary import summarize_opportunity_change
 
-LATEST_MIGRATION = "20261006_0025"
+LATEST_MIGRATION = "20261007_0026"
 
 
 def _parser() -> argparse.ArgumentParser:

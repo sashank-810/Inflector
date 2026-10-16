@@ -1825,8 +1825,7 @@ class HistoricalMIIArtifactAcquisition(Base):
             name="ck_historical_mii_acquisition_status",
         ),
         CheckConstraint(
-            "acquisition_provenance = 'verified_official_https' OR "
-            "linked_ingestion_run_id IS NULL",
+            "acquisition_provenance = 'verified_official_https' OR linked_ingestion_run_id IS NULL",
             name="ck_historical_mii_unverified_has_no_ingestion",
         ),
     )
@@ -1859,9 +1858,7 @@ class HistoricalSessionArtifactAcquisition(Base):
 
     __tablename__ = "historical_session_artifact_acquisitions"
     __table_args__ = (
-        UniqueConstraint(
-            "acquisition_key_sha256", name="uq_historical_session_acquisition_key"
-        ),
+        UniqueConstraint("acquisition_key_sha256", name="uq_historical_session_acquisition_key"),
         CheckConstraint(
             "acquisition_provenance IN "
             "('verified_official_https','operator_supplied_unverified','fixture_only')",
@@ -1945,9 +1942,7 @@ class HistoricalSessionCalendarRun(Base):
     source_published_at: Mapped[datetime | None] = mapped_column(
         DateTime(timezone=True), nullable=True
     )
-    source_retrieved_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), nullable=False
-    )
+    source_retrieved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     requested_from_date: Mapped[date] = mapped_column(Date, nullable=False)
     requested_to_date: Mapped[date] = mapped_column(Date, nullable=False)
     expected_count: Mapped[int] = mapped_column(nullable=False)
@@ -2212,9 +2207,7 @@ class MultibaggerErrorAnalysisRow(Base):
     dense_score_rank: Mapped[int | None] = mapped_column(nullable=True)
     display_order: Mapped[int | None] = mapped_column(nullable=True)
     selection_boundary_count: Mapped[int] = mapped_column(nullable=False)
-    selection_boundary_score: Mapped[Decimal | None] = mapped_column(
-        ExactDecimal(), nullable=True
-    )
+    selection_boundary_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     rank_positions_below_boundary: Mapped[int | None] = mapped_column(nullable=True)
     score_gap_to_boundary: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
     threshold_hit_trading_date: Mapped[date | None] = mapped_column(Date, nullable=True)
@@ -2240,6 +2233,347 @@ class MultibaggerErrorAnalysisRow(Base):
     )
 
     run: Mapped[MultibaggerErrorAnalysisRun] = relationship(back_populates="rows")
+
+
+class MultibaggerChallengerExperimentRun(Base):
+    """Governed S2 weight-only experiment over an immutable S1 split."""
+
+    __tablename__ = "multibagger_challenger_experiment_runs"
+    __table_args__ = (
+        UniqueConstraint("run_key_sha256", name="uq_multibagger_challenger_experiment_key"),
+        CheckConstraint(
+            "status IN ('draft','development_evaluating','development_evaluated',"
+            "'candidate_set_sealed','validation_evaluating','validation_evaluated',"
+            "'candidate_frozen_for_t','no_challenger_selected','data_blocked','failed')",
+            name="ck_multibagger_challenger_experiment_status",
+        ),
+        CheckConstraint(
+            "holdout_outcomes_accessed = false",
+            name="ck_multibagger_challenger_no_holdout_access",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    activation_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    temporal_split_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_analysis_policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    temporal_split_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_temporal_split_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    temporal_split_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    error_analysis_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_error_analysis_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_evaluation_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    source_evaluation_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    champion_scoring_configuration_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    champion_scoring_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    champion_model_family: Mapped[str] = mapped_column(String(120), nullable=False)
+    development_cutoff_ids_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    validation_cutoff_ids_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    holdout_cutoff_ids_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    candidate_algorithm_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    primary_objective_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    evidence_class: Mapped[str] = mapped_column(String(48), nullable=False)
+    status: Mapped[str] = mapped_column(String(48), nullable=False, default="draft")
+    sealed_candidate_set_checksum_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    validation_opened_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
+    holdout_outcomes_accessed: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    summary_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False, default=dict
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class MultibaggerChallengerCandidate(Base):
+    """Append-only hypothesis and canonical top-level V5 weight vector."""
+
+    __tablename__ = "multibagger_challenger_candidates"
+    __table_args__ = (
+        UniqueConstraint(
+            "experiment_run_id", "candidate_code", name="uq_multibagger_challenger_candidate_code"
+        ),
+        UniqueConstraint(
+            "experiment_run_id",
+            "candidate_checksum_sha256",
+            name="uq_multibagger_challenger_candidate_checksum",
+        ),
+        CheckConstraint(
+            "status IN ('registered','development_evaluated','sealed','validation_evaluated',"
+            "'eligible_for_t','not_eligible')",
+            name="ck_multibagger_challenger_candidate_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    experiment_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    candidate_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    candidate_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, unique=True)
+    candidate_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    ordered_weights_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    hypothesis: Mapped[str] = mapped_column(Text, nullable=False)
+    source_error_analysis_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_error_analysis_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    development_evidence_json: Mapped[list[object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    development_evidence_checksum_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False
+    )
+    algorithm_version: Mapped[str] = mapped_column(String(120), nullable=False)
+    status: Mapped[str] = mapped_column(String(48), nullable=False, default="registered")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MultibaggerChallengerScore(Base):
+    """Outcome-free counterfactual score and deterministic rank."""
+
+    __tablename__ = "multibagger_challenger_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id", "source_prediction_row_id", name="uq_multibagger_challenger_score"
+        ),
+        CheckConstraint(
+            "split_code IN ('development','validation')",
+            name="ck_multibagger_challenger_score_split",
+        ),
+        CheckConstraint(
+            "(rankable = true AND candidate_score IS NOT NULL AND display_order IS NOT NULL "
+            "AND dense_score_rank IS NOT NULL AND unranked_reason IS NULL) OR "
+            "(rankable = false AND candidate_score IS NULL AND display_order IS NULL "
+            "AND dense_score_rank IS NULL AND unranked_reason IS NOT NULL)",
+            name="ck_multibagger_challenger_score_rankability",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    experiment_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_candidates.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    source_evaluation_cohort_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_evaluation_cohorts.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_prediction_row_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_prediction_rows.id", ondelete="RESTRICT"), nullable=False
+    )
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False
+    )
+    historical_symbol: Mapped[str] = mapped_column(String(64), nullable=False)
+    source_score_snapshot_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True
+    )
+    source_snapshot_fingerprint_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    component_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    candidate_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unranked_reason: Mapped[str | None] = mapped_column(String(96), nullable=True)
+    display_order: Mapped[int | None] = mapped_column(nullable=True)
+    dense_score_rank: Mapped[int | None] = mapped_column(nullable=True)
+    rankable_count: Mapped[int] = mapped_column(nullable=False)
+    cohort_size: Mapped[int] = mapped_column(nullable=False)
+    selection_flags_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    selection_boundary_ties_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    score_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MultibaggerChallengerEvaluationRow(Base):
+    """Outcome-bearing S2 comparison row; holdout is forbidden by constraint."""
+
+    __tablename__ = "multibagger_challenger_evaluation_rows"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_score_id",
+            "outcome_contract_code",
+            "selection_contract_code",
+            "evaluation_view",
+            name="uq_multibagger_challenger_evaluation_row",
+        ),
+        CheckConstraint(
+            "split_code IN ('development','validation')",
+            name="ck_multibagger_challenger_evaluation_split",
+        ),
+        CheckConstraint(
+            "evaluation_view IN ('end_to_end','rankable_only')",
+            name="ck_multibagger_challenger_evaluation_view",
+        ),
+        CheckConstraint(
+            "confusion_class IN ('tp','fp','fn','tn','excluded_unmatured',"
+            "'excluded_unavailable','excluded_rankability_for_rankable_only')",
+            name="ck_multibagger_challenger_evaluation_confusion",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    experiment_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    candidate_score_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_scores.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_confusion_row_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_confusion_rows.id", ondelete="RESTRICT"), nullable=False
+    )
+    split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    outcome_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    selection_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    evaluation_view: Mapped[str] = mapped_column(String(32), nullable=False)
+    selected: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    actual_label: Mapped[str] = mapped_column(String(32), nullable=False)
+    confusion_class: Mapped[str] = mapped_column(String(64), nullable=False)
+    row_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MultibaggerChallengerMetric(Base):
+    """Exact candidate/champion comparison on one fixed evaluation cell."""
+
+    __tablename__ = "multibagger_challenger_metrics"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id",
+            "split_code",
+            "outcome_contract_code",
+            "selection_contract_code",
+            "evaluation_view",
+            name="uq_multibagger_challenger_metric_cell",
+        ),
+        CheckConstraint(
+            "split_code IN ('development','validation')",
+            name="ck_multibagger_challenger_metric_split",
+        ),
+        CheckConstraint(
+            "rankability_delta = 0", name="ck_multibagger_challenger_rankability_delta"
+        ),
+        CheckConstraint("coverage_delta = 0", name="ck_multibagger_challenger_coverage_delta"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    experiment_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"),
+        nullable=False,
+        index=True,
+    )
+    candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    outcome_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    selection_contract_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    evaluation_view: Mapped[str] = mapped_column(String(32), nullable=False)
+    candidate_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    champion_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    delta_metrics_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    rankability_delta: Mapped[int] = mapped_column(nullable=False, default=0)
+    coverage_delta: Mapped[int] = mapped_column(nullable=False, default=0)
+    metric_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class MultibaggerChallengerFreeze(Base):
+    """At most one production-authoritative candidate frozen only for T."""
+
+    __tablename__ = "multibagger_challenger_freezes"
+    __table_args__ = (
+        UniqueConstraint("experiment_run_id", name="uq_multibagger_challenger_freeze_experiment"),
+        UniqueConstraint("freeze_key_sha256", name="uq_multibagger_challenger_freeze_key"),
+        CheckConstraint(
+            "freeze_purpose = 'candidate_for_production_t'",
+            name="ck_multibagger_challenger_freeze_purpose",
+        ),
+        CheckConstraint(
+            "production_readiness_status = 'ready'",
+            name="ck_multibagger_challenger_freeze_readiness",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    experiment_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("multibagger_challenger_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    freeze_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    freeze_purpose: Mapped[str] = mapped_column(String(64), nullable=False)
+    production_readiness_status: Mapped[str] = mapped_column(String(32), nullable=False)
+    validation_gate_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
 
 
 class OpportunityDiscoveryRun(Base):

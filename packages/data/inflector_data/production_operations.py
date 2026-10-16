@@ -379,7 +379,7 @@ def doctor(
     session: Session,
     *,
     plan: CyclePlan,
-    expected_migration: str = "20261006_0025",
+    expected_migration: str = "20261007_0026",
 ) -> dict[str, object]:
     session.execute(text("SELECT 1"))
     migration = session.execute(

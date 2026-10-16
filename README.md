@@ -243,6 +243,13 @@ persisted NSE-session verification against NIFTY 50 observations, a chronologica
 analysis for development and validation only. Holdout outcomes remain unread for
 Production T. See [historical evaluation activation and error analysis](docs/production-historical-evaluation-activation-and-error-analysis.md).
 
+Production S2 adds governed, explicit counterfactual experiments over frozen
+V5 top-level component scores. The V5 champion remains immutable; development
+may iterate, the candidate set seals before one-way validation, and candidate
+scores/ranks are persisted before validation outcomes are read. Holdout
+outcomes remain untouched for Production T. Fixture data cannot justify a real
+candidate or freeze. See [multibagger challenger development](docs/production-multibagger-challenger-development.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

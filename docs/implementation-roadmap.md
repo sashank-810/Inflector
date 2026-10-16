@@ -471,12 +471,20 @@ Production R joins frozen J predictions with Q ground truth, recomposes all
 required shards, and reports factual confusion/rank diagnostics without tuning,
 promoting, or changing the model.
 
-### Production S1 — Real Historical Evaluation Activation & Factual Error Analysis (acceptance pending)
+### Production S1 — Real Historical Evaluation Activation & Factual Error Analysis (complete)
 
 Add the real official NSE CM MII ingestion path, independently persisted
 session-calendar verification, a label-independent chronological temporal split,
 and development/validation-only factual FP/FN analysis. Freeze the holdout for
-Production T before reading outcomes. Do not modify the model or begin S2.
+Production T before reading outcomes. Do not modify the model.
+
+### Production S2 — Challenger Development Governance (acceptance pending)
+
+Add explicit hypothesis-bound V5 top-level weight recomposition over frozen
+component scores. Keep champion rankability and coverage identical, seal the
+candidate set before one-way validation, persist scores before outcomes are
+read, and preserve the untouched Production T holdout. A freeze means only
+`candidate_for_production_t`; it does not activate or promote a model.
 
 Add authoritative, survivorship-aware historical NSE cohort projection and
 deterministic 2x/2Y, 3x/3Y, and 5x/5Y factual labels over frozen Production J

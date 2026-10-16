@@ -49,6 +49,17 @@ from inflector_data.historical_universe import (
     historical_universe_summary,
     shard_historical_universe,
 )
+from inflector_data.multibagger_challenger import (
+    challenger_readiness,
+    create_challenger_experiment,
+    evaluate_challenger_split,
+    freeze_challenger_for_t,
+    register_challenger_candidate,
+    seal_challenger_candidate_set,
+)
+from inflector_data.multibagger_challenger_policy import (
+    load_multibagger_challenger_development_policy,
+)
 from inflector_data.multibagger_evaluation import (
     build_multibagger_evaluation,
     inspect_multibagger_errors,
@@ -66,11 +77,14 @@ from inflector_database.historical_evaluation_repository import (
 )
 from inflector_database.models import (
     IngestionRun,
+    MultibaggerChallengerCandidate,
+    MultibaggerChallengerExperimentRun,
+    MultibaggerChallengerMetric,
     MultibaggerErrorAnalysisRow,
     MultibaggerErrorAnalysisRun,
 )
 
-LATEST_MIGRATION = "20261006_0025"
+LATEST_MIGRATION = "20261007_0026"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -192,6 +206,53 @@ def _parser() -> argparse.ArgumentParser:
     inspect_analysis.add_argument("--run-id", type=UUID, required=True)
     inspect_analysis.add_argument("--split", choices=("development", "validation"))
     inspect_analysis.add_argument("--class", dest="error_class", choices=("fp", "fn"))
+
+    challenger_ready = commands.add_parser("challenger-readiness")
+    _challenger_readiness_arguments(challenger_ready)
+
+    create_challenger = commands.add_parser("create-multibagger-challenger-experiment")
+    _challenger_readiness_arguments(create_challenger)
+
+    register_challenger = commands.add_parser("register-multibagger-challenger")
+    register_challenger.add_argument("--database-url", required=True)
+    register_challenger.add_argument("--challenger-policy", type=Path, required=True)
+    register_challenger.add_argument("--experiment-id", type=UUID, required=True)
+    register_challenger.add_argument("--candidate-code", required=True)
+    register_challenger.add_argument("--weights-json", type=Path, required=True)
+    register_challenger.add_argument("--hypothesis", required=True)
+    register_challenger.add_argument("--development-evidence-json", type=Path, required=True)
+
+    for command, split_code in (
+        ("evaluate-multibagger-challenger-development", "development"),
+        ("evaluate-multibagger-challenger-validation", "validation"),
+    ):
+        evaluate = commands.add_parser(command)
+        evaluate.add_argument("--database-url", required=True)
+        evaluate.add_argument("--challenger-policy", type=Path, required=True)
+        evaluate.add_argument("--experiment-id", type=UUID, required=True)
+        evaluate.add_argument("--evaluated-at", type=datetime.fromisoformat, required=True)
+        evaluate.set_defaults(challenger_split=split_code)
+
+    seal = commands.add_parser("seal-multibagger-challenger-set")
+    seal.add_argument("--database-url", required=True)
+    seal.add_argument("--challenger-policy", type=Path, required=True)
+    seal.add_argument("--experiment-id", type=UUID, required=True)
+
+    summarize_challenger = commands.add_parser("summarize-multibagger-challenger-experiment")
+    summarize_challenger.add_argument("--database-url", required=True)
+    summarize_challenger.add_argument("--challenger-policy", type=Path, required=True)
+    summarize_challenger.add_argument("--experiment-id", type=UUID, required=True)
+
+    inspect_challenger = commands.add_parser("inspect-multibagger-challenger")
+    inspect_challenger.add_argument("--database-url", required=True)
+    inspect_challenger.add_argument("--challenger-policy", type=Path, required=True)
+    inspect_challenger.add_argument("--experiment-id", type=UUID, required=True)
+    inspect_challenger.add_argument("--candidate-code", required=True)
+
+    freeze = commands.add_parser("freeze-multibagger-challenger-for-t")
+    freeze.add_argument("--database-url", required=True)
+    freeze.add_argument("--challenger-policy", type=Path, required=True)
+    freeze.add_argument("--experiment-id", type=UUID, required=True)
     return parser
 
 
@@ -200,9 +261,167 @@ def _database_policy_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--backtest-policy", type=Path, required=True)
 
 
+def _challenger_readiness_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--challenger-policy", type=Path, required=True)
+    parser.add_argument("--activation-policy", type=Path, required=True)
+    parser.add_argument("--split-policy", type=Path, required=True)
+    parser.add_argument("--evaluation-run-id", type=UUID, required=True)
+    parser.add_argument("--session-calendar-run-id", type=UUID, required=True)
+    parser.add_argument("--temporal-split-run-id", type=UUID, required=True)
+    parser.add_argument("--error-analysis-run-id", type=UUID, required=True)
+
+
 def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
     _preflight(session)
     root = Path(__file__).resolve().parents[3]
+    if args.command == "challenger-readiness":
+        return challenger_readiness(
+            session,
+            policy=load_multibagger_challenger_development_policy(args.challenger_policy),
+            activation_policy=load_historical_evaluation_activation_policy(
+                args.activation_policy, repository_root=root
+            ),
+            split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+            source_evaluation_run_id=args.evaluation_run_id,
+            session_calendar_run_id=args.session_calendar_run_id,
+            temporal_split_run_id=args.temporal_split_run_id,
+            error_analysis_run_id=args.error_analysis_run_id,
+        )
+    if args.command == "create-multibagger-challenger-experiment":
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        experiment = create_challenger_experiment(
+            session,
+            policy=policy,
+            activation_policy=load_historical_evaluation_activation_policy(
+                args.activation_policy, repository_root=root
+            ),
+            split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+            temporal_split_run_id=args.temporal_split_run_id,
+            error_analysis_run_id=args.error_analysis_run_id,
+        )
+        session.commit()
+        return {
+            "status": "completed",
+            "experiment_id": str(experiment.id),
+            "run_key_sha256": experiment.run_key_sha256,
+        }
+    if args.command == "register-multibagger-challenger":
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        weights = _json_object(args.weights_json, "candidate weights")
+        evidence = _json_array(args.development_evidence_json, "development evidence")
+        candidate = register_challenger_candidate(
+            session,
+            policy=policy,
+            experiment_id=args.experiment_id,
+            candidate_code=args.candidate_code,
+            weights=weights,
+            hypothesis=args.hypothesis,
+            development_evidence=evidence,
+        )
+        session.commit()
+        return {
+            "status": "completed",
+            "candidate_id": str(candidate.id),
+            "candidate_checksum_sha256": candidate.candidate_checksum_sha256,
+        }
+    if args.command in {
+        "evaluate-multibagger-challenger-development",
+        "evaluate-multibagger-challenger-validation",
+    }:
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        return evaluate_challenger_split(
+            session,
+            policy=policy,
+            experiment_id=args.experiment_id,
+            split_code=args.challenger_split,
+            evaluated_at=args.evaluated_at,
+        )
+    if args.command == "seal-multibagger-challenger-set":
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        checksum = seal_challenger_candidate_set(
+            session, policy=policy, experiment_id=args.experiment_id
+        )
+        session.commit()
+        return {"status": "completed", "sealed_candidate_set_checksum_sha256": checksum}
+    if args.command in {
+        "summarize-multibagger-challenger-experiment",
+        "inspect-multibagger-challenger",
+    }:
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        experiment = session.get(MultibaggerChallengerExperimentRun, args.experiment_id)
+        if experiment is None or experiment.policy_checksum_sha256 != policy.checksum_sha256:
+            raise ValueError("challenger experiment policy binding is unavailable")
+        candidates = tuple(
+            session.scalars(
+                select(MultibaggerChallengerCandidate)
+                .where(MultibaggerChallengerCandidate.experiment_run_id == experiment.id)
+                .order_by(MultibaggerChallengerCandidate.candidate_code)
+            )
+        )
+        if args.command == "inspect-multibagger-challenger":
+            candidates = tuple(
+                item for item in candidates if item.candidate_code == args.candidate_code
+            )
+            if len(candidates) != 1:
+                raise ValueError("requested challenger candidate is unavailable")
+        candidate_ids = tuple(item.id for item in candidates)
+        metrics = (
+            tuple(
+                session.scalars(
+                    select(MultibaggerChallengerMetric)
+                    .where(MultibaggerChallengerMetric.candidate_id.in_(candidate_ids))
+                    .order_by(
+                        MultibaggerChallengerMetric.candidate_id,
+                        MultibaggerChallengerMetric.split_code,
+                        MultibaggerChallengerMetric.outcome_contract_code,
+                        MultibaggerChallengerMetric.selection_contract_code,
+                        MultibaggerChallengerMetric.evaluation_view,
+                    )
+                )
+            )
+            if candidate_ids
+            else ()
+        )
+        return {
+            "status": "completed",
+            "experiment_status": experiment.status,
+            "holdout_outcomes_accessed": experiment.holdout_outcomes_accessed,
+            "candidates": [
+                {
+                    "candidate_code": item.candidate_code,
+                    "candidate_checksum_sha256": item.candidate_checksum_sha256,
+                    "hypothesis": item.hypothesis,
+                    "status": item.status,
+                }
+                for item in candidates
+            ],
+            "metrics": [
+                {
+                    "candidate_id": str(item.candidate_id),
+                    "split_code": item.split_code,
+                    "outcome_contract": item.outcome_contract_code,
+                    "selection_contract": item.selection_contract_code,
+                    "evaluation_view": item.evaluation_view,
+                    "candidate": item.candidate_metrics_json,
+                    "champion": item.champion_metrics_json,
+                    "delta": item.delta_metrics_json,
+                }
+                for item in metrics
+            ],
+        }
+    if args.command == "freeze-multibagger-challenger-for-t":
+        policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        freeze = freeze_challenger_for_t(
+            session,
+            policy=policy,
+            experiment_id=args.experiment_id,
+        )
+        return {
+            "status": "completed",
+            "freeze_id": str(freeze.id) if freeze is not None else None,
+            "candidate_for_production_t": freeze is not None,
+        }
     if args.command == "activate-historical-universe":
         activation_policy = load_historical_evaluation_activation_policy(
             args.activation_policy, repository_root=root
@@ -493,6 +712,41 @@ def _preflight(session: Session) -> None:
     head = session.scalar(text("SELECT version_num FROM alembic_version"))
     if head != LATEST_MIGRATION:
         raise ValueError(f"database migration head must be {LATEST_MIGRATION}; found {head!r}")
+
+
+def _s1_readiness(
+    args: argparse.Namespace, *, session: Session, repository_root: Path
+) -> dict[str, object]:
+    activation = load_historical_evaluation_activation_policy(
+        args.activation_policy, repository_root=repository_root
+    )
+    return historical_evaluation_readiness(
+        session,
+        policy=activation,
+        split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+        source_evaluation_run_id=args.evaluation_run_id,
+        session_calendar_run_id=args.session_calendar_run_id,
+    )
+
+
+def _json_object(path: Path, label: str) -> dict[str, object]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not valid JSON") from error
+    if not isinstance(value, dict):
+        raise ValueError(f"{label} must be an object")
+    return value
+
+
+def _json_array(path: Path, label: str) -> list[dict[str, object]]:
+    try:
+        value = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as error:
+        raise ValueError(f"{label} is not valid JSON") from error
+    if not isinstance(value, list) or any(not isinstance(item, dict) for item in value):
+        raise ValueError(f"{label} must be an array of objects")
+    return value
 
 
 def _load_universe_evidence(path: Path) -> tuple[HistoricalUniverseEvidence, ...]:

@@ -571,6 +571,15 @@ factual FP/FN and frozen component diagnostics only; there is no dependency back
 into research, scoring, J/Q/R policy, or Operations V6. See
 [`production-historical-evaluation-activation-and-error-analysis.md`](production-historical-evaluation-activation-and-error-analysis.md).
 
+Production S2 is an evaluation-only challenger layer over frozen R predictions
+and the S1 temporal split. It recomposes exact candidate scores solely from the
+eight persisted V5 component scores, preserving champion eligibility and
+rankability. Candidate score tables contain no outcomes; validation score/rank
+rows are flushed before the first outcome-bearing query. Database constraints
+and cohort filters exclude holdout outcomes. A T-candidate freeze is not a
+`ModelVersion` activation or production promotion. See
+[`production-multibagger-challenger-development.md`](production-multibagger-challenger-development.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or
