@@ -494,6 +494,14 @@ one-way opening marker before outcome access, revalidate the complete terminal
 graph, keep rankability/coverage fixed, apply the predeclared final decision gate,
 and perform no tuning, training, model activation, or promotion.
 
+### Production U — Model Release Governance (implementation pending review)
+
+Production U keeps the accepted V5 champion operational independently of blocked
+historical validation and governs any future passing challenger through isolated
+shadow execution, operational-only burn-in, persisted manual approval, atomic
+activation, per-cycle release freezing, and append-only rollback history. It does
+not tune, train, reopen T, or automatically promote a model.
+
 Add authoritative, survivorship-aware historical NSE cohort projection and
 deterministic 2x/2Y, 3x/3Y, and 5x/5Y factual labels over frozen Production J
 observations. Preserve positive, negative, unmatured, and unavailable states,

@@ -95,7 +95,7 @@ from inflector_database.models import (
     MultibaggerErrorAnalysisRun,
 )
 
-LATEST_MIGRATION = "20261008_0027"
+LATEST_MIGRATION = "20261009_0028"
 
 
 def _parser() -> argparse.ArgumentParser:

@@ -91,15 +91,12 @@ def project_research_notifications(
     )
 
 
-def _validate_source_run(
-    run: OpportunityChangeRun, policy: ResearchAlertPolicy
-) -> None:
+def _validate_source_run(run: OpportunityChangeRun, policy: ResearchAlertPolicy) -> None:
     if run.status != "completed":
         raise ValueError("source opportunity change run must be completed")
     if (
         run.change_policy_code != policy.opportunity_change_policy_code
-        or run.change_policy_checksum_sha256
-        != policy.opportunity_change_policy_checksum_sha256
+        or run.change_policy_checksum_sha256 != policy.opportunity_change_policy_checksum_sha256
     ):
         raise ValueError("source opportunity change policy binding mismatch")
     expected = {
@@ -107,9 +104,7 @@ def _validate_source_run(
         "current_discovery_run_id": str(run.current_discovery_run_id),
         "baseline_run_key": run.baseline_run_key_sha256,
         "current_run_key": run.current_run_key_sha256,
-        "baseline_snapshot_set_checksum": (
-            run.baseline_snapshot_set_checksum_sha256
-        ),
+        "baseline_snapshot_set_checksum": (run.baseline_snapshot_set_checksum_sha256),
         "current_snapshot_set_checksum": run.current_snapshot_set_checksum_sha256,
     }
     for field, value in expected.items():
@@ -117,9 +112,7 @@ def _validate_source_run(
             raise ValueError(f"source opportunity change lineage mismatch: {field}")
 
 
-def _change_codes(
-    item: OpportunityChangeItem, policy: ResearchAlertPolicy
-) -> tuple[str, ...]:
+def _change_codes(item: OpportunityChangeItem, policy: ResearchAlertPolicy) -> tuple[str, ...]:
     codes = tuple(value for value in item.change_codes_json if isinstance(value, str))
     if len(codes) != len(item.change_codes_json) or len(codes) != len(set(codes)):
         raise ValueError("source opportunity change codes are malformed")
@@ -141,14 +134,13 @@ def _payload(
         "alert_policy_code": policy.code,
         "alert_policy_checksum_sha256": policy.checksum_sha256,
         "opportunity_change_policy_code": run.change_policy_code,
-        "opportunity_change_policy_checksum_sha256": (
-            run.change_policy_checksum_sha256
-        ),
+        "opportunity_change_policy_checksum_sha256": (run.change_policy_checksum_sha256),
         "source_change_run_id": str(run.id),
         "source_change_run_key_sha256": run.run_key_sha256,
         "source_change_item_id": str(item.id),
         "source_baseline_discovery_run_id": str(run.baseline_discovery_run_id),
         "source_current_discovery_run_id": str(run.current_discovery_run_id),
+        "production_release": run.inputs_json.get("current_model_release"),
         "company_id": _uuid(item.company_id),
         "security_id": _uuid(item.security_id),
         "baseline_symbol": item.baseline_symbol,

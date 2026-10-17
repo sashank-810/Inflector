@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -10,6 +11,11 @@ from uuid import UUID
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
+from inflector_data.model_release import (
+    project_release_score_for_cycle,
+    resolve_cycle_release_context,
+)
+from inflector_data.model_release_policy import load_model_release_policy
 from inflector_data.operations_profile import ProductionOperationsProfile
 from inflector_data.opportunity_change import build_opportunity_change
 from inflector_data.opportunity_change_policy import (
@@ -21,7 +27,13 @@ from inflector_data.opportunity_policy import (
     OpportunityDiscoveryPolicy,
     load_opportunity_discovery_policy,
 )
-from inflector_database.models import OperationalRun, OperationalRunStage
+from inflector_database.models import (
+    ModelReleaseCycleBinding,
+    ModelReleaseProductionScore,
+    OperationalRun,
+    OperationalRunStage,
+    ScoreSnapshot,
+)
 from inflector_database.operations_repository import OperationsRepository
 from inflector_database.opportunity_repository import OpportunityDiscoveryRepository
 
@@ -45,17 +57,12 @@ def load_monitoring_policies(
     discovery_asset = _bound_asset(
         repository_root, profile.opportunity_discovery_policy_asset, "discovery"
     )
-    change_asset = _bound_asset(
-        repository_root, profile.opportunity_change_policy_asset, "change"
-    )
-    discovery = load_opportunity_discovery_policy(
-        discovery_asset, repository_root=repository_root
-    )
+    change_asset = _bound_asset(repository_root, profile.opportunity_change_policy_asset, "change")
+    discovery = load_opportunity_discovery_policy(discovery_asset, repository_root=repository_root)
     change = load_opportunity_change_policy(change_asset, repository_root=repository_root)
     if (
         discovery.code != profile.opportunity_discovery_policy_code
-        or discovery.checksum_sha256
-        != profile.opportunity_discovery_policy_checksum_sha256
+        or discovery.checksum_sha256 != profile.opportunity_discovery_policy_checksum_sha256
     ):
         raise ValueError("Operations V4 discovery policy binding mismatch")
     if (
@@ -83,6 +90,58 @@ class OpportunityMonitoringOrchestrator:
         policies = load_monitoring_policies(
             plan.operations_profile, repository_root=self._repository_root
         )
+        operational = OperationsRepository(session).get_by_key(plan.run_key_sha256)
+        binding = (
+            session.scalar(
+                select(ModelReleaseCycleBinding).where(
+                    ModelReleaseCycleBinding.operational_run_id == operational.id
+                )
+            )
+            if operational is not None
+            else None
+        )
+        production_score_resolver: Callable[[ScoreSnapshot], ModelReleaseProductionScore] | None = (
+            None
+        )
+        release_identity: dict[str, object] | None = None
+        if binding is not None:
+            if operational is None:  # pragma: no cover - guarded by binding lookup
+                raise AssertionError("cycle binding requires its operational run")
+            release_policy = load_model_release_policy(
+                self._repository_root / "config/operations/production_model_release_v1.json"
+            )
+            release_context = resolve_cycle_release_context(
+                session,
+                policy=release_policy,
+                operational_run_id=operational.id,
+            )
+            release_identity = {
+                "cycle_release_binding_id": str(release_context.binding.id),
+                "cycle_release_binding_key_sha256": (release_context.binding.binding_key_sha256),
+                "deployment_id": str(release_context.deployment.id),
+                "deployment_key_sha256": release_context.deployment.deployment_key_sha256,
+                "release_candidate_id": str(release_context.candidate.id),
+                "release_candidate_key_sha256": (
+                    release_context.candidate.release_candidate_key_sha256
+                ),
+                "subject_code": release_context.candidate.subject_code,
+                "scoring_definition_checksum_sha256": (
+                    release_context.candidate.scoring_definition_checksum_sha256
+                ),
+            }
+
+            def resolve_production_score(
+                snapshot: ScoreSnapshot,
+            ) -> ModelReleaseProductionScore:
+                return project_release_score_for_cycle(
+                    session,
+                    policy=release_policy,
+                    context=release_context,
+                    snapshot=snapshot,
+                )
+
+            production_score_resolver = resolve_production_score
+
         result = build_opportunity_discovery(
             session,
             policy=policies.discovery,
@@ -91,26 +150,27 @@ class OpportunityMonitoringOrchestrator:
             symbols=plan.inputs.symbols,
             discovery_cutoff=plan.inputs.knowledge_cutoff,
             repository_root=self._repository_root,
+            production_score_resolver=production_score_resolver,
+            release_identity=release_identity,
         )
-        return {
+        summary: dict[str, object] = {
             "status": "completed",
             "opportunity_discovery_run_id": str(result.run_id),
             "opportunity_discovery_run_key": result.run_key_sha256,
             "discovery_cutoff": plan.inputs.knowledge_cutoff.isoformat(),
-            "selected_snapshot_set_checksum_sha256": (
-                result.selected_snapshot_set_checksum_sha256
-            ),
+            "selected_snapshot_set_checksum_sha256": (result.selected_snapshot_set_checksum_sha256),
             "requested_symbol_checksum_sha256": plan.symbol_set_checksum_sha256,
             "requested_securities": result.requested_securities,
             "rankable_securities": result.rankable_securities,
             "unrankable_securities": result.unranked_securities,
             "created_run": result.created_run,
             "already_completed": result.already_completed,
-        }, True
+        }
+        if release_identity is not None:
+            summary["model_release"] = release_identity
+        return summary, True
 
-    def execute_change(
-        self, session: Session, plan: CyclePlan
-    ) -> tuple[dict[str, object], bool]:
+    def execute_change(self, session: Session, plan: CyclePlan) -> tuple[dict[str, object], bool]:
         policies = load_monitoring_policies(
             plan.operations_profile, repository_root=self._repository_root
         )
@@ -123,11 +183,21 @@ class OpportunityMonitoringOrchestrator:
         current_discovery_id = _result_uuid(
             discovery_stage.result_summary_json, "opportunity_discovery_run_id"
         )
-        current_discovery = OpportunityDiscoveryRepository(session).get_run(
-            current_discovery_id
-        )
+        current_discovery = OpportunityDiscoveryRepository(session).get_run(current_discovery_id)
         if current_discovery is None or current_discovery.status != "completed":
             raise ValueError("current completed opportunity discovery run is unavailable")
+        binding = session.scalar(
+            select(ModelReleaseCycleBinding).where(
+                ModelReleaseCycleBinding.operational_run_id == operational.id
+            )
+        )
+        if binding is not None:
+            release = current_discovery.inputs_json.get("model_release")
+            if (
+                not isinstance(release, dict)
+                or release.get("cycle_release_binding_key_sha256") != binding.binding_key_sha256
+            ):
+                raise ValueError("current discovery does not use the frozen cycle release")
 
         change_stage = _stage(operational, "opportunity_change")
         frozen = change_stage.result_summary_json
@@ -135,9 +205,7 @@ class OpportunityMonitoringOrchestrator:
             stored_current = _result_uuid(frozen, "current_discovery_run_id")
             if stored_current != current_discovery_id:
                 raise ValueError("frozen monitoring current discovery identity conflicts")
-            baseline_discovery_id = _optional_result_uuid(
-                frozen, "baseline_discovery_run_id"
-            )
+            baseline_discovery_id = _optional_result_uuid(frozen, "baseline_discovery_run_id")
         else:
             baseline_discovery_id = _select_baseline(
                 session,
@@ -156,9 +224,7 @@ class OpportunityMonitoringOrchestrator:
                     plan.operations_profile.opportunity_change_baseline_semantics
                 ),
                 "baseline_discovery_run_id": (
-                    str(baseline_discovery_id)
-                    if baseline_discovery_id is not None
-                    else None
+                    str(baseline_discovery_id) if baseline_discovery_id is not None else None
                 ),
                 "current_discovery_run_id": str(current_discovery_id),
             }
@@ -243,8 +309,7 @@ def _prior_monitoring_runs(
             == plan.operations_profile.operations_profile_code,
             OperationalRun.operations_profile_checksum_sha256
             == plan.operations_profile.checksum_sha256,
-            OperationalRun.research_profile_code
-            == plan.research_profile.research_profile_code,
+            OperationalRun.research_profile_code == plan.research_profile.research_profile_code,
             OperationalRun.research_profile_checksum_sha256
             == plan.research_profile.checksum_sha256,
             OperationalRun.model_family == plan.inputs.model_family,
@@ -268,9 +333,7 @@ def _prior_monitoring_runs(
         if stage is None:
             continue
         try:
-            discovery_id = _result_uuid(
-                stage.result_summary_json, "opportunity_discovery_run_id"
-            )
+            discovery_id = _result_uuid(stage.result_summary_json, "opportunity_discovery_run_id")
         except ValueError:
             continue
         results.append((run, discovery_id))

@@ -2851,6 +2851,402 @@ class MultibaggerHoldoutDecision(Base):
     )
 
 
+class ModelReleaseCandidate(Base):
+    """Immutable Production U release subject resolved from accepted evidence."""
+
+    __tablename__ = "model_release_candidates"
+    __table_args__ = (
+        UniqueConstraint("release_candidate_key_sha256", name="uq_model_release_candidate_key"),
+        CheckConstraint(
+            "subject_code IN ('champion','challenger')", name="ck_model_release_candidate_subject"
+        ),
+        CheckConstraint(
+            "evidence_class IN ('accepted_v5_champion','production_authoritative')",
+            name="ck_model_release_candidate_evidence",
+        ),
+        CheckConstraint(
+            "status IN ('candidate_created','shadow_ready','shadow_running','burn_in_complete',"
+            "'activation_approved','active','rolled_back','rejected')",
+            name="ck_model_release_candidate_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    release_candidate_key_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )
+    policy_code: Mapped[str] = mapped_column(String(120), nullable=False)
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
+    evidence_class: Mapped[str] = mapped_column(String(48), nullable=False)
+    champion_scoring_configuration_id: Mapped[UUID] = mapped_column(
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"), nullable=False
+    )
+    champion_scoring_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    temporal_holdout_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("multibagger_holdout_evaluation_runs.id", ondelete="RESTRICT"), nullable=True
+    )
+    temporal_holdout_run_key_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    temporal_holdout_decision_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("multibagger_holdout_decisions.id", ondelete="RESTRICT"), nullable=True
+    )
+    temporal_holdout_decision_fingerprint_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    s2_experiment_run_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("multibagger_challenger_experiment_runs.id", ondelete="RESTRICT"),
+        nullable=True,
+    )
+    s2_experiment_run_key_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    s2_freeze_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("multibagger_challenger_freezes.id", ondelete="RESTRICT"), nullable=True
+    )
+    s2_freeze_key_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    s2_candidate_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("multibagger_challenger_candidates.id", ondelete="RESTRICT"), nullable=True
+    )
+    s2_candidate_key_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    s2_candidate_checksum_sha256: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    s2_development_evidence_checksum_sha256: Mapped[str | None] = mapped_column(
+        String(64), nullable=True
+    )
+    scoring_definition_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    scoring_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelShadowRun(Base):
+    """Append-only operational shadow/burn-in window for one challenger."""
+
+    __tablename__ = "model_shadow_runs"
+    __table_args__ = (
+        UniqueConstraint("shadow_run_key_sha256", name="uq_model_shadow_run_key"),
+        UniqueConstraint("release_candidate_id", name="uq_model_shadow_run_candidate"),
+        CheckConstraint(
+            "status IN ('shadow_ready','shadow_running','burn_in_complete','rejected')",
+            name="ck_model_shadow_run_status",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    shadow_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    active_champion_deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    requirements_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(String(32), nullable=False)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelShadowEvent(Base):
+    """One same-source champion/challenger operational comparison."""
+
+    __tablename__ = "model_shadow_events"
+    __table_args__ = (
+        UniqueConstraint("shadow_event_key_sha256", name="uq_model_shadow_event_key"),
+        CheckConstraint("rankability_delta = 0", name="ck_model_shadow_rankability_delta"),
+        CheckConstraint("coverage_delta = 0", name="ck_model_shadow_coverage_delta"),
+        CheckConstraint(
+            "production_notification_emitted = false",
+            name="ck_model_shadow_no_notification",
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    shadow_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_shadow_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    shadow_event_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    cycle_key: Mapped[str] = mapped_column(String(128), nullable=False)
+    security_id: Mapped[UUID] = mapped_column(
+        ForeignKey("securities.id", ondelete="RESTRICT"), nullable=False
+    )
+    evidence_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    source_score_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=False
+    )
+    source_snapshot_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    component_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    champion_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    challenger_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    champion_rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    challenger_rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    rankability_delta: Mapped[int] = mapped_column(nullable=False)
+    coverage_delta: Mapped[int] = mapped_column(nullable=False)
+    latency_ms: Mapped[Decimal] = mapped_column(ExactDecimal(), nullable=False)
+    integrity_violation: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    score_definition_drift: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    missing_required_components: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    scheduler_failure: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    production_health_regression: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    production_notification_emitted: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    event_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    observed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelBurnInRun(Base):
+    """Immutable result of predeclared operational burn-in gates."""
+
+    __tablename__ = "model_burn_in_runs"
+    __table_args__ = (
+        UniqueConstraint("shadow_run_id", name="uq_model_burn_in_shadow"),
+        UniqueConstraint("burn_in_key_sha256", name="uq_model_burn_in_key"),
+        CheckConstraint("status IN ('passed','failed')", name="ck_model_burn_in_status"),
+        CheckConstraint("future_outcomes_read = false", name="ck_model_burn_in_no_future_outcomes"),
+        CheckConstraint("model_tuning_performed = false", name="ck_model_burn_in_no_tuning"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    shadow_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_shadow_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    burn_in_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    result_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    future_outcomes_read: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    model_tuning_performed: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    completed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelActivationApproval(Base):
+    """Persisted manual approval for one exact challenger release."""
+
+    __tablename__ = "model_activation_approvals"
+    __table_args__ = (
+        UniqueConstraint("approval_key_sha256", name="uq_model_activation_approval_key"),
+        UniqueConstraint("release_candidate_id", name="uq_model_activation_approval_candidate"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    approval_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    burn_in_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_burn_in_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    current_champion_deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    challenger_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    approver_provenance: Mapped[str] = mapped_column(String(255), nullable=False)
+    approved_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    approval_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelDeployment(Base):
+    """Immutable activation transition; current state lives in the active pointer."""
+
+    __tablename__ = "model_deployments"
+    __table_args__ = (
+        UniqueConstraint("deployment_key_sha256", name="uq_model_deployment_key"),
+        CheckConstraint("subject_code IN ('champion','challenger')", name="ck_deployment_subject"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    deployment_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    subject_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    scoring_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    previous_deployment_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=True
+    )
+    # Deliberately validated by the release service to avoid a DDL cycle between
+    # immutable deployments and approvals (approvals themselves bind a deployment).
+    activation_approval_id: Mapped[UUID | None] = mapped_column(Uuid, nullable=True)
+    activation_reason: Mapped[str] = mapped_column(String(96), nullable=False)
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    activated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    deployment_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ActiveModelRelease(Base):
+    """Single mutable pointer backed by immutable deployment transitions."""
+
+    __tablename__ = "active_model_release"
+    __table_args__ = (
+        CheckConstraint("pointer_name = 'production'", name="ck_active_model_release_singleton"),
+        CheckConstraint(
+            "subject_code IN ('champion','challenger')",
+            name="ck_active_model_release_subject",
+        ),
+        CheckConstraint("pointer_version >= 1", name="ck_active_model_release_version"),
+    )
+
+    pointer_name: Mapped[str] = mapped_column(String(32), primary_key=True)
+    deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False, unique=True
+    )
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    subject_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    scoring_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    pointer_version: Mapped[int] = mapped_column(nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+
+class ModelRollback(Base):
+    """Immutable rollback evidence restoring a prior accepted deployment."""
+
+    __tablename__ = "model_rollbacks"
+    __table_args__ = (UniqueConstraint("rollback_key_sha256", name="uq_model_rollback_key"),)
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    rollback_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    rolled_back_deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    restored_deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    rollback_deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    reason_code: Mapped[str] = mapped_column(String(96), nullable=False)
+    health_evidence_json: Mapped[dict[str, object]] = mapped_column(
+        JSON().with_variant(JSONB(), "postgresql"), nullable=False
+    )
+    policy_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    rolled_back_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    rollback_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelReleaseCycleBinding(Base):
+    """Freeze one active deployment identity for an entire operational cycle."""
+
+    __tablename__ = "model_release_cycle_bindings"
+    __table_args__ = (
+        UniqueConstraint("operational_run_id", name="uq_model_release_cycle_operational_run"),
+        UniqueConstraint("binding_key_sha256", name="uq_model_release_cycle_binding_key"),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    operational_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_runs.id", ondelete="RESTRICT"), nullable=False
+    )
+    deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    subject_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    scoring_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    binding_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    frozen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+
+class ModelReleaseProductionScore(Base):
+    """Immutable active-release score derived from one frozen V5 component state."""
+
+    __tablename__ = "model_release_production_scores"
+    __table_args__ = (
+        UniqueConstraint(
+            "operational_run_id",
+            "source_score_snapshot_id",
+            name="uq_model_release_production_score_source",
+        ),
+        UniqueConstraint(
+            "projection_fingerprint_sha256",
+            name="uq_model_release_production_score_fingerprint",
+        ),
+        CheckConstraint(
+            "subject_code IN ('champion','challenger')",
+            name="ck_model_release_production_score_subject",
+        ),
+        CheckConstraint(
+            "(rankable = true AND unranked_reason IS NULL AND production_final_score IS NOT NULL) "
+            "OR (rankable = false AND unranked_reason IS NOT NULL "
+            "AND production_final_score IS NULL)",
+            name="ck_model_release_production_score_rankability",
+        ),
+        CheckConstraint(
+            "rankability_delta = 0", name="ck_model_release_production_score_rankability_delta"
+        ),
+        CheckConstraint(
+            "coverage_delta = 0", name="ck_model_release_production_score_coverage_delta"
+        ),
+    )
+
+    id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
+    operational_run_id: Mapped[UUID] = mapped_column(
+        ForeignKey("operational_runs.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    cycle_release_binding_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_cycle_bindings.id", ondelete="RESTRICT"), nullable=False
+    )
+    deployment_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_deployments.id", ondelete="RESTRICT"), nullable=False
+    )
+    release_candidate_id: Mapped[UUID] = mapped_column(
+        ForeignKey("model_release_candidates.id", ondelete="RESTRICT"), nullable=False
+    )
+    subject_code: Mapped[str] = mapped_column(String(32), nullable=False)
+    source_score_snapshot_id: Mapped[UUID] = mapped_column(
+        ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=False, index=True
+    )
+    source_snapshot_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    component_state_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    scoring_definition_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    production_final_score: Mapped[Decimal | None] = mapped_column(ExactDecimal(), nullable=True)
+    rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
+    unranked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    rankability_delta: Mapped[int] = mapped_column(nullable=False)
+    coverage_delta: Mapped[int] = mapped_column(nullable=False)
+    knowledge_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    projection_fingerprint_sha256: Mapped[str] = mapped_column(
+        String(64), nullable=False, index=True
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    source_score_snapshot: Mapped[ScoreSnapshot] = relationship(lazy="selectin")
+
+
 class OpportunityDiscoveryRun(Base):
     """Immutable identity and completed audit for one current discovery ranking."""
 
@@ -2944,6 +3340,11 @@ class OpportunityDiscoveryItem(Base):
     score_snapshot_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("score_snapshots.id", ondelete="RESTRICT"), nullable=True, index=True
     )
+    model_release_production_score_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("model_release_production_scores.id", ondelete="RESTRICT"),
+        nullable=True,
+        index=True,
+    )
     symbol: Mapped[str] = mapped_column(String(64), nullable=False)
     rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
     unranked_reason: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -2963,6 +3364,9 @@ class OpportunityDiscoveryItem(Base):
 
     run: Mapped[OpportunityDiscoveryRun] = relationship(back_populates="items")
     score_snapshot: Mapped[ScoreSnapshot | None] = relationship(lazy="selectin")
+    model_release_production_score: Mapped[ModelReleaseProductionScore | None] = relationship(
+        lazy="selectin"
+    )
 
 
 class OpportunityChangeRun(Base):

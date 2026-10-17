@@ -589,6 +589,15 @@ decision binding. Its append-only evidence cannot mutate the champion, challenge
 scoring configuration, or production model state. See
 [`production-multibagger-temporal-holdout.md`](production-multibagger-temporal-holdout.md).
 
+Production U is the release boundary above T. An explicit singleton active-model
+pointer resolves one immutable deployment for an entire production cycle. The V5
+champion can be bootstrapped without asserting T completion; a challenger requires
+an authoritative passing T graph, same-source shadow operation, predeclared
+operational burn-in, and persisted manual approval. Activation and rollback are
+atomic pointer transitions backed by immutable history, while shadow output has no
+path into discovery or notification delivery. See
+[`production-model-release-governance.md`](production-model-release-governance.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

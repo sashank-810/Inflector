@@ -62,11 +62,11 @@ def build_opportunity_change(
         "current_discovery_run_id": str(current.id),
         "baseline_run_key": baseline.run_key_sha256,
         "current_run_key": current.run_key_sha256,
-        "baseline_snapshot_set_checksum": (
-            baseline.selected_snapshot_set_checksum_sha256
-        ),
+        "baseline_snapshot_set_checksum": (baseline.selected_snapshot_set_checksum_sha256),
         "current_snapshot_set_checksum": current.selected_snapshot_set_checksum_sha256,
         "comparison_version": policy.comparison_version,
+        "baseline_model_release": baseline.inputs_json.get("model_release"),
+        "current_model_release": current.inputs_json.get("model_release"),
     }
     run_key = canonical_json_sha256(inputs)
     repository = OpportunityChangeRepository(session)
@@ -78,12 +78,8 @@ def build_opportunity_change(
         current_discovery_run_id=current.id,
         baseline_run_key_sha256=baseline.run_key_sha256,
         current_run_key_sha256=current.run_key_sha256,
-        baseline_snapshot_set_checksum_sha256=(
-            baseline.selected_snapshot_set_checksum_sha256
-        ),
-        current_snapshot_set_checksum_sha256=(
-            current.selected_snapshot_set_checksum_sha256
-        ),
+        baseline_snapshot_set_checksum_sha256=(baseline.selected_snapshot_set_checksum_sha256),
+        current_snapshot_set_checksum_sha256=(current.selected_snapshot_set_checksum_sha256),
         comparison_version=policy.comparison_version,
         inputs_json=inputs,
     )
@@ -209,9 +205,7 @@ def _compare_item(
     before_coverage = (
         before_snapshot.top_level_component_weight_coverage if before_snapshot else None
     )
-    after_coverage = (
-        after_snapshot.top_level_component_weight_coverage if after_snapshot else None
-    )
+    after_coverage = after_snapshot.top_level_component_weight_coverage if after_snapshot else None
     coverage_delta = _decimal_delta(before_coverage, after_coverage)
     if coverage_delta is not None and coverage_delta != 0:
         codes.add("coverage_changed")
@@ -232,9 +226,7 @@ def _compare_item(
     for component_code in sorted(set(before_components) & set(after_components)):
         before_component = before_components[component_code]
         after_component = after_components[component_code]
-        component_score_delta = _decimal_delta(
-            before_component.score, after_component.score
-        )
+        component_score_delta = _decimal_delta(before_component.score, after_component.score)
         contribution_delta = (
             _decimal_delta(
                 before_component.final_contribution,
@@ -255,12 +247,8 @@ def _compare_item(
                 "baseline_score": _decimal_text(before_component.score),
                 "current_score": _decimal_text(after_component.score),
                 "component_score_delta": _decimal_text(component_score_delta),
-                "baseline_final_contribution": _decimal_text(
-                    before_component.final_contribution
-                ),
-                "current_final_contribution": _decimal_text(
-                    after_component.final_contribution
-                ),
+                "baseline_final_contribution": _decimal_text(before_component.final_contribution),
+                "current_final_contribution": _decimal_text(after_component.final_contribution),
                 "component_contribution_delta": _decimal_text(contribution_delta),
             }
     if score_changed:
@@ -278,9 +266,7 @@ def _compare_item(
         components_lost=lost,
         component_detail=component_detail,
         detail={
-            "baseline_snapshot_fingerprint": (
-                baseline.selected_snapshot_fingerprint_sha256
-            ),
+            "baseline_snapshot_fingerprint": (baseline.selected_snapshot_fingerprint_sha256),
             "current_snapshot_fingerprint": current.selected_snapshot_fingerprint_sha256,
             "baseline_eligible": before_eligible,
             "current_eligible": after_eligible,
@@ -289,6 +275,8 @@ def _compare_item(
             "baseline_component_weight_coverage": _decimal_text(before_coverage),
             "current_component_weight_coverage": _decimal_text(after_coverage),
             "component_weight_coverage_delta": _decimal_text(coverage_delta),
+            "baseline_model_release": baseline.detail_json.get("model_release"),
+            "current_model_release": current.detail_json.get("model_release"),
         },
         policy=policy,
         score_delta=score_delta,
@@ -334,8 +322,8 @@ def _write(
         current_rankable=current.rankable if current else None,
         baseline_unranked_reason=baseline.unranked_reason if baseline else None,
         current_unranked_reason=current.unranked_reason if current else None,
-        baseline_final_score=before_snapshot.final_score if before_snapshot else None,
-        current_final_score=after_snapshot.final_score if after_snapshot else None,
+        baseline_final_score=_score(baseline) if baseline else None,
+        current_final_score=_score(current) if current else None,
         score_delta=score_delta,
         baseline_score_rank=baseline.score_rank if baseline else None,
         current_score_rank=current.score_rank if current else None,
@@ -346,7 +334,15 @@ def _write(
         components_gained_json=list(components_gained),
         components_lost_json=list(components_lost),
         component_change_detail_json=component_detail,
-        detail_json=detail,
+        detail_json={
+            **detail,
+            "baseline_model_release": (
+                baseline.detail_json.get("model_release") if baseline else None
+            ),
+            "current_model_release": (
+                current.detail_json.get("model_release") if current else None
+            ),
+        },
     )
 
 
@@ -362,10 +358,8 @@ def _validate_runs(
     if (
         baseline.discovery_policy_code != policy.discovery_policy_code
         or current.discovery_policy_code != policy.discovery_policy_code
-        or baseline.discovery_policy_checksum_sha256
-        != policy.discovery_policy_checksum_sha256
-        or current.discovery_policy_checksum_sha256
-        != policy.discovery_policy_checksum_sha256
+        or baseline.discovery_policy_checksum_sha256 != policy.discovery_policy_checksum_sha256
+        or current.discovery_policy_checksum_sha256 != policy.discovery_policy_checksum_sha256
     ):
         raise IncompatibleDiscoveryRunsError(
             "discovery runs do not match the change policy's bound K policy"
@@ -390,14 +384,10 @@ def _validate_runs(
 def _match_items(
     baseline_items: list[OpportunityDiscoveryItem],
     current_items: list[OpportunityDiscoveryItem],
-) -> list[
-    tuple[str, OpportunityDiscoveryItem | None, OpportunityDiscoveryItem | None]
-]:
+) -> list[tuple[str, OpportunityDiscoveryItem | None, OpportunityDiscoveryItem | None]]:
     baseline_security = _security_map(baseline_items)
     current_security = _security_map(current_items)
-    pairs: list[
-        tuple[str, OpportunityDiscoveryItem | None, OpportunityDiscoveryItem | None]
-    ] = []
+    pairs: list[tuple[str, OpportunityDiscoveryItem | None, OpportunityDiscoveryItem | None]] = []
     matched_baseline: set[UUID] = set()
     matched_current: set[UUID] = set()
     for security_id in sorted(set(baseline_security) & set(current_security), key=str):
@@ -453,9 +443,7 @@ def _symbol_map(items: list[OpportunityDiscoveryItem]) -> dict[str, OpportunityD
 
 def _single_identity(item: OpportunityDiscoveryItem) -> str:
     return (
-        f"security:{item.security_id}"
-        if item.security_id is not None
-        else f"symbol:{item.symbol}"
+        f"security:{item.security_id}" if item.security_id is not None else f"symbol:{item.symbol}"
     )
 
 
@@ -474,6 +462,8 @@ def _available_component_codes(item: OpportunityDiscoveryItem) -> set[str]:
 
 
 def _score(item: OpportunityDiscoveryItem) -> Decimal | None:
+    if item.model_release_production_score is not None:
+        return item.model_release_production_score.production_final_score
     return item.score_snapshot.final_score if item.score_snapshot is not None else None
 
 
@@ -490,9 +480,7 @@ def _decimal_text(value: Decimal | None) -> str | None:
     return str(value) if value is not None else None
 
 
-def _ordered_codes(
-    policy: OpportunityChangePolicy, codes: set[str]
-) -> tuple[str, ...]:
+def _ordered_codes(policy: OpportunityChangePolicy, codes: set[str]) -> tuple[str, ...]:
     unknown = codes - set(policy.change_code_order)
     if unknown:
         raise ValueError(f"unconfigured opportunity change codes: {sorted(unknown)}")

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime
 from decimal import Decimal
@@ -22,6 +23,7 @@ from inflector_data.research_profile import ProductionResearchProfile
 from inflector_database.models import (
     Company,
     ExchangeListing,
+    ModelReleaseProductionScore,
     OpportunityDiscoveryRun,
     ScoreSnapshot,
     Security,
@@ -50,6 +52,7 @@ class DiscoveryDecision:
     score_rank: int | None = None
     display_order: int | None = None
     detail: dict[str, object] | None = None
+    production_score: ModelReleaseProductionScore | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -146,16 +149,13 @@ def select_current_snapshots(
             )
         )
         if not visible:
-            decisions.append(
-                _unranked(symbol, company.id, security.id, "no_visible_snapshot")
-            )
+            decisions.append(_unranked(symbol, company.id, security.id, "no_visible_snapshot"))
             continue
         bound = [
             snapshot
             for snapshot in visible
             if snapshot.scoring_configuration_id == scoring_configuration_id
-            and snapshot.configuration_checksum_sha256
-            == scoring_configuration_checksum_sha256
+            and snapshot.configuration_checksum_sha256 == scoring_configuration_checksum_sha256
             and snapshot.algorithm_version == "score_snapshot_v5"
         ]
         if not bound:
@@ -201,9 +201,7 @@ def select_current_snapshots(
                     rankable=False,
                     unranked_reason="invalid_snapshot_state",
                     snapshot_age_days=age_days,
-                    freshness_state=(
-                        "fresh" if age_days <= maximum_snapshot_age_days else "stale"
-                    ),
+                    freshness_state=("fresh" if age_days <= maximum_snapshot_age_days else "stale"),
                     detail={"integrity_error": str(error)},
                 )
             )
@@ -280,6 +278,10 @@ def build_opportunity_discovery(
     symbols: tuple[str, ...],
     discovery_cutoff: datetime,
     repository_root: Path,
+    production_score_resolver: (
+        Callable[[ScoreSnapshot], ModelReleaseProductionScore] | None
+    ) = None,
+    release_identity: Mapping[str, object] | None = None,
 ) -> OpportunityDiscoveryBuildResult:
     """Freeze current snapshot choices, rank complete V5 states, and persist once."""
 
@@ -307,18 +309,57 @@ def build_opportunity_discovery(
         maximum_snapshot_age_days=policy.maximum_snapshot_age_days,
         unranked_reason_priority=policy.unranked_reason_priority,
     )
+    if production_score_resolver is not None:
+        if release_identity is None:
+            raise ValueError("release identity is required for release-scoped discovery")
+        projected: list[DiscoveryDecision] = []
+        for decision in decisions:
+            if decision.snapshot is None:
+                projected.append(decision)
+                continue
+            production_score = production_score_resolver(decision.snapshot)
+            if (
+                production_score.source_score_snapshot_id != decision.snapshot.id
+                or production_score.source_snapshot_fingerprint_sha256
+                != decision.snapshot.snapshot_fingerprint_sha256
+                or _stored_utc(production_score.knowledge_cutoff)
+                != _stored_utc(decision.snapshot.knowledge_cutoff)
+            ):
+                raise ValueError("release production score conflicts with selected snapshot")
+            if decision.rankable and not production_score.rankable:
+                raise ValueError("release production score changed V5 rankability")
+            projected.append(
+                replace(
+                    decision,
+                    score_rank=None,
+                    display_order=None,
+                    production_score=production_score,
+                    detail={
+                        **(decision.detail or {}),
+                        "model_release": {
+                            **dict(release_identity),
+                            "production_score_id": str(production_score.id),
+                            "production_score_fingerprint_sha256": (
+                                production_score.projection_fingerprint_sha256
+                            ),
+                            "production_final_score": (
+                                str(production_score.production_final_score)
+                                if production_score.production_final_score is not None
+                                else None
+                            ),
+                        },
+                    },
+                )
+            )
+        decisions = assign_dense_score_ranks(tuple(projected))
     snapshot_set_checksum = selected_snapshot_set_checksum(decisions)
     inputs: dict[str, object] = {
         "discovery_policy_checksum": policy.checksum_sha256,
         "scoring_configuration_id": str(resolved.record.id),
         "scoring_configuration_checksum": resolved.record.checksum_sha256,
         "research_profile_checksum": research_profile.checksum_sha256,
-        "financial_primitive_policy_checksum": (
-            policy.financial_primitive_policy_checksum_sha256
-        ),
-        "financial_endpoint_policy_checksum": (
-            policy.financial_endpoint_policy_checksum_sha256
-        ),
+        "financial_primitive_policy_checksum": (policy.financial_primitive_policy_checksum_sha256),
+        "financial_endpoint_policy_checksum": (policy.financial_endpoint_policy_checksum_sha256),
         "model_family": model_family,
         "discovery_cutoff": cutoff.isoformat(),
         "universe_mode": policy.universe_mode,
@@ -328,6 +369,8 @@ def build_opportunity_discovery(
         "snapshot_selection_version": policy.snapshot_selection_version,
         "ranking_version": policy.ranking_version,
     }
+    if release_identity is not None:
+        inputs["model_release"] = dict(release_identity)
     run_key = canonical_json_sha256(inputs)
     repository = OpportunityDiscoveryRepository(session)
     run, created = repository.create_run(
@@ -363,6 +406,9 @@ def build_opportunity_discovery(
                 company_id=decision.company_id,
                 security_id=decision.security_id,
                 score_snapshot_id=(decision.snapshot.id if decision.snapshot is not None else None),
+                model_release_production_score_id=(
+                    decision.production_score.id if decision.production_score is not None else None
+                ),
                 symbol=decision.symbol,
                 rankable=decision.rankable,
                 unranked_reason=decision.unranked_reason,
@@ -414,7 +460,11 @@ def discovery_summary(decisions: tuple[DiscoveryDecision, ...]) -> dict[str, obj
         "unranked_reason_counts": dict(sorted(reasons.items())),
         "component_availability_counts": dict(sorted(components.items())),
         "score_distribution": score_distribution,
-        "ranking_metric": "persisted_v5_final_score_only",
+        "ranking_metric": (
+            "cycle_bound_active_release_score_v1"
+            if any(item.production_score is not None for item in decisions)
+            else "persisted_v5_final_score_only"
+        ),
     }
 
 
@@ -471,6 +521,20 @@ def _decision_identity(item: DiscoveryDecision) -> dict[str, object]:
             if item.snapshot is not None
             else None
         ),
+        "production_score_id": (
+            str(item.production_score.id) if item.production_score is not None else None
+        ),
+        "production_score_fingerprint": (
+            item.production_score.projection_fingerprint_sha256
+            if item.production_score is not None
+            else None
+        ),
+        "production_final_score": (
+            str(item.production_score.production_final_score)
+            if item.production_score is not None
+            and item.production_score.production_final_score is not None
+            else None
+        ),
         "rankable": item.rankable,
         "unranked_reason": item.unranked_reason,
         "score_rank": item.score_rank,
@@ -480,6 +544,13 @@ def _decision_identity(item: DiscoveryDecision) -> dict[str, object]:
 
 
 def _required_score(item: DiscoveryDecision) -> Decimal:
+    if item.production_score is not None:
+        if (
+            not item.production_score.rankable
+            or item.production_score.production_final_score is None
+        ):
+            raise ValueError("rankable discovery item requires release production score")
+        return item.production_score.production_final_score
     if item.snapshot is None or item.snapshot.final_score is None:
         raise ValueError("rankable discovery item requires persisted final_score")
     return item.snapshot.final_score

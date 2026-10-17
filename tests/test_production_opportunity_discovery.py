@@ -38,6 +38,7 @@ from inflector_database.models import (
     Company,
     DataProvider,
     ExchangeListing,
+    ModelReleaseProductionScore,
     ModelVersion,
     ProviderDataset,
     ScoreComponent,
@@ -339,8 +340,7 @@ def test_freshness_partial_and_ineligible_are_explicit_unranked_states(
             token=symbol,
         )
     decisions = {
-        item.symbol: item
-        for item in _select(session, tuple(x[0] for x in cases), configuration)
+        item.symbol: item for item in _select(session, tuple(x[0] for x in cases), configuration)
     }
     assert decisions["FRESH"].rankable is True
     assert decisions["FRESH"].snapshot_age_days == 6
@@ -372,14 +372,60 @@ def test_dense_rank_uses_only_final_score_and_display_ties_are_deterministic(
             token=symbol,
         )
     decisions = {
-        item.symbol: item
-        for item in _select(session, ("BBB", "AAA", "CCC", "PART"), configuration)
+        item.symbol: item for item in _select(session, ("BBB", "AAA", "CCC", "PART"), configuration)
     }
     assert decisions["AAA"].score_rank == decisions["BBB"].score_rank == 1
     assert decisions["AAA"].display_order == 1
     assert decisions["BBB"].display_order == 2
     assert decisions["CCC"].score_rank == 2
     assert decisions["PART"].score_rank is None
+
+
+def test_dense_rank_uses_cycle_bound_production_score_when_present() -> None:
+    def release_score(value: str) -> ModelReleaseProductionScore:
+        return ModelReleaseProductionScore(
+            operational_run_id=uuid4(),
+            cycle_release_binding_id=uuid4(),
+            deployment_id=uuid4(),
+            release_candidate_id=uuid4(),
+            subject_code="challenger",
+            source_score_snapshot_id=uuid4(),
+            source_snapshot_fingerprint_sha256="a" * 64,
+            component_state_checksum_sha256="b" * 64,
+            scoring_definition_checksum_sha256="c" * 64,
+            production_final_score=Decimal(value),
+            rankable=True,
+            unranked_reason=None,
+            rankability_delta=0,
+            coverage_delta=0,
+            knowledge_cutoff=CUTOFF,
+            projection_fingerprint_sha256="d" * 64,
+        )
+
+    first = DiscoveryDecision(
+        symbol="AAA",
+        company_id=uuid4(),
+        security_id=uuid4(),
+        snapshot=ScoreSnapshot(final_score=Decimal("90")),
+        rankable=True,
+        unranked_reason=None,
+        snapshot_age_days=0,
+        freshness_state="fresh",
+        production_score=release_score("10"),
+    )
+    second = DiscoveryDecision(
+        symbol="BBB",
+        company_id=uuid4(),
+        security_id=uuid4(),
+        snapshot=ScoreSnapshot(final_score=Decimal("80")),
+        rankable=True,
+        unranked_reason=None,
+        snapshot_age_days=0,
+        freshness_state="fresh",
+        production_score=release_score("95"),
+    )
+    ranked = assign_dense_score_ranks((first, second))
+    assert {item.symbol: item.display_order for item in ranked} == {"AAA": 2, "BBB": 1}
 
 
 def test_ambiguity_configuration_mismatch_and_missing_states_fail_closed(
@@ -582,8 +628,7 @@ def test_complete_discovery_run_is_idempotent_and_snapshot_set_changes_identity(
     assert changed.run_id != first.run_id
     assert changed.run_key_sha256 != first.run_key_sha256
     assert (
-        changed.selected_snapshot_set_checksum_sha256
-        != first.selected_snapshot_set_checksum_sha256
+        changed.selected_snapshot_set_checksum_sha256 != first.selected_snapshot_set_checksum_sha256
     )
 
 
@@ -710,12 +755,8 @@ def test_backtest_outcome_rows_cannot_change_current_snapshot_selection(
 
 
 def test_dense_rank_does_not_consume_confidence_coverage_or_market_cap() -> None:
-    first = DiscoveryDecision(
-        "AAA", uuid4(), uuid4(), None, True, None, 1, "fresh"
-    )
-    second = DiscoveryDecision(
-        "BBB", uuid4(), uuid4(), None, True, None, 1, "fresh"
-    )
+    first = DiscoveryDecision("AAA", uuid4(), uuid4(), None, True, None, 1, "fresh")
+    second = DiscoveryDecision("BBB", uuid4(), uuid4(), None, True, None, 1, "fresh")
     # Ranking requires immutable snapshots and therefore fails closed rather than
     # inventing an alternate confidence/coverage/market-cap score.
     try:
@@ -737,7 +778,7 @@ def test_migration_0019_adds_only_discovery_tables(tmp_path: Path) -> None:
     assert {"backtest_runs", "backtest_observations", "backtest_outcomes"} <= tables
     with engine.connect() as connection:
         assert connection.exec_driver_sql("SELECT version_num FROM alembic_version").scalar() == (
-            "20261008_0027"
+            "20261009_0028"
         )
     engine.dispose()
     command.downgrade(config, "20261003_0018")

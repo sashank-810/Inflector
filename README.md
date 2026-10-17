@@ -257,6 +257,13 @@ decision without activating or promoting a model. Real execution remains blocked
 until S1 has reviewed official NSE session-calendar evidence. See
 [temporal holdout evaluation](docs/production-multibagger-temporal-holdout.md).
 
+Production U adds release governance without changing V5. It bootstraps the
+accepted champion independently of blocked historical validation, admits a
+challenger only after a fully revalidated authoritative T pass, isolates shadow
+scores from opportunities and notifications, applies predeclared operational
+burn-in gates, requires persisted manual approval, and records atomic activation
+and rollback history. See [model release governance](docs/production-model-release-governance.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

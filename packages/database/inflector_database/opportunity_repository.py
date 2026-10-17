@@ -10,6 +10,7 @@ from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session, selectinload
 
 from inflector_database.models import (
+    ModelReleaseProductionScore,
     OpportunityDiscoveryItem,
     OpportunityDiscoveryRun,
     ScoreSnapshot,
@@ -34,6 +35,7 @@ class OpportunityDiscoveryItemWrite:
     freshness_state: str
     selected_snapshot_fingerprint_sha256: str | None
     detail_json: dict[str, object]
+    model_release_production_score_id: UUID | None = None
 
 
 class OpportunityDiscoveryRepository:
@@ -48,7 +50,10 @@ class OpportunityDiscoveryRepository:
             .options(
                 selectinload(OpportunityDiscoveryRun.items)
                 .selectinload(OpportunityDiscoveryItem.score_snapshot)
-                .selectinload(ScoreSnapshot.components)
+                .selectinload(ScoreSnapshot.components),
+                selectinload(OpportunityDiscoveryRun.items).selectinload(
+                    OpportunityDiscoveryItem.model_release_production_score
+                ),
             )
             .where(OpportunityDiscoveryRun.id == run_id)
         )
@@ -116,12 +121,8 @@ class OpportunityDiscoveryRepository:
             scoring_configuration_checksum_sha256=scoring_configuration_checksum_sha256,
             research_profile_code=research_profile_code,
             research_profile_checksum_sha256=research_profile_checksum_sha256,
-            financial_primitive_policy_checksum_sha256=(
-                financial_primitive_policy_checksum_sha256
-            ),
-            financial_endpoint_policy_checksum_sha256=(
-                financial_endpoint_policy_checksum_sha256
-            ),
+            financial_primitive_policy_checksum_sha256=(financial_primitive_policy_checksum_sha256),
+            financial_endpoint_policy_checksum_sha256=(financial_endpoint_policy_checksum_sha256),
             model_family=model_family,
             discovery_cutoff=_utc(discovery_cutoff, "discovery_cutoff"),
             universe_mode=universe_mode,
@@ -143,6 +144,38 @@ class OpportunityDiscoveryRepository:
         run: OpportunityDiscoveryRun,
         value: OpportunityDiscoveryItemWrite,
     ) -> tuple[OpportunityDiscoveryItem, bool]:
+        release_identity = run.inputs_json.get("model_release")
+        if value.model_release_production_score_id is not None:
+            production_score = self._session.get(
+                ModelReleaseProductionScore, value.model_release_production_score_id
+            )
+            if production_score is None:
+                raise OpportunityDiscoveryIntegrityError("release production score is unavailable")
+            if not isinstance(release_identity, dict):
+                raise OpportunityDiscoveryIntegrityError(
+                    "release production score lacks run release identity"
+                )
+            if (
+                production_score.source_score_snapshot_id != value.score_snapshot_id
+                or production_score.source_snapshot_fingerprint_sha256
+                != value.selected_snapshot_fingerprint_sha256
+                or str(production_score.cycle_release_binding_id)
+                != release_identity.get("cycle_release_binding_id")
+                or str(production_score.deployment_id) != release_identity.get("deployment_id")
+                or str(production_score.release_candidate_id)
+                != release_identity.get("release_candidate_id")
+                or production_score.subject_code != release_identity.get("subject_code")
+                or production_score.scoring_definition_checksum_sha256
+                != release_identity.get("scoring_definition_checksum_sha256")
+                or (value.rankable and not production_score.rankable)
+            ):
+                raise OpportunityDiscoveryIntegrityError(
+                    "release production score conflicts with discovery run"
+                )
+        elif isinstance(release_identity, dict) and value.score_snapshot_id is not None:
+            raise OpportunityDiscoveryIntegrityError(
+                "release-bound snapshot lacks its production score"
+            )
         existing = self._session.scalar(
             select(OpportunityDiscoveryItem).where(
                 OpportunityDiscoveryItem.opportunity_discovery_run_id == run.id,
@@ -160,6 +193,7 @@ class OpportunityDiscoveryRepository:
             company_id=value.company_id,
             security_id=value.security_id,
             score_snapshot_id=value.score_snapshot_id,
+            model_release_production_score_id=value.model_release_production_score_id,
             symbol=value.symbol,
             rankable=value.rankable,
             unranked_reason=value.unranked_reason,
@@ -167,9 +201,7 @@ class OpportunityDiscoveryRepository:
             display_order=value.display_order,
             snapshot_age_days=value.snapshot_age_days,
             freshness_state=value.freshness_state,
-            selected_snapshot_fingerprint_sha256=(
-                value.selected_snapshot_fingerprint_sha256
-            ),
+            selected_snapshot_fingerprint_sha256=(value.selected_snapshot_fingerprint_sha256),
             detail_json=value.detail_json,
         )
         self._session.add(record)
@@ -204,6 +236,7 @@ def _item_projection(value: OpportunityDiscoveryItem) -> tuple[object, ...]:
         value.company_id,
         value.security_id,
         value.score_snapshot_id,
+        value.model_release_production_score_id,
         value.symbol,
         value.rankable,
         value.unranked_reason,
@@ -243,6 +276,7 @@ def _write_projection(value: OpportunityDiscoveryItemWrite) -> tuple[object, ...
         value.company_id,
         value.security_id,
         value.score_snapshot_id,
+        value.model_release_production_score_id,
         value.symbol,
         value.rankable,
         value.unranked_reason,

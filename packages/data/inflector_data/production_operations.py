@@ -19,6 +19,11 @@ from sqlalchemy import and_, or_, select, text
 from sqlalchemy.orm import Session
 
 from inflector_data import nse_cli, research_cli
+from inflector_data.model_release import (
+    freeze_active_release_for_cycle,
+    resolve_cycle_release_context,
+)
+from inflector_data.model_release_policy import load_model_release_policy
 from inflector_data.notification_delivery_operations import (
     NotificationDeliveryOrchestrator,
     load_bound_notification_delivery_policy,
@@ -36,7 +41,13 @@ from inflector_data.opportunity_monitoring import (
 )
 from inflector_data.production_policy import resolve_profile_datasets
 from inflector_data.research_profile import ProductionResearchProfile
-from inflector_database.models import ModelVersion, OperationalRun, ScoreSnapshot
+from inflector_database.models import (
+    ActiveModelRelease,
+    ModelReleaseCycleBinding,
+    ModelVersion,
+    OperationalRun,
+    ScoreSnapshot,
+)
 from inflector_database.operations_repository import (
     OperationsRepository,
     OperationsStateError,
@@ -231,27 +242,17 @@ def plan_cycle(
         "opportunity_change_no_baseline_behavior": (
             operations_profile.opportunity_change_no_baseline_behavior
         ),
-        "notification_projection_enabled": (
-            operations_profile.notification_projection_enabled
-        ),
-        "research_alert_policy_code": (
-            notification_policy.code if notification_policy else None
-        ),
+        "notification_projection_enabled": (operations_profile.notification_projection_enabled),
+        "research_alert_policy_code": (notification_policy.code if notification_policy else None),
         "research_alert_policy_checksum_sha256": (
             notification_policy.checksum_sha256 if notification_policy else None
         ),
-        "notification_projection_semantics": (
-            operations_profile.notification_projection_semantics
-        ),
+        "notification_projection_semantics": (operations_profile.notification_projection_semantics),
         "notification_no_change_run_behavior": (
             operations_profile.notification_no_change_run_behavior
         ),
-        "notification_delivery_enabled": (
-            operations_profile.notification_delivery_enabled
-        ),
-        "notification_delivery_policy_code": (
-            delivery_policy.code if delivery_policy else None
-        ),
+        "notification_delivery_enabled": (operations_profile.notification_delivery_enabled),
+        "notification_delivery_policy_code": (delivery_policy.code if delivery_policy else None),
         "notification_delivery_policy_checksum_sha256": (
             delivery_policy.checksum_sha256 if delivery_policy else None
         ),
@@ -301,27 +302,17 @@ def plan_cycle(
                 "opportunity_discovery_policy_checksum_sha256"
             ],
             "change_policy_code": persisted["opportunity_change_policy_code"],
-            "change_policy_checksum_sha256": persisted[
-                "opportunity_change_policy_checksum_sha256"
-            ],
-            "discovery_cutoff_semantics": persisted[
-                "opportunity_discovery_cutoff_semantics"
-            ],
+            "change_policy_checksum_sha256": persisted["opportunity_change_policy_checksum_sha256"],
+            "discovery_cutoff_semantics": persisted["opportunity_discovery_cutoff_semantics"],
             "baseline_semantics": persisted["opportunity_change_baseline_semantics"],
-            "no_baseline_behavior": persisted[
-                "opportunity_change_no_baseline_behavior"
-            ],
+            "no_baseline_behavior": persisted["opportunity_change_no_baseline_behavior"],
         },
         "notification_projection": {
             "enabled": persisted["notification_projection_enabled"],
             "alert_policy_code": persisted["research_alert_policy_code"],
-            "alert_policy_checksum_sha256": persisted[
-                "research_alert_policy_checksum_sha256"
-            ],
+            "alert_policy_checksum_sha256": persisted["research_alert_policy_checksum_sha256"],
             "projection_semantics": persisted["notification_projection_semantics"],
-            "no_change_run_behavior": persisted[
-                "notification_no_change_run_behavior"
-            ],
+            "no_change_run_behavior": persisted["notification_no_change_run_behavior"],
         },
         "notification_delivery": {
             "enabled": persisted["notification_delivery_enabled"],
@@ -379,7 +370,7 @@ def doctor(
     session: Session,
     *,
     plan: CyclePlan,
-    expected_migration: str = "20261008_0027",
+    expected_migration: str = "20261009_0028",
 ) -> dict[str, object]:
     session.execute(text("SELECT 1"))
     migration = session.execute(
@@ -449,12 +440,8 @@ def doctor(
         policy = load_bound_notification_delivery_policy(
             plan.operations_profile, repository_root=Path(__file__).resolve().parents[3]
         )
-        token_available = bool(
-            os.environ.get("INFLECTOR_TELEGRAM_BOT_TOKEN", "").strip()
-        )
-        chat_available = bool(
-            os.environ.get("INFLECTOR_TELEGRAM_CHAT_ID", "").strip()
-        )
+        token_available = bool(os.environ.get("INFLECTOR_TELEGRAM_BOT_TOKEN", "").strip())
+        chat_available = bool(os.environ.get("INFLECTOR_TELEGRAM_CHAT_ID", "").strip())
         delivery = {
             "enabled": True,
             "status": "configured",
@@ -659,6 +646,23 @@ class AcceptedProductionStageExecutor:
             )
             return payload, succeeded
         if stage == "current_research":
+            operational = OperationsRepository(session).get_by_key(plan.run_key_sha256)
+            if operational is not None:
+                binding = session.scalar(
+                    select(ModelReleaseCycleBinding).where(
+                        ModelReleaseCycleBinding.operational_run_id == operational.id
+                    )
+                )
+                if binding is not None:
+                    release_policy = load_model_release_policy(
+                        Path(__file__).resolve().parents[3]
+                        / "config/operations/production_model_release_v1.json"
+                    )
+                    resolve_cycle_release_context(
+                        session,
+                        policy=release_policy,
+                        operational_run_id=operational.id,
+                    )
             automatic_endpoint = profile.automatic_financial_endpoint
             payload, succeeded = research_cli._execute(  # noqa: SLF001
                 Namespace(
@@ -690,13 +694,13 @@ class AcceptedProductionStageExecutor:
                 Path(__file__).resolve().parents[3]
             ).execute_change(session, plan)
         if stage == "notification_projection":
-            return NotificationProjectionOrchestrator(
-                Path(__file__).resolve().parents[3]
-            ).execute(session, plan)
+            return NotificationProjectionOrchestrator(Path(__file__).resolve().parents[3]).execute(
+                session, plan
+            )
         if stage == "notification_delivery":
-            return NotificationDeliveryOrchestrator(
-                Path(__file__).resolve().parents[3]
-            ).execute(session, plan)
+            return NotificationDeliveryOrchestrator(Path(__file__).resolve().parents[3]).execute(
+                session, plan
+            )
         raise ValueError(f"unsupported operational stage: {stage}")
 
 
@@ -743,6 +747,7 @@ class ProductionCycleService:
             self._session.commit()
         else:
             self._repository.assert_immutable_inputs(existing, plan.persisted_inputs)
+        self._freeze_configured_active_release(existing.id)
         self._repository.acquire_lease(
             run_id=existing.id,
             owner_token=owner_token,
@@ -763,6 +768,7 @@ class ProductionCycleService:
             return cycle_summary(run, at=self._clock(), already_completed=True), (
                 2 if run.status == "completed_with_symbol_failures" else 0
             )
+        self._freeze_configured_active_release(run.id)
         if run.status == "running":
             self._repository.recover_stale_lease(
                 run_id=run.id,
@@ -779,6 +785,22 @@ class ProductionCycleService:
             )
         self._session.commit()
         return self._execute(run.id, plan=plan, owner_token=owner_token)
+
+    def _freeze_configured_active_release(self, run_id: UUID) -> None:
+        """Freeze U identity once when release governance has been bootstrapped."""
+
+        if self._session.get(ActiveModelRelease, "production") is None:
+            return
+        policy = load_model_release_policy(
+            Path(__file__).resolve().parents[3]
+            / "config/operations/production_model_release_v1.json"
+        )
+        freeze_active_release_for_cycle(
+            self._session,
+            policy=policy,
+            operational_run_id=run_id,
+            frozen_at=self._clock(),
+        )
 
     def _execute(
         self, run_id: UUID, *, plan: CyclePlan, owner_token: str

@@ -1,0 +1,69 @@
+{
+  "model_release_policy_code": "production_model_release_v1",
+  "policy_version": "1.0.0",
+  "champion_scoring_configuration_checksum_sha256": "702fb4d4e934542091f09b832777498fcc59c920acd87645f31dab8fd7d61569",
+  "challenger_development_policy_checksum_sha256": "17642f0e05640464b0166bc82740882e6fda5c99e62ca555c19d7be30ebe85e0",
+  "temporal_holdout_policy_code": "production_multibagger_temporal_holdout_v1",
+  "temporal_holdout_policy_checksum_sha256": "309547a20c01abcece498c76727abf032d643efde6207dab2667519bc28ab45b",
+  "release_states": [
+    "candidate_created",
+    "shadow_ready",
+    "shadow_running",
+    "burn_in_complete",
+    "activation_approved",
+    "active",
+    "rolled_back",
+    "rejected"
+  ],
+  "allowed_t_decisions": [
+    "CHAMPION_RETAINED_NO_CHALLENGER",
+    "CHALLENGER_FAILS_HOLDOUT",
+    "CHALLENGER_PASSES_HOLDOUT"
+  ],
+  "shadow_requirements": {
+    "same_source_state_required": true,
+    "rankability_delta_required": 0,
+    "coverage_delta_required": 0,
+    "production_notifications_forbidden": true
+  },
+  "burn_in_requirements": {
+    "minimum_completed_cycles": 20,
+    "minimum_wall_clock_hours": 168,
+    "maximum_p95_latency_ms": "5000",
+    "maximum_scheduler_failures": 0,
+    "maximum_integrity_violations": 0,
+    "maximum_score_definition_drifts": 0,
+    "maximum_rankability_drifts": 0,
+    "maximum_coverage_drifts": 0,
+    "maximum_missing_component_events": 0,
+    "maximum_production_health_regressions": 0,
+    "maximum_notification_contamination_events": 0
+  },
+  "activation_requirements": {
+    "authoritative_t_pass_required_for_challenger": true,
+    "completed_burn_in_required": true,
+    "persisted_manual_approval_required": true,
+    "active_champion_required": true
+  },
+  "rollback_rules": {
+    "previous_accepted_release_required": true,
+    "immutable_history_required": true,
+    "automatic_operational_safety_rollback_allowed": true,
+    "automatic_promotion_allowed": false,
+    "allowed_reason_codes": [
+      "integrity_violation",
+      "score_definition_mismatch",
+      "missing_component_state",
+      "production_error_rate_threshold",
+      "latency_threshold_violation",
+      "scheduler_research_failure_threshold",
+      "notification_contamination",
+      "manual_emergency_rollback"
+    ]
+  },
+  "fixture_evidence": "forbidden_for_activation",
+  "automatic_promotion": "forbidden",
+  "future_outcome_burn_in": "forbidden",
+  "model_tuning": "forbidden",
+  "model_training": "forbidden"
+}
