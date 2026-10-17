@@ -66,6 +66,17 @@ from inflector_data.multibagger_evaluation import (
     load_evaluation_manifest,
     summarize_multibagger_evaluation,
 )
+from inflector_data.multibagger_holdout import (
+    create_temporal_holdout_run,
+    evaluate_temporal_holdout,
+    freeze_temporal_holdout_scores,
+    inspect_temporal_holdout,
+    summarize_temporal_holdout,
+    temporal_holdout_readiness,
+)
+from inflector_data.multibagger_holdout_policy import (
+    load_multibagger_temporal_holdout_policy,
+)
 from inflector_data.multibagger_labels import (
     build_multibagger_labels,
     multibagger_label_summary,
@@ -84,7 +95,7 @@ from inflector_database.models import (
     MultibaggerErrorAnalysisRun,
 )
 
-LATEST_MIGRATION = "20261007_0026"
+LATEST_MIGRATION = "20261008_0027"
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -253,6 +264,26 @@ def _parser() -> argparse.ArgumentParser:
     freeze.add_argument("--database-url", required=True)
     freeze.add_argument("--challenger-policy", type=Path, required=True)
     freeze.add_argument("--experiment-id", type=UUID, required=True)
+
+    holdout_ready = commands.add_parser("temporal-holdout-readiness")
+    _holdout_readiness_arguments(holdout_ready)
+
+    create_holdout = commands.add_parser("create-temporal-holdout-run")
+    _holdout_readiness_arguments(create_holdout)
+
+    freeze_holdout = commands.add_parser("freeze-temporal-holdout-scores")
+    _holdout_execution_arguments(freeze_holdout)
+
+    evaluate_holdout = commands.add_parser("evaluate-temporal-holdout")
+    _holdout_execution_arguments(evaluate_holdout)
+    evaluate_holdout.add_argument("--opened-at", type=datetime.fromisoformat, required=True)
+
+    summarize_holdout = commands.add_parser("summarize-temporal-holdout")
+    _holdout_execution_arguments(summarize_holdout)
+
+    inspect_holdout = commands.add_parser("inspect-temporal-holdout")
+    _holdout_execution_arguments(inspect_holdout)
+    inspect_holdout.add_argument("--subject", choices=("champion", "challenger"))
     return parser
 
 
@@ -272,9 +303,112 @@ def _challenger_readiness_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("--error-analysis-run-id", type=UUID, required=True)
 
 
+def _holdout_readiness_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--holdout-policy", type=Path, required=True)
+    parser.add_argument("--challenger-policy", type=Path, required=True)
+    parser.add_argument("--activation-policy", type=Path, required=True)
+    parser.add_argument("--split-policy", type=Path, required=True)
+    parser.add_argument("--experiment-id", type=UUID, required=True)
+    parser.add_argument("--session-calendar-run-id", type=UUID, required=True)
+
+
+def _holdout_execution_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--database-url", required=True)
+    parser.add_argument("--holdout-policy", type=Path, required=True)
+    parser.add_argument("--challenger-policy", type=Path, required=True)
+    parser.add_argument("--activation-policy", type=Path, required=True)
+    parser.add_argument("--split-policy", type=Path, required=True)
+    parser.add_argument("--run-id", type=UUID, required=True)
+
+
 def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
     _preflight(session)
     root = Path(__file__).resolve().parents[3]
+    if args.command in {"temporal-holdout-readiness", "create-temporal-holdout-run"}:
+        holdout_policy = load_multibagger_temporal_holdout_policy(args.holdout_policy)
+        s2_policy = load_multibagger_challenger_development_policy(args.challenger_policy)
+        activation_policy = load_historical_evaluation_activation_policy(
+            args.activation_policy, repository_root=root
+        )
+        split_policy = load_multibagger_temporal_split_policy(args.split_policy)
+        if args.command == "temporal-holdout-readiness":
+            return temporal_holdout_readiness(
+                session,
+                policy=holdout_policy,
+                s2_policy=s2_policy,
+                activation_policy=activation_policy,
+                split_policy=split_policy,
+                experiment_id=args.experiment_id,
+                session_calendar_run_id=args.session_calendar_run_id,
+            )
+        run = create_temporal_holdout_run(
+            session,
+            policy=holdout_policy,
+            s2_policy=s2_policy,
+            activation_policy=activation_policy,
+            split_policy=split_policy,
+            experiment_id=args.experiment_id,
+            session_calendar_run_id=args.session_calendar_run_id,
+        )
+        session.commit()
+        return {"status": "completed", "run_id": str(run.id), "run_key_sha256": run.run_key_sha256}
+    if args.command == "freeze-temporal-holdout-scores":
+        return freeze_temporal_holdout_scores(
+            session,
+            policy=load_multibagger_temporal_holdout_policy(args.holdout_policy),
+            s2_policy=load_multibagger_challenger_development_policy(args.challenger_policy),
+            holdout_run_id=args.run_id,
+            activation_policy=load_historical_evaluation_activation_policy(
+                args.activation_policy, repository_root=root
+            ),
+            split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+        )
+    if args.command == "evaluate-temporal-holdout":
+        decision = evaluate_temporal_holdout(
+            session,
+            policy=load_multibagger_temporal_holdout_policy(args.holdout_policy),
+            s2_policy=load_multibagger_challenger_development_policy(args.challenger_policy),
+            holdout_run_id=args.run_id,
+            opened_at=args.opened_at,
+            activation_policy=load_historical_evaluation_activation_policy(
+                args.activation_policy, repository_root=root
+            ),
+            split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+        )
+        return {
+            "status": "completed",
+            "decision": decision.decision_code,
+            "production_promotion_performed": False,
+        }
+    if args.command == "summarize-temporal-holdout":
+        return summarize_temporal_holdout(
+            session,
+            args.run_id,
+            policy=load_multibagger_temporal_holdout_policy(args.holdout_policy),
+            s2_policy=load_multibagger_challenger_development_policy(args.challenger_policy),
+            activation_policy=load_historical_evaluation_activation_policy(
+                args.activation_policy, repository_root=root
+            ),
+            split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+        )
+    if args.command == "inspect-temporal-holdout":
+        return {
+            "status": "completed",
+            "rows": inspect_temporal_holdout(
+                session,
+                args.run_id,
+                policy=load_multibagger_temporal_holdout_policy(args.holdout_policy),
+                s2_policy=load_multibagger_challenger_development_policy(
+                    args.challenger_policy
+                ),
+                activation_policy=load_historical_evaluation_activation_policy(
+                    args.activation_policy, repository_root=root
+                ),
+                split_policy=load_multibagger_temporal_split_policy(args.split_policy),
+                subject_code=args.subject,
+            ),
+        }
     if args.command == "challenger-readiness":
         return challenger_readiness(
             session,

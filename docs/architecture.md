@@ -580,6 +580,15 @@ and cohort filters exclude holdout outcomes. A T-candidate freeze is not a
 `ModelVersion` activation or production promotion. See
 [`production-multibagger-challenger-development.md`](production-multibagger-challenger-development.md).
 
+Production T is the sole outcome-bearing consumer of the S1 holdout. It verifies
+the complete S1/R/S2 persistence graph, freezes champion and optional challenger
+score/rank/selection projections, commits an immutable evidence class and durable
+one-way opening marker, and then queries only the exact persisted holdout cohort
+IDs. Completed reuse recomputes every derived-row, metric, source-fact, and
+decision binding. Its append-only evidence cannot mutate the champion, challenger,
+scoring configuration, or production model state. See
+[`production-multibagger-temporal-holdout.md`](production-multibagger-temporal-holdout.md).
+
 Phase 5B extends that repository/service boundary with company-scoped context
 discovery, exact-context history, and V5 audit reads. Context discovery reuses
 the accepted semantic window ordering and never selects among securities or

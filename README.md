@@ -250,6 +250,13 @@ scores/ranks are persisted before validation outcomes are read. Holdout
 outcomes remain untouched for Production T. Fixture data cannot justify a real
 candidate or freeze. See [multibagger challenger development](docs/production-multibagger-challenger-development.md).
 
+Production T owns the previously untouched S1 holdout. It freezes all champion
+and optional S2-challenger score/rank/selection rows before reading any holdout
+outcome, reports fixed confusion/rank metrics, and records a predeclared factual
+decision without activating or promoting a model. Real execution remains blocked
+until S1 has reviewed official NSE session-calendar evidence. See
+[temporal holdout evaluation](docs/production-multibagger-temporal-holdout.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

@@ -478,13 +478,21 @@ session-calendar verification, a label-independent chronological temporal split,
 and development/validation-only factual FP/FN analysis. Freeze the holdout for
 Production T before reading outcomes. Do not modify the model.
 
-### Production S2 — Challenger Development Governance (acceptance pending)
+### Production S2 — Challenger Development Governance (complete)
 
 Add explicit hypothesis-bound V5 top-level weight recomposition over frozen
 component scores. Keep champion rankability and coverage identical, seal the
 candidate set before one-way validation, persist scores before outcomes are
 read, and preserve the untouched Production T holdout. A freeze means only
 `candidate_for_production_t`; it does not activate or promote a model.
+
+### Production T — Untouched Temporal-Holdout Evaluation (acceptance pending)
+
+Evaluate the frozen V5 champion and optional authoritative S2 freeze on exactly
+the untouched S1 holdout. Persist all scores and selections, durably commit the
+one-way opening marker before outcome access, revalidate the complete terminal
+graph, keep rankability/coverage fixed, apply the predeclared final decision gate,
+and perform no tuning, training, model activation, or promotion.
 
 Add authoritative, survivorship-aware historical NSE cohort projection and
 deterministic 2x/2Y, 3x/3Y, and 5x/5Y factual labels over frozen Production J
