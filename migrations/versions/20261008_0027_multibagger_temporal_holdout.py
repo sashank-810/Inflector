@@ -13,6 +13,18 @@ branch_labels = None
 depends_on = None
 
 
+_SHORT_INDEX_NAMES = {
+    (
+        "multibagger_holdout_evaluation_runs",
+        "champion_scoring_configuration_id",
+    ): "ix_mb_holdout_run_champion_config",
+}
+
+
+def _index_name(table: str, column: str) -> str:
+    return _SHORT_INDEX_NAMES.get((table, column), f"ix_{table}_{column}")
+
+
 def upgrade() -> None:
     op.create_table(
         "multibagger_holdout_evaluation_runs",
@@ -94,7 +106,7 @@ def upgrade() -> None:
         "s2_experiment_run_id",
     ):
         op.create_index(
-            f"ix_multibagger_holdout_evaluation_runs_{column}",
+            _index_name("multibagger_holdout_evaluation_runs", column),
             "multibagger_holdout_evaluation_runs",
             [column],
         )
@@ -165,7 +177,9 @@ def upgrade() -> None:
     )
     for column in ("holdout_run_id", "subject_code", "score_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_holdout_scores_{column}", "multibagger_holdout_scores", [column]
+            _index_name("multibagger_holdout_scores", column),
+            "multibagger_holdout_scores",
+            [column],
         )
 
     op.create_table(
@@ -213,7 +227,7 @@ def upgrade() -> None:
     )
     for column in ("holdout_run_id", "row_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_holdout_evaluation_rows_{column}",
+            _index_name("multibagger_holdout_evaluation_rows", column),
             "multibagger_holdout_evaluation_rows",
             [column],
         )
@@ -255,7 +269,9 @@ def upgrade() -> None:
     )
     for column in ("holdout_run_id", "metric_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_holdout_metrics_{column}", "multibagger_holdout_metrics", [column]
+            _index_name("multibagger_holdout_metrics", column),
+            "multibagger_holdout_metrics",
+            [column],
         )
 
     op.create_table(
@@ -320,5 +336,5 @@ def downgrade() -> None:
         ),
     ):
         for column in indexes:
-            op.drop_index(f"ix_{table}_{column}", table_name=table)
+            op.drop_index(_index_name(table, column), table_name=table)
         op.drop_table(table)

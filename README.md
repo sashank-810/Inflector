@@ -264,6 +264,10 @@ scores from opportunities and notifications, applies predeclared operational
 burn-in gates, requires persisted manual approval, and records atomic activation
 and rollback history. See [model release governance](docs/production-model-release-governance.md).
 
+The final launch procedure, including CI, PostgreSQL migration, backup/restore,
+V5 champion bootstrap, one-cycle smoke testing, and the operator-only Telegram
+send, is documented in [production launch gate](docs/production-launch-gate.md).
+
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
 

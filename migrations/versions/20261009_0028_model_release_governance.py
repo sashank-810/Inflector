@@ -13,6 +13,14 @@ branch_labels = None
 depends_on = None
 
 
+_SHORT_INDEX_NAMES = {
+    (
+        "model_release_production_scores",
+        "projection_fingerprint_sha256",
+    ): "ix_model_release_prod_score_fingerprint",
+}
+
+
 def upgrade() -> None:
     op.create_table(
         "model_release_candidates",
@@ -401,14 +409,14 @@ def upgrade() -> None:
             ondelete="RESTRICT",
         )
         batch.create_index(
-            "ix_opportunity_discovery_items_model_release_production_score_id",
+            "ix_opp_discovery_item_release_score_id",
             ["model_release_production_score_id"],
         )
 
 
 def downgrade() -> None:
     with op.batch_alter_table("opportunity_discovery_items") as batch:
-        batch.drop_index("ix_opportunity_discovery_items_model_release_production_score_id")
+        batch.drop_index("ix_opp_discovery_item_release_score_id")
         batch.drop_constraint("fk_opportunity_discovery_item_release_score", type_="foreignkey")
         batch.drop_column("model_release_production_score_id")
     for table in (
@@ -428,4 +436,8 @@ def downgrade() -> None:
 
 def _indexes(table: str, *columns: str) -> None:
     for column in columns:
-        op.create_index(f"ix_{table}_{column}", table, [column])
+        op.create_index(
+            _SHORT_INDEX_NAMES.get((table, column), f"ix_{table}_{column}"),
+            table,
+            [column],
+        )

@@ -5,9 +5,30 @@ on:
     branches: [main]
   pull_request:
 
+permissions:
+  contents: read
+
 jobs:
   backend:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: inflector_ci
+          POSTGRES_USER: inflector_ci
+          POSTGRES_PASSWORD: inflector_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U inflector_ci -d inflector_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql+psycopg://inflector_ci:inflector_ci@localhost:5432/inflector_ci
+      INFLECTOR_TEST_POSTGRES_URL: postgresql+psycopg://inflector_ci:inflector_ci@localhost:5432/inflector_ci
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-python@v7
@@ -16,12 +37,25 @@ jobs:
       - run: python -m pip install --upgrade pip
       - run: python -m pip install -e ".[dev]"
       - run: pwsh --version
+      - name: Verify the single migration head
+        shell: bash
+        run: |
+          test "$(python -m alembic heads | awk '{print $1}')" = "20261009_0028"
+      - name: Exercise migrations on PostgreSQL
+        run: |
+          python -m alembic upgrade head
+          python -m alembic current
+          python -m alembic downgrade 20261008_0027
+          python -m alembic upgrade head
+      - name: Verify PostgreSQL production semantics
+        run: pytest tests/test_postgresql_production_semantics.py
       - run: ruff check .
       - run: pyright
       - run: pytest
 
   frontend:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: apps/web
@@ -33,6 +67,7 @@ jobs:
           cache: npm
           cache-dependency-path: apps/web/package-lock.json
       - run: npm ci
+      - run: npm audit --omit=dev --audit-level=high
       - run: npm run lint
       - run: npm run typecheck
       - run: npm run build

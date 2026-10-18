@@ -5,9 +5,9 @@ business semantics:
 
 `Research V4 -> K V1 -> L V1 -> N V1 -> O V1 -> Operations V6`
 
-The accepted database migration head is `20261007_0026`; Production P itself
-still has no migration or Operations V7 profile. Later Q/R/S1/S2 migrations are
-evaluation-only historical schemas and do not alter Operations V6.
+The accepted database migration head is `20261009_0028`; Production P itself
+still has no migration or Operations V7 profile. Later Q/R/S1/S2/T/U migrations
+add evaluation and release-governance schemas without altering Operations V6.
 
 ## Runtime configuration
 
@@ -69,7 +69,7 @@ typecheck, and build.
 
 1. Configure the named runtime environment variables in the local secret
    store; never place their values in Git or command-line previews.
-2. Upgrade the production database to `20261007_0026`.
+2. Back up the production database, then upgrade it to `20261009_0028`.
 3. Run the V6 doctor/preflight and this read-only health command.
 4. Confirm raw roots, model family, policy bindings, and scheduler DryRun.
 5. Register the single task only on the correctly configured Windows host.

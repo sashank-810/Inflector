@@ -89,6 +89,12 @@ stage result with pending backlog counts and no network attempt. Doctor reports
 only whether each credential is available, never its value. The existing single
 Asia/Kolkata 20:00 scheduler remains authoritative.
 
-A real smoke send additionally requires
-`INFLECTOR_ALLOW_LIVE_TELEGRAM_SMOKE=1`; credentials alone never authorize a
-smoke message. Production O adds no other transport and no public API or UI.
+A one-time launch smoke uses the separate operator-only
+`inflector_data.telegram_launch_smoke_cli` command. That command requires an
+explicit reviewed delivery UUID, exact
+`INFLECTOR_ALLOW_LIVE_TELEGRAM_SMOKE=1`, and both Telegram credentials; it
+claims and attempts only the selected existing O delivery. The flag authorizes
+only that launch-smoke command. It is deliberately not read by the ordinary
+Production O orchestrator, whose accepted scheduled delivery semantics continue
+to depend on configured production credentials and policy. Production O adds no
+other transport and no public API or UI.

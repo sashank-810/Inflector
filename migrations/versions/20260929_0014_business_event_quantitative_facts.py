@@ -53,13 +53,22 @@ def upgrade() -> None:
         ),
         sa.UniqueConstraint("derivation_fingerprint_sha256"),
     )
-    for column in (
-        "business_event_id",
-        "source_available_at",
-        "derivation_fingerprint_sha256",
+    for column, index_name in (
+        (
+            "business_event_id",
+            "ix_business_event_quantitative_derivations_business_event_id",
+        ),
+        (
+            "source_available_at",
+            "ix_business_event_quantitative_derivations_source_available_at",
+        ),
+        (
+            "derivation_fingerprint_sha256",
+            "ix_be_quant_deriv_fingerprint_sha256",
+        ),
     ):
         op.create_index(
-            f"ix_business_event_quantitative_derivations_{column}",
+            index_name,
             "business_event_quantitative_derivations",
             [column],
         )
@@ -131,15 +140,24 @@ def downgrade() -> None:
             table_name="business_event_quantitative_facts",
         )
     op.drop_table("business_event_quantitative_facts")
-    for column in reversed(
+    for _, index_name in reversed(
         (
-            "business_event_id",
-            "source_available_at",
-            "derivation_fingerprint_sha256",
+            (
+                "business_event_id",
+                "ix_business_event_quantitative_derivations_business_event_id",
+            ),
+            (
+                "source_available_at",
+                "ix_business_event_quantitative_derivations_source_available_at",
+            ),
+            (
+                "derivation_fingerprint_sha256",
+                "ix_be_quant_deriv_fingerprint_sha256",
+            ),
         )
     ):
         op.drop_index(
-            f"ix_business_event_quantitative_derivations_{column}",
+            index_name,
             table_name="business_event_quantitative_derivations",
         )
     op.drop_table("business_event_quantitative_derivations")

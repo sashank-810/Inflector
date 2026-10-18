@@ -12,6 +12,49 @@ down_revision = "20261005_0024"
 branch_labels = None
 depends_on = None
 
+_SHORT_INDEX_NAMES = {
+    (
+        "historical_session_artifact_acquisitions",
+        "acquisition_key_sha256",
+    ): "ix_hist_session_artifact_acq_key",
+    (
+        "historical_session_artifact_acquisitions",
+        "acquisition_provenance",
+    ): "ix_hist_session_artifact_provenance",
+    (
+        "historical_session_artifact_acquisitions",
+        "source_provider_dataset_id",
+    ): "ix_hist_session_artifact_provider_dataset",
+    (
+        "historical_session_artifact_acquisitions",
+        "source_ingestion_run_id",
+    ): "ix_hist_session_artifact_ingestion",
+    (
+        "historical_session_calendar_runs",
+        "source_artifact_acquisition_id",
+    ): "ix_hist_session_calendar_source_artifact",
+    (
+        "historical_session_calendar_dates",
+        "historical_session_calendar_run_id",
+    ): "ix_hist_session_dates_calendar_run_id",
+    (
+        "multibagger_temporal_split_cutoffs",
+        "multibagger_temporal_split_run_id",
+    ): "ix_mb_split_cutoff_split_run",
+    (
+        "multibagger_temporal_split_cutoffs",
+        "multibagger_evaluation_cohort_id",
+    ): "ix_mb_split_cutoff_eval_cohort",
+    (
+        "multibagger_error_analysis_rows",
+        "multibagger_error_analysis_run_id",
+    ): "ix_mb_error_row_analysis_run",
+}
+
+
+def _index_name(table: str, column: str) -> str:
+    return _SHORT_INDEX_NAMES.get((table, column), f"ix_{table}_{column}")
+
 
 def upgrade() -> None:
     op.create_table(
@@ -62,7 +105,7 @@ def upgrade() -> None:
         "linked_ingestion_run_id",
     ):
         op.create_index(
-            f"ix_historical_mii_artifact_acquisitions_{column}",
+            _index_name("historical_mii_artifact_acquisitions", column),
             "historical_mii_artifact_acquisitions",
             [column],
         )
@@ -118,7 +161,7 @@ def upgrade() -> None:
         "raw_content_sha256",
     ):
         op.create_index(
-            f"ix_historical_session_artifact_acquisitions_{column}",
+            _index_name("historical_session_artifact_acquisitions", column),
             "historical_session_artifact_acquisitions",
             [column],
         )
@@ -193,7 +236,7 @@ def upgrade() -> None:
         "source_artifact_acquisition_id",
     ):
         op.create_index(
-            f"ix_historical_session_calendar_runs_{column}",
+            _index_name("historical_session_calendar_runs", column),
             "historical_session_calendar_runs",
             [column],
         )
@@ -224,7 +267,10 @@ def upgrade() -> None:
         ),
     )
     op.create_index(
-        "ix_historical_session_calendar_dates_historical_session_calendar_run_id",
+        _index_name(
+            "historical_session_calendar_dates",
+            "historical_session_calendar_run_id",
+        ),
         "historical_session_calendar_dates",
         ["historical_session_calendar_run_id"],
     )
@@ -278,7 +324,7 @@ def upgrade() -> None:
         "split_checksum_sha256",
     ):
         op.create_index(
-            f"ix_multibagger_temporal_split_runs_{column}",
+            _index_name("multibagger_temporal_split_runs", column),
             "multibagger_temporal_split_runs",
             [column],
         )
@@ -320,7 +366,7 @@ def upgrade() -> None:
         "split_code",
     ):
         op.create_index(
-            f"ix_multibagger_temporal_split_cutoffs_{column}",
+            _index_name("multibagger_temporal_split_cutoffs", column),
             "multibagger_temporal_split_cutoffs",
             [column],
         )
@@ -368,7 +414,7 @@ def upgrade() -> None:
     )
     for column in ("run_key_sha256", "temporal_split_run_id", "source_evaluation_run_id"):
         op.create_index(
-            f"ix_multibagger_error_analysis_runs_{column}",
+            _index_name("multibagger_error_analysis_runs", column),
             "multibagger_error_analysis_runs",
             [column],
         )
@@ -457,7 +503,7 @@ def upgrade() -> None:
         "row_fingerprint_sha256",
     ):
         op.create_index(
-            f"ix_multibagger_error_analysis_rows_{column}",
+            _index_name("multibagger_error_analysis_rows", column),
             "multibagger_error_analysis_rows",
             [column],
         )
@@ -509,7 +555,7 @@ def downgrade() -> None:
         ),
     ):
         for column in columns:
-            op.drop_index(f"ix_{table}_{column}", table_name=table)
+            op.drop_index(_index_name(table, column), table_name=table)
         op.drop_table(table)
     for table, columns in (
         (
@@ -535,5 +581,5 @@ def downgrade() -> None:
         ),
     ):
         for column in columns:
-            op.drop_index(f"ix_{table}_{column}", table_name=table)
+            op.drop_index(_index_name(table, column), table_name=table)
         op.drop_table(table)

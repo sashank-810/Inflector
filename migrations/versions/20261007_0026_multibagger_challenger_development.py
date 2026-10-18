@@ -13,6 +13,26 @@ branch_labels = None
 depends_on = None
 
 
+_SHORT_INDEX_NAMES = {
+    (
+        "multibagger_challenger_experiment_runs",
+        "source_evaluation_run_id",
+    ): "ix_mb_challenger_experiment_source_eval_run",
+    (
+        "multibagger_challenger_experiment_runs",
+        "champion_scoring_configuration_id",
+    ): "ix_mb_challenger_experiment_champion_config",
+    (
+        "multibagger_challenger_evaluation_rows",
+        "row_fingerprint_sha256",
+    ): "ix_mb_challenger_eval_row_fingerprint",
+}
+
+
+def _index_name(table: str, column: str) -> str:
+    return _SHORT_INDEX_NAMES.get((table, column), f"ix_{table}_{column}")
+
+
 def upgrade() -> None:
     op.create_table(
         "multibagger_challenger_experiment_runs",
@@ -80,7 +100,7 @@ def upgrade() -> None:
         "champion_scoring_configuration_id",
     ):
         op.create_index(
-            f"ix_multibagger_challenger_experiment_runs_{column}",
+            _index_name("multibagger_challenger_experiment_runs", column),
             "multibagger_challenger_experiment_runs",
             [column],
         )
@@ -132,7 +152,7 @@ def upgrade() -> None:
     )
     for column in ("experiment_run_id", "candidate_checksum_sha256"):
         op.create_index(
-            f"ix_multibagger_challenger_candidates_{column}",
+            _index_name("multibagger_challenger_candidates", column),
             "multibagger_challenger_candidates",
             [column],
         )
@@ -201,7 +221,9 @@ def upgrade() -> None:
     )
     for column in ("experiment_run_id", "candidate_id", "split_code", "score_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_challenger_scores_{column}", "multibagger_challenger_scores", [column]
+            _index_name("multibagger_challenger_scores", column),
+            "multibagger_challenger_scores",
+            [column],
         )
 
     op.create_table(
@@ -260,7 +282,7 @@ def upgrade() -> None:
     )
     for column in ("experiment_run_id", "split_code", "row_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_challenger_evaluation_rows_{column}",
+            _index_name("multibagger_challenger_evaluation_rows", column),
             "multibagger_challenger_evaluation_rows",
             [column],
         )
@@ -311,7 +333,7 @@ def upgrade() -> None:
     )
     for column in ("experiment_run_id", "split_code", "metric_fingerprint_sha256"):
         op.create_index(
-            f"ix_multibagger_challenger_metrics_{column}",
+            _index_name("multibagger_challenger_metrics", column),
             "multibagger_challenger_metrics",
             [column],
         )
@@ -380,5 +402,5 @@ def downgrade() -> None:
         ),
     ):
         for column in indexes:
-            op.drop_index(f"ix_{table}_{column}", table_name=table)
+            op.drop_index(_index_name(table, column), table_name=table)
         op.drop_table(table)

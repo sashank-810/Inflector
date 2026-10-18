@@ -25,6 +25,7 @@ from inflector_database.models import (
     ResearchNotificationOutbox,
 )
 from inflector_database.research_notification_delivery_repository import (
+    ClaimedResearchNotification,
     ResearchNotificationDeliveryRepository,
     ResearchNotificationDeliveryWrite,
 )
@@ -46,6 +47,16 @@ class DeliveryDrainResult:
     dead_letter: int
     backlog_count: int
     due_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class DeliveryAttemptResult:
+    delivery_id: str
+    attempt_number: int
+    result_state: str
+    provider_message_id: str | None
+    started_at: datetime
+    completed_at: datetime
 
 
 def delivery_key(
@@ -157,54 +168,25 @@ def drain_notification_deliveries(
         delivery = repository.get(claim.delivery_id)
         if delivery is None:
             raise RuntimeError("claimed notification delivery is unavailable")
-        message = render_telegram_notification(
-            delivery.outbox,
-            delivery_key_sha256=delivery.delivery_key_sha256,
-            rendering_version=delivery.rendering_version,
-        )
-        # Transaction A freezes the claim and started attempt before any network I/O.
-        session.commit()
-        result = transport.send_message(
+        attempt_result = deliver_claimed_notification(
+            session,
+            repository=repository,
+            policy=policy,
+            transport=transport,
+            claim=claim,
             bot_token=bot_token,
             chat_id=chat_id,
-            text=message,
-            timeout_seconds=policy.network_timeout_seconds,
+            worker_token=worker_token,
+            started_at=started_at,
+            clock=now,
         )
-        completed_at = _utc(now(), "delivery attempt completion")
         attempts += 1
-        if result.ok and result.provider_message_id is not None:
-            repository.record_delivered(
-                claim=claim,
-                worker_token=worker_token,
-                completed_at=completed_at,
-                provider_message_id=result.provider_message_id,
-                http_status=200,
-            )
+        if attempt_result.result_state == "delivered":
             delivered += 1
+        elif attempt_result.result_state == "dead_letter":
+            dead_letter += 1
         else:
-            retryable, error_code = _failure_semantics(policy, result)
-            delay = None
-            if retryable and claim.attempt_number < policy.maximum_attempts:
-                delay = policy.retry_delay_seconds(claim.attempt_number)
-                if result.retry_after_seconds is not None:
-                    delay = max(delay, result.retry_after_seconds)
-            repository.record_failure(
-                claim=claim,
-                worker_token=worker_token,
-                completed_at=completed_at,
-                retryable=retryable,
-                retry_delay_seconds=delay,
-                maximum_attempts=policy.maximum_attempts,
-                error_code=error_code,
-                detail=_safe_failure_detail(result),
-                http_status=result.http_status,
-                telegram_error_code=result.telegram_error_code,
-            )
-            terminal = not retryable or claim.attempt_number >= policy.maximum_attempts
-            dead_letter += int(terminal)
-            retry_wait += int(not terminal)
-        # Transaction B records the provider result and state transition.
-        session.commit()
+            retry_wait += 1
     observed_at = _utc(now(), "delivery drain summary")
     return DeliveryDrainResult(
         preparation=preparation,
@@ -214,6 +196,80 @@ def drain_notification_deliveries(
         dead_letter=dead_letter,
         backlog_count=repository.backlog_count(),
         due_count=repository.due_count(now=observed_at),
+    )
+
+
+def deliver_claimed_notification(
+    session: Session,
+    *,
+    repository: ResearchNotificationDeliveryRepository,
+    policy: NotificationDeliveryPolicy,
+    transport: TelegramBotApiTransport,
+    claim: ClaimedResearchNotification,
+    bot_token: str,
+    chat_id: str,
+    worker_token: str,
+    started_at: datetime,
+    clock: Callable[[], datetime],
+) -> DeliveryAttemptResult:
+    """Use the accepted O provider-result lifecycle for one persisted claim."""
+
+    delivery = repository.get(claim.delivery_id)
+    if delivery is None:
+        raise RuntimeError("claimed notification delivery is unavailable")
+    message = render_telegram_notification(
+        delivery.outbox,
+        delivery_key_sha256=delivery.delivery_key_sha256,
+        rendering_version=delivery.rendering_version,
+    )
+    # Transaction A freezes the claim and started attempt before any network I/O.
+    session.commit()
+    result = transport.send_message(
+        bot_token=bot_token,
+        chat_id=chat_id,
+        text=message,
+        timeout_seconds=policy.network_timeout_seconds,
+    )
+    completed_at = _utc(clock(), "delivery attempt completion")
+    if result.ok and result.provider_message_id is not None:
+        repository.record_delivered(
+            claim=claim,
+            worker_token=worker_token,
+            completed_at=completed_at,
+            provider_message_id=result.provider_message_id,
+            http_status=200,
+        )
+        result_state = "delivered"
+    else:
+        retryable, error_code = _failure_semantics(policy, result)
+        delay = None
+        if retryable and claim.attempt_number < policy.maximum_attempts:
+            delay = policy.retry_delay_seconds(claim.attempt_number)
+            if result.retry_after_seconds is not None:
+                delay = max(delay, result.retry_after_seconds)
+        repository.record_failure(
+            claim=claim,
+            worker_token=worker_token,
+            completed_at=completed_at,
+            retryable=retryable,
+            retry_delay_seconds=delay,
+            maximum_attempts=policy.maximum_attempts,
+            error_code=error_code,
+            detail=_safe_failure_detail(result),
+            http_status=result.http_status,
+            telegram_error_code=result.telegram_error_code,
+        )
+        terminal = not retryable or claim.attempt_number >= policy.maximum_attempts
+        result_state = "dead_letter" if terminal else "retry_wait"
+    # Transaction B records the provider result and state transition.
+    session.commit()
+    return DeliveryAttemptResult(
+        delivery_id=str(delivery.id),
+        attempt_number=claim.attempt_number,
+        result_state=result_state,
+        provider_message_id=result.provider_message_id,
+        started_at=started_at,
+        completed_at=completed_at,
     )
 
 

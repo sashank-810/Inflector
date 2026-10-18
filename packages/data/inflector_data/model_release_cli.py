@@ -131,8 +131,12 @@ def _execute(args: argparse.Namespace, session: Session) -> dict[str, object]:
             raw_root=args.raw_root,
             gdelt_raw_root=args.gdelt_raw_root,
             model_family=args.model_family,
-            telegram_bot_token_present=bool(os.getenv("TELEGRAM_BOT_TOKEN")),
-            telegram_chat_id_present=bool(os.getenv("TELEGRAM_CHAT_ID")),
+            telegram_bot_token_present=bool(
+                os.getenv("INFLECTOR_TELEGRAM_BOT_TOKEN", "").strip()
+            ),
+            telegram_chat_id_present=bool(
+                os.getenv("INFLECTOR_TELEGRAM_CHAT_ID", "").strip()
+            ),
         )
     if command == "bootstrap-active-champion":
         row = bootstrap_active_champion(session, policy=policy, activated_at=args.activated_at)

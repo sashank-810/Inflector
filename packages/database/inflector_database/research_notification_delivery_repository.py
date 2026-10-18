@@ -128,47 +128,41 @@ class ResearchNotificationDeliveryRepository:
             )
         )
         for delivery_id in candidate_ids:
-            claimed = self._session.execute(
-                update(ResearchNotificationDelivery)
-                .where(
-                    ResearchNotificationDelivery.id == delivery_id,
-                    eligible,
-                    ResearchNotificationDelivery.attempt_count < maximum_attempts,
-                )
-                .values(
-                    status="claimed",
-                    claim_owner_token=owner,
-                    claimed_at=now,
-                    claim_expires_at=now + timedelta(seconds=lease_seconds),
-                    next_attempt_at=None,
-                    attempt_count=ResearchNotificationDelivery.attempt_count + 1,
-                    updated_at=now,
-                )
+            result = self._claim_id(
+                delivery_id=delivery_id,
+                owner=owner,
+                now=now,
+                lease_seconds=lease_seconds,
+                maximum_attempts=maximum_attempts,
             )
-            if not isinstance(claimed, CursorResult) or claimed.rowcount != 1:
-                continue
-            delivery = self.get(delivery_id)
-            if delivery is None:
-                raise ResearchNotificationDeliveryIntegrityError(
-                    "claimed delivery disappeared"
-                )
-            attempt = ResearchNotificationDeliveryAttempt(
-                delivery_id=delivery.id,
-                attempt_number=delivery.attempt_count,
-                worker_token=owner,
-                started_at=now,
-                outcome=None,
-                detail_json={},
-            )
-            self._session.add(attempt)
-            self._session.flush()
-            self._assert_attempt_count(delivery)
-            return ClaimedResearchNotification(
-                delivery_id=delivery.id,
-                attempt_id=attempt.id,
-                attempt_number=attempt.attempt_number,
-            )
+            if result is not None:
+                return result
         return None
+
+    def claim_one(
+        self,
+        *,
+        delivery_id: UUID,
+        worker_token: str,
+        now: datetime,
+        lease_seconds: int,
+        maximum_attempts: int,
+    ) -> ClaimedResearchNotification | None:
+        """Claim only the explicitly selected delivery without touching backlog peers."""
+
+        owner = _token(worker_token)
+        self._dead_letter_expired_exhausted(
+            now=now,
+            maximum_attempts=maximum_attempts,
+            delivery_id=delivery_id,
+        )
+        return self._claim_id(
+            delivery_id=delivery_id,
+            owner=owner,
+            now=now,
+            lease_seconds=lease_seconds,
+            maximum_attempts=maximum_attempts,
+        )
 
     def record_delivered(
         self,
@@ -296,15 +290,21 @@ class ResearchNotificationDeliveryRepository:
         return delivery, attempt
 
     def _dead_letter_expired_exhausted(
-        self, *, now: datetime, maximum_attempts: int
+        self,
+        *,
+        now: datetime,
+        maximum_attempts: int,
+        delivery_id: UUID | None = None,
     ) -> None:
-        self._session.execute(
-            update(ResearchNotificationDelivery)
-            .where(
+        statement = update(ResearchNotificationDelivery).where(
                 ResearchNotificationDelivery.status == "claimed",
                 ResearchNotificationDelivery.claim_expires_at <= now,
                 ResearchNotificationDelivery.attempt_count >= maximum_attempts,
             )
+        if delivery_id is not None:
+            statement = statement.where(ResearchNotificationDelivery.id == delivery_id)
+        self._session.execute(
+            statement.execution_options(synchronize_session="fetch")
             .values(
                 status="dead_letter",
                 claim_owner_token=None,
@@ -315,6 +315,70 @@ class ResearchNotificationDeliveryRepository:
                 last_error_detail_json={"reason": "claim_expired_after_final_attempt"},
                 updated_at=now,
             )
+        )
+
+    def _claim_id(
+        self,
+        *,
+        delivery_id: UUID,
+        owner: str,
+        now: datetime,
+        lease_seconds: int,
+        maximum_attempts: int,
+    ) -> ClaimedResearchNotification | None:
+        eligible = or_(
+            ResearchNotificationDelivery.status == "pending",
+            and_(
+                ResearchNotificationDelivery.status == "retry_wait",
+                ResearchNotificationDelivery.next_attempt_at.is_not(None),
+                ResearchNotificationDelivery.next_attempt_at <= now,
+            ),
+            and_(
+                ResearchNotificationDelivery.status == "claimed",
+                ResearchNotificationDelivery.claim_expires_at.is_not(None),
+                ResearchNotificationDelivery.claim_expires_at <= now,
+            ),
+        )
+        claimed = self._session.execute(
+            update(ResearchNotificationDelivery)
+            .execution_options(synchronize_session="fetch")
+            .where(
+                ResearchNotificationDelivery.id == delivery_id,
+                eligible,
+                ResearchNotificationDelivery.attempt_count < maximum_attempts,
+            )
+            .values(
+                status="claimed",
+                claim_owner_token=owner,
+                claimed_at=now,
+                claim_expires_at=now + timedelta(seconds=lease_seconds),
+                next_attempt_at=None,
+                attempt_count=ResearchNotificationDelivery.attempt_count + 1,
+                updated_at=now,
+            )
+        )
+        if not isinstance(claimed, CursorResult) or claimed.rowcount != 1:
+            return None
+        delivery = self.get(delivery_id)
+        if delivery is None:
+            raise ResearchNotificationDeliveryIntegrityError(
+                "claimed delivery disappeared"
+            )
+        attempt = ResearchNotificationDeliveryAttempt(
+            delivery_id=delivery.id,
+            attempt_number=delivery.attempt_count,
+            worker_token=owner,
+            started_at=now,
+            outcome=None,
+            detail_json={},
+        )
+        self._session.add(attempt)
+        self._session.flush()
+        self._assert_attempt_count(delivery)
+        return ClaimedResearchNotification(
+            delivery_id=delivery.id,
+            attempt_id=attempt.id,
+            attempt_number=attempt.attempt_number,
         )
 
     def _assert_attempt_count(self, delivery: ResearchNotificationDelivery) -> None:

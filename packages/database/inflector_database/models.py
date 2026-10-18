@@ -14,6 +14,7 @@ from sqlalchemy import (
     Date,
     DateTime,
     ForeignKey,
+    Index,
     Numeric,
     String,
     Text,
@@ -523,6 +524,7 @@ class BusinessEventQuantitativeDerivation(Base):
             "ruleset_semantic_version",
             name="uq_business_event_quant_derivation_identity",
         ),
+        Index("ix_be_quant_deriv_fingerprint_sha256", "derivation_fingerprint_sha256"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -541,7 +543,7 @@ class BusinessEventQuantitativeDerivation(Base):
         JSON().with_variant(JSONB(), "postgresql"), nullable=False
     )
     derivation_fingerprint_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False, unique=True, index=True
+        String(64), nullable=False, unique=True
     )
     derived_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -1868,16 +1870,20 @@ class HistoricalSessionArtifactAcquisition(Base):
             "status IN ('archived','parsed','unsupported','failed')",
             name="ck_historical_session_acquisition_status",
         ),
+        Index("ix_hist_session_artifact_acq_key", "acquisition_key_sha256"),
+        Index("ix_hist_session_artifact_provenance", "acquisition_provenance"),
+        Index("ix_hist_session_artifact_provider_dataset", "source_provider_dataset_id"),
+        Index("ix_hist_session_artifact_ingestion", "source_ingestion_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
-    acquisition_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
-    acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False, index=True)
+    acquisition_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False)
     source_provider_dataset_id: Mapped[UUID] = mapped_column(
-        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("provider_datasets.id", ondelete="RESTRICT"), nullable=False
     )
     source_ingestion_run_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("ingestion_runs.id", ondelete="RESTRICT"), nullable=True, index=True
+        ForeignKey("ingestion_runs.id", ondelete="RESTRICT"), nullable=True
     )
     source_record_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("source_records.id", ondelete="RESTRICT"), nullable=True, index=True
@@ -1908,6 +1914,7 @@ class HistoricalSessionCalendarRun(Base):
             "status IN ('verified','incomplete','unsupported','failed')",
             name="ck_historical_session_calendar_run_status",
         ),
+        Index("ix_hist_session_calendar_source_artifact", "source_artifact_acquisition_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -1926,7 +1933,6 @@ class HistoricalSessionCalendarRun(Base):
     source_artifact_acquisition_id: Mapped[UUID] = mapped_column(
         ForeignKey("historical_session_artifact_acquisitions.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     acquisition_provenance: Mapped[str] = mapped_column(String(48), nullable=False)
     parser_version: Mapped[str] = mapped_column(String(96), nullable=False)
@@ -1982,13 +1988,13 @@ class HistoricalSessionCalendarDate(Base):
             "session_date",
             name="uq_historical_session_calendar_date",
         ),
+        Index("ix_hist_session_dates_calendar_run_id", "historical_session_calendar_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     historical_session_calendar_run_id: Mapped[UUID] = mapped_column(
         ForeignKey("historical_session_calendar_runs.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     session_date: Mapped[date] = mapped_column(Date, nullable=False, index=True)
     benchmark_observed: Mapped[bool] = mapped_column(Boolean, nullable=False)
@@ -2072,18 +2078,18 @@ class MultibaggerTemporalSplitCutoff(Base):
             "split_code IN ('development','validation','holdout')",
             name="ck_multibagger_temporal_split_code",
         ),
+        Index("ix_mb_split_cutoff_split_run", "multibagger_temporal_split_run_id"),
+        Index("ix_mb_split_cutoff_eval_cohort", "multibagger_evaluation_cohort_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     multibagger_temporal_split_run_id: Mapped[UUID] = mapped_column(
         ForeignKey("multibagger_temporal_split_runs.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     multibagger_evaluation_cohort_id: Mapped[UUID] = mapped_column(
         ForeignKey("multibagger_evaluation_cohorts.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     historical_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     split_code: Mapped[str] = mapped_column(String(32), nullable=False, index=True)
@@ -2164,13 +2170,13 @@ class MultibaggerErrorAnalysisRow(Base):
             "confusion_class IN ('fp','fn')",
             name="ck_multibagger_error_analysis_confusion",
         ),
+        Index("ix_mb_error_row_analysis_run", "multibagger_error_analysis_run_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
     multibagger_error_analysis_run_id: Mapped[UUID] = mapped_column(
         ForeignKey("multibagger_error_analysis_runs.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     temporal_split_cutoff_id: Mapped[UUID] = mapped_column(
         ForeignKey("multibagger_temporal_split_cutoffs.id", ondelete="RESTRICT"),
@@ -2241,6 +2247,14 @@ class MultibaggerChallengerExperimentRun(Base):
     __tablename__ = "multibagger_challenger_experiment_runs"
     __table_args__ = (
         UniqueConstraint("run_key_sha256", name="uq_multibagger_challenger_experiment_key"),
+        Index(
+            "ix_mb_challenger_experiment_source_eval_run",
+            "source_evaluation_run_id",
+        ),
+        Index(
+            "ix_mb_challenger_experiment_champion_config",
+            "champion_scoring_configuration_id",
+        ),
         CheckConstraint(
             "status IN ('draft','development_evaluating','development_evaluated',"
             "'candidate_set_sealed','validation_evaluating','validation_evaluated',"
@@ -2274,13 +2288,11 @@ class MultibaggerChallengerExperimentRun(Base):
     source_evaluation_run_id: Mapped[UUID] = mapped_column(
         ForeignKey("multibagger_evaluation_runs.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     source_evaluation_run_key_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     champion_scoring_configuration_id: Mapped[UUID] = mapped_column(
         ForeignKey("scoring_configurations.id", ondelete="RESTRICT"),
         nullable=False,
-        index=True,
     )
     champion_scoring_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     champion_model_family: Mapped[str] = mapped_column(String(120), nullable=False)
@@ -2443,6 +2455,10 @@ class MultibaggerChallengerEvaluationRow(Base):
             "evaluation_view",
             name="uq_multibagger_challenger_evaluation_row",
         ),
+        Index(
+            "ix_mb_challenger_eval_row_fingerprint",
+            "row_fingerprint_sha256",
+        ),
         CheckConstraint(
             "split_code IN ('development','validation')",
             name="ck_multibagger_challenger_evaluation_split",
@@ -2480,7 +2496,7 @@ class MultibaggerChallengerEvaluationRow(Base):
     selected: Mapped[bool] = mapped_column(Boolean, nullable=False)
     actual_label: Mapped[str] = mapped_column(String(32), nullable=False)
     confusion_class: Mapped[str] = mapped_column(String(64), nullable=False)
-    row_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    row_fingerprint_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -2580,6 +2596,10 @@ class MultibaggerHoldoutEvaluationRun(Base):
     __tablename__ = "multibagger_holdout_evaluation_runs"
     __table_args__ = (
         UniqueConstraint("run_key_sha256", name="uq_multibagger_holdout_run_key"),
+        Index(
+            "ix_mb_holdout_run_champion_config",
+            "champion_scoring_configuration_id",
+        ),
         CheckConstraint(
             "terminal_mode IN ('champion_only','frozen_challenger')",
             name="ck_multibagger_holdout_terminal_mode",
@@ -2615,7 +2635,7 @@ class MultibaggerHoldoutEvaluationRun(Base):
     )
     holdout_membership_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     champion_scoring_configuration_id: Mapped[UUID] = mapped_column(
-        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"), nullable=False, index=True
+        ForeignKey("scoring_configurations.id", ondelete="RESTRICT"), nullable=False
     )
     champion_scoring_checksum_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
     s2_experiment_run_id: Mapped[UUID] = mapped_column(
@@ -3193,6 +3213,10 @@ class ModelReleaseProductionScore(Base):
             "projection_fingerprint_sha256",
             name="uq_model_release_production_score_fingerprint",
         ),
+        Index(
+            "ix_model_release_prod_score_fingerprint",
+            "projection_fingerprint_sha256",
+        ),
         CheckConstraint(
             "subject_code IN ('champion','challenger')",
             name="ck_model_release_production_score_subject",
@@ -3238,7 +3262,7 @@ class ModelReleaseProductionScore(Base):
     coverage_delta: Mapped[int] = mapped_column(nullable=False)
     knowledge_cutoff: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     projection_fingerprint_sha256: Mapped[str] = mapped_column(
-        String(64), nullable=False, index=True
+        String(64), nullable=False
     )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
@@ -3323,6 +3347,7 @@ class OpportunityDiscoveryItem(Base):
             "AND display_order IS NULL)",
             name="ck_opportunity_discovery_item_rankability",
         ),
+        Index("ix_opp_discovery_item_release_score_id", "model_release_production_score_id"),
     )
 
     id: Mapped[UUID] = mapped_column(Uuid, primary_key=True, default=uuid4)
@@ -3343,7 +3368,6 @@ class OpportunityDiscoveryItem(Base):
     model_release_production_score_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("model_release_production_scores.id", ondelete="RESTRICT"),
         nullable=True,
-        index=True,
     )
     symbol: Mapped[str] = mapped_column(String(64), nullable=False)
     rankable: Mapped[bool] = mapped_column(Boolean, nullable=False)
