@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import argparse
+import json
+import subprocess
+import sys
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import cast
 
-from scripts.audit_postgresql_identifiers import audit
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
@@ -155,9 +156,18 @@ def test_postgresql_index_names_fit_the_identifier_limit() -> None:
 
 
 def test_all_explicit_postgresql_identifiers_fit_the_identifier_limit() -> None:
-    result = audit(ROOT)
+    completed = subprocess.run(
+        [sys.executable, str(ROOT / "scripts/audit_postgresql_identifiers.py")],
+        cwd=ROOT,
+        check=False,
+        capture_output=True,
+        text=True,
+    )
+
+    assert completed.returncode == 0, completed.stderr
+    result = json.loads(completed.stdout)
 
     assert result["status"] == "pass"
-    assert cast(int, result["identifier_count"]) > 0
-    assert cast(int, result["maximum_identifier_bytes"]) <= 63
-    assert result["violations"] == ()
+    assert result["identifier_count"] > 0
+    assert result["maximum_identifier_bytes"] <= 63
+    assert result["violations"] == []
