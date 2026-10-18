@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -13,6 +14,7 @@ from uuid import UUID
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
 
+from inflector_core.scoring_policy import scoring_policy_checksum
 from inflector_data.historical_activation_policy import (
     HistoricalEvaluationActivationPolicy,
     MultibaggerTemporalSplitPolicy,
@@ -38,6 +40,11 @@ from inflector_data.multibagger_holdout import (
 )
 from inflector_data.multibagger_holdout_policy import MultibaggerTemporalHoldoutPolicy
 from inflector_data.production_health import production_health
+from inflector_data.production_policy import (
+    ProductionPolicyBindingError,
+    bind_production_policy,
+)
+from inflector_data.research_profile import load_research_profile
 from inflector_database.models import (
     ActiveModelRelease,
     ModelActivationApproval,
@@ -56,11 +63,23 @@ from inflector_database.models import (
     ScoreSnapshot,
     ScoringConfiguration,
 )
-from inflector_database.score_repository import ScoreSnapshotIntegrityError, ScoreSnapshotRepository
+from inflector_database.score_repository import (
+    ScoreSnapshotIntegrityError,
+    ScoreSnapshotRepository,
+)
+from inflector_database.scoring_repository import (
+    ScoringPolicyIntegrityError,
+    ScoringPolicyRepository,
+)
 
 ACTIVE_POINTER = "production"
 CHAMPION_EVIDENCE = "accepted_v5_champion"
 PRODUCTION_EVIDENCE_CLASS = "production_authoritative"
+RESEARCH_PROFILE_CODE = "nse_current_research_v4"
+RESEARCH_PROFILE_VERSION = "4"
+RESEARCH_PROFILE_CHECKSUM = "f5d07ec154851f2a75b622ac2fa9742447e0e415572ff6c67986bc669e18d7b1"
+RESEARCH_PROFILE_PATH = Path("config/research/production_research_v4.json")
+V5_ASSET_PATH = Path("config/scoring/production_opportunity_v5.json")
 
 
 class ModelReleaseIntegrityError(RuntimeError):
@@ -83,9 +102,8 @@ def create_champion_release_candidate(
 
     config = _accepted_champion_configuration(session, policy)
     definition: dict[str, object] = {
+        **_champion_runtime_definition(config, policy=policy),
         "source": "accepted_v5_champion",
-        "scoring_configuration_id": str(config.id),
-        "scoring_configuration_checksum_sha256": config.checksum_sha256,
         "algorithm_version": "score_snapshot_v5",
     }
     return _persist_release_candidate(
@@ -130,10 +148,9 @@ def create_challenger_release_candidate(
     freeze = graph.freeze
     if candidate is None or freeze is None:
         raise ModelReleaseIntegrityError("authoritative T pass lacks its frozen challenger")
-    config = _accepted_champion_configuration(session, policy)
-    if config.id != run.champion_scoring_configuration_id:
-        raise ModelReleaseIntegrityError("T champion configuration conflicts with accepted V5")
+    runtime_config = _accepted_champion_configuration(session, policy)
     definition = {
+        **_champion_runtime_definition(runtime_config, policy=policy),
         "source": "authoritative_completed_t",
         "algorithm_version": candidate.algorithm_version,
         "candidate_code": candidate.candidate_code,
@@ -148,7 +165,7 @@ def create_challenger_release_candidate(
         policy=policy,
         subject_code="challenger",
         evidence_class=PRODUCTION_EVIDENCE_CLASS,
-        config=config,
+        config=runtime_config,
         definition=definition,
         t_run=run,
         t_decision=decision,
@@ -319,7 +336,10 @@ def record_shadow_cycle(
     if (
         snapshot.algorithm_version != "score_snapshot_v5"
         or snapshot.scoring_configuration_id != candidate.champion_scoring_configuration_id
-        or snapshot.configuration_checksum_sha256 != CHAMPION_CHECKSUM
+        or snapshot.configuration_checksum_sha256
+        != candidate.scoring_definition_json.get(
+            "bound_scoring_configuration_checksum_sha256"
+        )
         or snapshot.selected_security_id is None
     ):
         raise ModelReleaseIntegrityError("shadow snapshot is not the accepted frozen V5 state")
@@ -895,7 +915,10 @@ def project_release_score_for_cycle(
     if (
         snapshot.algorithm_version != "score_snapshot_v5"
         or snapshot.scoring_configuration_id != candidate.champion_scoring_configuration_id
-        or snapshot.configuration_checksum_sha256 != policy.champion_checksum_sha256
+        or snapshot.configuration_checksum_sha256
+        != candidate.scoring_definition_json.get(
+            "bound_scoring_configuration_checksum_sha256"
+        )
         or snapshot.selected_security_id is None
     ):
         raise ModelReleaseIntegrityError("production snapshot is not accepted frozen V5 state")
@@ -1273,7 +1296,7 @@ def _persist_release_candidate(
         "subject_code": subject_code,
         "evidence_class": evidence_class,
         "champion_configuration_id": str(config.id),
-        "champion_checksum_sha256": config.checksum_sha256,
+        "champion_checksum_sha256": policy.champion_checksum_sha256,
         "temporal_holdout_run_key_sha256": t_run.run_key_sha256 if t_run else None,
         "temporal_holdout_decision_fingerprint_sha256": (
             t_decision.decision_fingerprint_sha256 if t_decision else None
@@ -1291,7 +1314,7 @@ def _persist_release_candidate(
         "subject_code": subject_code,
         "evidence_class": evidence_class,
         "champion_scoring_configuration_id": config.id,
-        "champion_scoring_checksum_sha256": config.checksum_sha256,
+        "champion_scoring_checksum_sha256": policy.champion_checksum_sha256,
         "temporal_holdout_run_id": t_run.id if t_run else None,
         "temporal_holdout_run_key_sha256": t_run.run_key_sha256 if t_run else None,
         "temporal_holdout_decision_id": t_decision.id if t_decision else None,
@@ -1403,10 +1426,44 @@ def _revalidate_candidate_t(
 def _accepted_champion_configuration(
     session: Session, policy: ModelReleasePolicy
 ) -> ScoringConfiguration:
+    repository_root = Path(__file__).resolve().parents[3]
+    try:
+        profile = load_research_profile(repository_root / RESEARCH_PROFILE_PATH)
+    except ValueError as error:
+        raise ModelReleaseIntegrityError("accepted Research V4 profile is invalid") from error
+    if (
+        profile.research_profile_code != RESEARCH_PROFILE_CODE
+        or profile.profile_version != RESEARCH_PROFILE_VERSION
+        or profile.checksum_sha256 != RESEARCH_PROFILE_CHECKSUM
+        or Path(profile.scoring_policy_asset) != V5_ASSET_PATH
+    ):
+        raise ModelReleaseIntegrityError("accepted Research V4 profile binding conflicts")
+    try:
+        static_definition = json.loads(
+            (repository_root / V5_ASSET_PATH).read_text(encoding="utf-8")
+        )
+    except (OSError, json.JSONDecodeError) as error:
+        raise ModelReleaseIntegrityError("accepted V5 definition is unavailable") from error
+    if (
+        not isinstance(static_definition, dict)
+        or canonical_json_sha256(static_definition) != policy.champion_checksum_sha256
+        or policy.champion_checksum_sha256 != CHAMPION_CHECKSUM
+    ):
+        raise ModelReleaseIntegrityError("accepted static V5 definition binding conflicts")
+    try:
+        bound = bind_production_policy(session, profile, repository_root=repository_root)
+    except ProductionPolicyBindingError as error:
+        raise ModelReleaseIntegrityError(
+            "accepted Research V4 provider binding is unavailable"
+        ) from error
+    bound_checksum = scoring_policy_checksum(bound.policy)
     configs = tuple(
         session.scalars(
             select(ScoringConfiguration).where(
-                ScoringConfiguration.checksum_sha256 == policy.champion_checksum_sha256
+                ScoringConfiguration.configuration_name == profile.research_profile_code,
+                ScoringConfiguration.configuration_version == profile.profile_version,
+                ScoringConfiguration.status == "active",
+                ScoringConfiguration.checksum_sha256 == bound_checksum,
             )
         )
     )
@@ -1415,13 +1472,55 @@ def _accepted_champion_configuration(
             "exactly one accepted V5 scoring configuration is required"
         )
     config = configs[0]
+    model = config.model_version
     if (
-        config.checksum_sha256 != CHAMPION_CHECKSUM
-        or config.configuration_name != "production_opportunity_v5"
-        or config.configuration_version != "5"
+        config.checksum_sha256 != bound_checksum
+        or config.configuration_name != RESEARCH_PROFILE_CODE
+        or config.configuration_version != RESEARCH_PROFILE_VERSION
+        or config.effective_from is None
+        or config.effective_to is not None
+        or model.status != "active"
+        or model.retired_at is not None
+        or not model.model_family.strip()
+        or not model.semantic_version.strip()
+        or not model.git_sha.strip()
     ):
         raise ModelReleaseIntegrityError("accepted V5 scoring configuration binding conflicts")
+    try:
+        persisted = ScoringPolicyRepository(session).get_scoring_configuration(config.id)
+    except (ScoringPolicyIntegrityError, ValueError) as error:
+        raise ModelReleaseIntegrityError(
+            "accepted V5 scoring configuration failed persisted integrity"
+        ) from error
+    if persisted is None:
+        raise ModelReleaseIntegrityError("accepted V5 scoring configuration is unavailable")
+    if (
+        persisted.record.id != config.id
+        or scoring_policy_checksum(persisted.policy) != bound_checksum
+        or persisted.record.configuration_json != config.configuration_json
+    ):
+        raise ModelReleaseIntegrityError("accepted V5 bound policy projection conflicts")
     return config
+
+
+def _champion_runtime_definition(
+    config: ScoringConfiguration, *, policy: ModelReleasePolicy
+) -> dict[str, object]:
+    """Bind portable V5 semantics separately from one database's live policy."""
+
+    model = config.model_version
+    return {
+        "static_champion_definition_checksum_sha256": policy.champion_checksum_sha256,
+        "research_profile_code": RESEARCH_PROFILE_CODE,
+        "research_profile_version": RESEARCH_PROFILE_VERSION,
+        "research_profile_checksum_sha256": RESEARCH_PROFILE_CHECKSUM,
+        "scoring_configuration_id": str(config.id),
+        "bound_scoring_configuration_checksum_sha256": config.checksum_sha256,
+        "model_version_id": str(model.id),
+        "model_family": model.model_family,
+        "model_semantic_version": model.semantic_version,
+        "model_git_sha": model.git_sha,
+    }
 
 
 def _required_candidate(session: Session, candidate_id: UUID) -> ModelReleaseCandidate:
@@ -1465,8 +1564,15 @@ def _validate_release_candidate(
     ):
         raise ModelReleaseIntegrityError("release candidate immutable definition conflicts")
     config = session.get(ScoringConfiguration, candidate.champion_scoring_configuration_id)
-    if config is None or config.checksum_sha256 != CHAMPION_CHECKSUM:
+    accepted = _accepted_champion_configuration(session, policy)
+    if config is None or config.id != accepted.id:
         raise ModelReleaseIntegrityError("release candidate champion binding conflicts")
+    expected_runtime = _champion_runtime_definition(config, policy=policy)
+    if any(
+        candidate.scoring_definition_json.get(field) != value
+        for field, value in expected_runtime.items()
+    ):
+        raise ModelReleaseIntegrityError("release candidate live V5 definition conflicts")
     if candidate.subject_code == "champion":
         if (
             candidate.evidence_class != CHAMPION_EVIDENCE

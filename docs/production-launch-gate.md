@@ -40,7 +40,7 @@ store. Readiness reports presence only and must never print values.
 | `DATABASE_URL` | development/API deployment | Alembic and FastAPI database URL |
 | `RAW_ARCHIVE_ROOT` | development | local ingestion archive default |
 | `CORS_ORIGINS` | deployment | comma-separated permitted browser origins |
-| `NEXT_PUBLIC_API_BASE_URL` | frontend build/runtime | public FastAPI base URL; not a secret |
+| `NEXT_PUBLIC_API_BASE_URL` | frontend build time | public FastAPI base URL; not a secret |
 | `POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_PORT` | development/Compose | local PostgreSQL service only |
 
 The production service should map its managed PostgreSQL secret into both
@@ -119,8 +119,13 @@ launch.
 
 ## Champion bootstrap and release readiness
 
-After backup and migration, bootstrap only the accepted champion. Both commands
-are idempotent, but run them against production only through an explicit operator
+On a fresh database, do not bootstrap U before the legitimate Research V4 scoring
+configuration exists. Follow `docs/production-linux-deployment.md`: acquire the
+real current provider/dataset metadata through accepted ingestion commands, run
+`research_cli init-model`, and only then bootstrap the accepted champion. The
+portable V5 checksum and database-bound configuration checksum are distinct,
+independently validated identities. The bootstrap and readiness commands are
+idempotent, but run them against production only through an explicit operator
 session:
 
 ```powershell

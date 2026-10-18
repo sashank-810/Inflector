@@ -1,0 +1,11 @@
+[Unit]
+Description=Run Inflector daily at 20:00 Asia/Kolkata
+
+[Timer]
+OnCalendar=*-*-* 20:00:00 Asia/Kolkata
+Persistent=true
+AccuracySec=1min
+Unit=inflector-cycle.service
+
+[Install]
+WantedBy=timers.target

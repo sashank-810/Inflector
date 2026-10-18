@@ -1,0 +1,24 @@
+[Unit]
+Description=Inflector production API
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inflector
+Group=inflector
+WorkingDirectory=/opt/inflector/current
+EnvironmentFile=/etc/inflector/api.env
+ExecStart=/opt/inflector/current/.venv/bin/python -m uvicorn inflector_api.main:app --host 127.0.0.1 --port 8000
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/inflector/current
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,19 @@
+[Unit]
+Description=Inflector accepted daily production cycle
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=inflector
+Group=inflector
+WorkingDirectory=/opt/inflector/current
+EnvironmentFile=/etc/inflector/cycle.env
+ExecStart=/opt/inflector/current/.venv/bin/python /opt/inflector/current/scripts/run_inflector_scheduled_linux.py
+TimeoutStartSec=4h
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/inflector/current
+ReadWritePaths=/srv/inflector/archive/nse /srv/inflector/archive/gdelt

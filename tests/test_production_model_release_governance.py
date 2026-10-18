@@ -9,27 +9,35 @@ from datetime import UTC, date, datetime, timedelta
 from decimal import Decimal
 from pathlib import Path
 from types import SimpleNamespace
-from typing import TypedDict
+from typing import TypedDict, cast
 from uuid import UUID
 
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import create_engine, inspect, text
+from sqlalchemy import create_engine, inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
+from inflector_core.score_audit import canonical_audit_value
+from inflector_data.historical_activation_policy import (
+    load_historical_evaluation_activation_policy,
+    load_multibagger_temporal_split_policy,
+)
 from inflector_data.historical_evaluation_policy import canonical_json_sha256
 from inflector_data.model_release import (
     CHAMPION_EVIDENCE,
     ModelReleaseIntegrityError,
+    _champion_runtime_definition,
     _deployment_values,
+    _revalidate_candidate_t,
     _validate_burn_in_graph,
     _validated_scientific_status,
     activate_release,
     bootstrap_active_champion,
     complete_burn_in,
     create_activation_approval,
+    create_challenger_release_candidate,
     create_champion_release_candidate,
     freeze_active_release_for_cycle,
     production_release_readiness,
@@ -48,25 +56,66 @@ from inflector_data.model_release_policy import (
     load_model_release_policy,
 )
 from inflector_data.multibagger_challenger import ALGORITHM_VERSION, COMPONENT_CODES
+from inflector_data.multibagger_challenger_policy import (
+    load_multibagger_challenger_development_policy,
+)
+from inflector_data.multibagger_holdout import (
+    PRODUCTION_EVIDENCE,
+    HoldoutInputGraph,
+    HoldoutIntegrityError,
+    _run_identity,
+    _validate_run_graph,
+)
+from inflector_data.multibagger_holdout_policy import (
+    load_multibagger_temporal_holdout_policy,
+)
+from inflector_data.production_policy import initialize_production_model
+from inflector_data.research_profile import load_research_profile
 from inflector_database.base import Base
 from inflector_database.models import (
     ActiveModelRelease,
     Company,
+    DataProvider,
     ModelBurnInRun,
     ModelDeployment,
     ModelReleaseCandidate,
     ModelReleaseProductionScore,
     ModelRollback,
+    ModelVersion,
     MultibaggerChallengerCandidate,
+    MultibaggerChallengerExperimentRun,
+    MultibaggerChallengerFreeze,
+    MultibaggerEvaluationRun,
+    MultibaggerHoldoutDecision,
+    MultibaggerHoldoutEvaluationRun,
+    MultibaggerTemporalSplitRun,
     OperationalRun,
+    ProviderDataset,
     ScoreComponent,
     ScoreSnapshot,
     ScoringConfiguration,
     Security,
 )
+from inflector_database.score_repository import (
+    V5_COMPONENT_ALGORITHM_VERSIONS,
+    V5_COMPONENT_ORDER,
+    V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION,
+    ScoreComponentWrite,
+    ScoreSnapshotRepository,
+    ScoreSnapshotWrite,
+)
+from inflector_database.scoring_repository import ScoringPolicyRepository
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY_PATH = ROOT / "config/operations/production_model_release_v1.json"
+T_POLICY_PATH = ROOT / "config/backtest/production_multibagger_temporal_holdout_v1.json"
+S2_POLICY_PATH = (
+    ROOT / "config/backtest/production_multibagger_challenger_development_v1.json"
+)
+ACTIVATION_POLICY_PATH = (
+    ROOT / "config/backtest/production_historical_evaluation_activation_v1.json"
+)
+SPLIT_POLICY_PATH = ROOT / "config/backtest/production_multibagger_temporal_split_v1.json"
 AT = datetime(2026, 10, 9, 12, tzinfo=UTC)
 
 
@@ -113,27 +162,105 @@ def _runtime_readiness_inputs(session: Session, tmp_path: Path) -> RuntimeReadin
 
 
 def _champion_configuration(session: Session) -> ScoringConfiguration:
-    from inflector_database.models import ModelVersion
+    existing = session.scalar(
+        select(ScoringConfiguration).where(
+            ScoringConfiguration.configuration_name == "nse_current_research_v4",
+            ScoringConfiguration.configuration_version == "4",
+        )
+    )
+    if existing is not None:
+        return existing
+    _production_provider_metadata(session)
+    initialized = initialize_production_model(
+        session,
+        profile=load_research_profile(ROOT / "config/research/production_research_v4.json"),
+        repository_root=ROOT,
+        model_family="inflector_v5",
+        model_semantic_version="5",
+        git_sha="a" * 40,
+        effective_from=AT,
+    )
+    return initialized.scoring_configuration
+
+
+def _historical_champion_configuration(session: Session) -> ScoringConfiguration:
+    """Persist the portable V5 identity used only by historical S2/T evidence."""
 
     model = ModelVersion(
-        id=UUID(int=8100),
-        model_family="inflector_v5",
+        model_family="fixture_historical_portable_v5",
         semantic_version="5",
-        git_sha="a" * 40,
+        git_sha="b" * 40,
         status="active",
+        activated_at=AT,
     )
+    session.add(model)
+    session.flush()
+    definition = json.loads(
+        (ROOT / "config/scoring/production_opportunity_v5.json").read_text(
+            encoding="utf-8"
+        )
+    )
+    assert canonical_json_sha256(definition) == CHAMPION_CHECKSUM
     config = ScoringConfiguration(
-        id=UUID(int=8101),
         model_version_id=model.id,
         configuration_name="production_opportunity_v5",
         configuration_version="5",
         status="active",
-        configuration_json={"fixture": "checksum-bound"},
+        effective_from=AT,
+        configuration_json=definition,
         checksum_sha256=CHAMPION_CHECKSUM,
     )
-    session.add_all([model, config])
+    session.add(config)
     session.commit()
     return config
+
+
+def _production_provider_metadata(session: Session) -> None:
+    if session.scalar(select(DataProvider.id).where(DataProvider.code == "nse_official")):
+        return
+    nse = DataProvider(
+        id=UUID(int=8000),
+        code="nse_official",
+        provider_type="exchange",
+        licence_name="fixture-official-metadata",
+        enabled=True,
+    )
+    gdelt = DataProvider(
+        id=UUID(int=8001),
+        code="gdelt",
+        provider_type="news",
+        licence_name="fixture-gdelt-metadata",
+        enabled=True,
+    )
+    dataset_codes = (
+        "nse_integrated_financials_xbrl",
+        "nse_cash_market_udiff_daily",
+        "nse_cash_market_delivery_daily",
+        "nse_indices_daily",
+        "nse_corporate_actions",
+        "nse_corporate_announcements",
+    )
+    datasets = [
+        ProviderDataset(
+            id=UUID(int=8010 + index),
+            provider_id=nse.id,
+            code=code,
+            licence_class="fixture_metadata",
+            redistributable=False,
+        )
+        for index, code in enumerate(dataset_codes)
+    ]
+    datasets.append(
+        ProviderDataset(
+            id=UUID(int=8020),
+            provider_id=gdelt.id,
+            code="gdelt_doc_company_news_mentions",
+            licence_class="fixture_metadata",
+            redistributable=False,
+        )
+    )
+    session.add_all([nse, gdelt, *datasets])
+    session.commit()
 
 
 def _operational_run(session: Session, *, run_id: UUID = UUID(int=8200)) -> OperationalRun:
@@ -162,9 +289,7 @@ def _operational_run(session: Session, *, run_id: UUID = UUID(int=8200)) -> Oper
 
 
 def _fixture_challenger(session: Session) -> ModelReleaseCandidate:
-    config = session.get(ScoringConfiguration, UUID(int=8101))
-    if config is None:
-        config = _champion_configuration(session)
+    config = _champion_configuration(session)
     weights = [{"component_code": code, "weight": "0.125"} for code in COMPONENT_CODES]
     weight_checksum = canonical_json_sha256(weights)
     s2 = MultibaggerChallengerCandidate(
@@ -182,6 +307,7 @@ def _fixture_challenger(session: Session) -> ModelReleaseCandidate:
         status="eligible_for_t",
     )
     definition: dict[str, object] = {
+        **_champion_runtime_definition(config, policy=_policy()),
         "source": "authoritative_completed_t",
         "algorithm_version": s2.algorithm_version,
         "candidate_code": s2.candidate_code,
@@ -236,7 +362,175 @@ def _fixture_challenger(session: Session) -> ModelReleaseCandidate:
     return release
 
 
+def _historical_t_bridge_fixture(session: Session) -> SimpleNamespace:
+    """Create persisted S2/T fixture facts with a distinct portable V5 config."""
+
+    runtime_config = _champion_configuration(session)
+    historical_config = _historical_champion_configuration(session)
+    t_policy = load_multibagger_temporal_holdout_policy(T_POLICY_PATH)
+    s2_policy = load_multibagger_challenger_development_policy(S2_POLICY_PATH)
+    weights = [{"component_code": code, "weight": "0.125"} for code in COMPONENT_CODES]
+    experiment = MultibaggerChallengerExperimentRun(
+        id=UUID(int=9300),
+        run_key_sha256="1" * 64,
+        policy_code=s2_policy.code,
+        policy_checksum_sha256=s2_policy.checksum_sha256,
+        activation_policy_checksum_sha256=s2_policy.inherited_checksums[
+            "historical_evaluation_activation_policy_checksum_sha256"
+        ],
+        temporal_split_policy_checksum_sha256=s2_policy.inherited_checksums[
+            "temporal_split_policy_checksum_sha256"
+        ],
+        error_analysis_policy_checksum_sha256=s2_policy.inherited_checksums[
+            "error_analysis_policy_checksum_sha256"
+        ],
+        temporal_split_run_id=UUID(int=9301),
+        temporal_split_checksum_sha256="2" * 64,
+        error_analysis_run_id=UUID(int=9302),
+        source_evaluation_run_id=UUID(int=9303),
+        source_evaluation_run_key_sha256="3" * 64,
+        champion_scoring_configuration_id=historical_config.id,
+        champion_scoring_checksum_sha256=CHAMPION_CHECKSUM,
+        champion_model_family="fixture_historical_portable_v5",
+        development_cutoff_ids_json=[str(UUID(int=9304))],
+        validation_cutoff_ids_json=[str(UUID(int=9305))],
+        holdout_cutoff_ids_json=[str(UUID(int=9306))],
+        candidate_algorithm_version=ALGORITHM_VERSION,
+        primary_objective_json={
+            "outcome_contract": t_policy.primary_outcome_contract,
+            "selection_contract": t_policy.primary_selection_contract,
+            "evaluation_view": t_policy.primary_evaluation_view,
+            "metric": t_policy.primary_comparison_metric,
+        },
+        evidence_class="production_authoritative",
+        status="candidate_frozen_for_t",
+        sealed_candidate_set_checksum_sha256="4" * 64,
+        validation_opened_at=AT,
+        holdout_outcomes_accessed=False,
+        summary_json={},
+        completed_at=AT,
+    )
+    candidate = MultibaggerChallengerCandidate(
+        id=UUID(int=9310),
+        experiment_run_id=experiment.id,
+        candidate_code="fixture_distinct_t_runtime_identity",
+        candidate_key_sha256="5" * 64,
+        candidate_checksum_sha256=canonical_json_sha256(weights),
+        ordered_weights_json=weights,
+        hypothesis="Fixture validates distinct historical and live V5 identities",
+        source_error_analysis_run_id=experiment.error_analysis_run_id,
+        development_evidence_json=[],
+        development_evidence_checksum_sha256="6" * 64,
+        algorithm_version=ALGORITHM_VERSION,
+        status="eligible_for_t",
+    )
+    freeze = MultibaggerChallengerFreeze(
+        id=UUID(int=9311),
+        experiment_run_id=experiment.id,
+        candidate_id=candidate.id,
+        freeze_key_sha256="7" * 64,
+        freeze_purpose="candidate_for_production_t",
+        production_readiness_status="ready",
+        validation_gate_json={"passed": True},
+    )
+    split = cast(
+        MultibaggerTemporalSplitRun,
+        SimpleNamespace(
+            id=experiment.temporal_split_run_id,
+            run_key_sha256="8" * 64,
+            split_checksum_sha256=experiment.temporal_split_checksum_sha256,
+            outcome_data_cutoff=AT.replace(tzinfo=None),
+        ),
+    )
+    evaluation = cast(
+        MultibaggerEvaluationRun,
+        SimpleNamespace(
+            id=experiment.source_evaluation_run_id,
+            run_key_sha256=experiment.source_evaluation_run_key_sha256,
+        ),
+    )
+    graph = HoldoutInputGraph(
+        experiment=experiment,
+        split=split,
+        evaluation=evaluation,
+        holdout_cohort_ids=(UUID(int=9306),),
+        holdout_membership_checksum_sha256="9" * 64,
+        terminal_mode="frozen_challenger",
+        freeze=freeze,
+        candidate=candidate,
+    )
+    run_identity = _run_identity(
+        policy=t_policy,
+        graph=graph,
+        evidence_class=PRODUCTION_EVIDENCE,
+    )
+    run = MultibaggerHoldoutEvaluationRun(
+        id=UUID(int=9320),
+        run_key_sha256=canonical_json_sha256(run_identity),
+        policy_code=t_policy.code,
+        policy_checksum_sha256=t_policy.checksum_sha256,
+        source_evaluation_run_id=evaluation.id,
+        source_evaluation_run_key_sha256=evaluation.run_key_sha256,
+        temporal_split_run_id=split.id,
+        temporal_split_checksum_sha256=split.split_checksum_sha256,
+        holdout_cohort_ids_json=[str(UUID(int=9306))],
+        holdout_membership_checksum_sha256=graph.holdout_membership_checksum_sha256,
+        champion_scoring_configuration_id=historical_config.id,
+        champion_scoring_checksum_sha256=CHAMPION_CHECKSUM,
+        s2_experiment_run_id=experiment.id,
+        s2_experiment_run_key_sha256=experiment.run_key_sha256,
+        evidence_class=PRODUCTION_EVIDENCE,
+        terminal_mode="frozen_challenger",
+        challenger_freeze_id=freeze.id,
+        challenger_freeze_key_sha256=freeze.freeze_key_sha256,
+        challenger_candidate_id=candidate.id,
+        challenger_candidate_key_sha256=candidate.candidate_key_sha256,
+        challenger_candidate_checksum_sha256=candidate.candidate_checksum_sha256,
+        primary_objective_json=experiment.primary_objective_json,
+        outcome_data_cutoff=split.outcome_data_cutoff,
+        score_selection_checksum_sha256="a" * 64,
+        holdout_opened_at=AT,
+        status="completed",
+        summary_json={"production_promotion_performed": False},
+        completed_at=AT,
+    )
+    decision_values = {
+        "holdout_run_id": run.id,
+        "decision_code": "CHALLENGER_PASSES_HOLDOUT",
+        "decision_rule": t_policy.decision_rule,
+        "gate_json": {"passed": True},
+        "production_promotion_performed": False,
+    }
+    decision_projection = {
+        "holdout_run_key_sha256": run.run_key_sha256,
+        "decision_code": decision_values["decision_code"],
+        "decision_rule": decision_values["decision_rule"],
+        "gate": decision_values["gate_json"],
+        "production_promotion_performed": False,
+    }
+    decision = MultibaggerHoldoutDecision(
+        id=UUID(int=9321),
+        **decision_values,
+        decision_fingerprint_sha256=canonical_json_sha256(decision_projection),
+    )
+    session.add_all([experiment, candidate, freeze, run, decision])
+    session.flush()
+    return SimpleNamespace(
+        runtime_config=runtime_config,
+        historical_config=historical_config,
+        t_policy=t_policy,
+        s2_policy=s2_policy,
+        experiment=experiment,
+        candidate=candidate,
+        freeze=freeze,
+        graph=graph,
+        run=run,
+        decision=decision,
+    )
+
+
 def _snapshot(session: Session) -> ScoreSnapshot:
+    config = _champion_configuration(session)
     company = Company(
         id=UUID(int=8400),
         legal_name="U Fixture Limited",
@@ -254,9 +548,9 @@ def _snapshot(session: Session) -> ScoreSnapshot:
     snapshot = ScoreSnapshot(
         id=UUID(int=8402),
         company_id=company.id,
-        model_version_id=UUID(int=8100),
-        scoring_configuration_id=UUID(int=8101),
-        configuration_checksum_sha256=CHAMPION_CHECKSUM,
+        model_version_id=config.model_version_id,
+        scoring_configuration_id=config.id,
+        configuration_checksum_sha256=config.checksum_sha256,
         as_of_date=date(2026, 10, 9),
         knowledge_cutoff=AT,
         ending_fiscal_year=2026,
@@ -303,6 +597,105 @@ def _snapshot(session: Session) -> ScoreSnapshot:
     session.add_all([company, security, snapshot, *components])
     session.commit()
     return snapshot
+
+
+def _persisted_v5_snapshot(session: Session) -> ScoreSnapshot:
+    config = _champion_configuration(session)
+    company = Company(
+        legal_name="Cold Start Integration Limited",
+        display_name="Cold Start Integration",
+        sector="Industrials",
+        industry="Engineering",
+    )
+    session.add(company)
+    session.flush()
+    security = Security(
+        company_id=company.id,
+        isin="INE000V01009",
+        security_type="equity",
+        status="active",
+    )
+    session.add(security)
+    session.flush()
+    persisted = ScoringPolicyRepository(session).get_scoring_configuration(config.id)
+    assert persisted is not None
+    weights = cast(dict[str, Decimal], persisted.policy.component_weights.model_dump())
+    components = tuple(
+        ScoreComponentWrite(
+            component_code=code,
+            score=Decimal("80"),
+            unit="score_0_100",
+            configured_top_level_weight=weights[code],
+            subfactor_weight_coverage=Decimal("1"),
+            final_contribution=Decimal("80") * weights[code],
+            available_at=AT,
+            algorithm_version=V5_COMPONENT_ALGORITHM_VERSIONS[code],
+            missing_subfactors_json=[],
+            warnings_json=[],
+            detail_json={},
+            explanations=(),
+        )
+        for code in V5_COMPONENT_ORDER
+    )
+    final_score = sum(
+        (Decimal("80") * weights[code] for code in V5_COMPONENT_ORDER), Decimal("0")
+    )
+    component_state = canonical_audit_value(
+        [
+            {
+                "component_code": component.component_code,
+                "score": component.score,
+                "configured_top_level_weight": component.configured_top_level_weight,
+                "final_contribution": component.final_contribution,
+            }
+            for component in components
+        ]
+    )
+    payload = {
+        "algorithm_version": "score_snapshot_v5",
+        "opportunity_score_aggregation_version": V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION,
+        "final_score_state": {
+            "aggregation_version": V5_OPPORTUNITY_SCORE_AGGREGATION_VERSION,
+            "required_positive_weight_component_codes": list(V5_COMPONENT_ORDER),
+            "components": component_state,
+            "final_score": canonical_audit_value(final_score),
+        },
+    }
+    result = ScoreSnapshotRepository(session).persist_snapshot(
+        ScoreSnapshotWrite(
+            company_id=company.id,
+            model_version_id=config.model_version_id,
+            scoring_configuration_id=config.id,
+            configuration_checksum_sha256=config.checksum_sha256,
+            as_of_date=AT.date(),
+            knowledge_cutoff=AT,
+            ending_fiscal_year=2026,
+            ending_fiscal_quarter=2,
+            selected_provider_dataset_id=None,
+            selected_filing_scope="consolidated",
+            selected_security_id=security.id,
+            snapshot_status="final_score_available",
+            eligibility_eligible=True,
+            eligibility_inputs_json={},
+            eligibility_reasons_json=[],
+            eligibility_warnings_json=[],
+            financial_core_coverage=Decimal("1"),
+            confidence=Decimal("1"),
+            confidence_inputs_json={},
+            confidence_details_json={},
+            top_level_component_weight_coverage=Decimal("1"),
+            available_component_codes_json=list(V5_COMPONENT_ORDER),
+            missing_component_codes_json=[],
+            context_resolution_json={},
+            input_manifest_json={},
+            fingerprint_payload_json=payload,
+            final_score=final_score,
+            algorithm_version="score_snapshot_v5",
+            components=components,
+        )
+    )
+    session.commit()
+    return result.record
 
 
 def _shadow_run(session: Session, monkeypatch: pytest.MonkeyPatch):
@@ -395,8 +788,268 @@ def test_bootstrap_rejects_foreign_or_duplicate_champion_configuration(session: 
     config = _champion_configuration(session)
     config.configuration_name = "foreign"
     session.commit()
-    with pytest.raises(ModelReleaseIntegrityError, match="binding conflicts"):
+    with pytest.raises(ModelReleaseIntegrityError, match="accepted V5 scoring configuration"):
         bootstrap_active_champion(session, policy=_policy(), activated_at=AT)
+
+
+def test_fixture_style_static_checksum_configuration_is_not_a_live_champion(
+    session: Session,
+) -> None:
+    _production_provider_metadata(session)
+    model = ModelVersion(
+        model_family="fixture_static_v5",
+        semantic_version="5",
+        git_sha="f" * 40,
+        status="active",
+        activated_at=AT,
+    )
+    session.add(model)
+    session.flush()
+    session.add(
+        ScoringConfiguration(
+            model_version_id=model.id,
+            configuration_name="production_opportunity_v5",
+            configuration_version="5",
+            status="active",
+            effective_from=AT,
+            configuration_json={"fixture": "portable-checksum-spoof"},
+            checksum_sha256=CHAMPION_CHECKSUM,
+        )
+    )
+    session.commit()
+    with pytest.raises(ModelReleaseIntegrityError, match="accepted V5 scoring configuration"):
+        bootstrap_active_champion(session, policy=_policy(), activated_at=AT)
+
+
+def test_fresh_migrated_database_bootstraps_bound_research_v4_champion(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "fresh-production.db"
+    config = Config(str(ROOT / "alembic.ini"))
+    config.set_main_option("sqlalchemy.url", f"sqlite:///{database.as_posix()}")
+    command.upgrade(config, "20261009_0028")
+    engine = create_engine(f"sqlite:///{database.as_posix()}")
+    try:
+        with Session(engine) as fresh:
+            live_config = _champion_configuration(fresh)
+            assert live_config.configuration_name == "nse_current_research_v4"
+            assert live_config.configuration_version == "4"
+            assert live_config.checksum_sha256 != CHAMPION_CHECKSUM
+
+            deployment = bootstrap_active_champion(fresh, policy=_policy(), activated_at=AT)
+            pointer, resolved_deployment, candidate = resolve_active_release(
+                fresh, policy=_policy()
+            )
+            assert pointer.subject_code == "champion"
+            assert resolved_deployment.id == deployment.id
+            assert candidate.champion_scoring_checksum_sha256 == CHAMPION_CHECKSUM
+            assert candidate.champion_scoring_configuration_id == live_config.id
+            assert (
+                candidate.scoring_definition_json[
+                    "bound_scoring_configuration_checksum_sha256"
+                ]
+                == live_config.checksum_sha256
+            )
+
+            run = _operational_run(fresh)
+            freeze_active_release_for_cycle(
+                fresh, policy=_policy(), operational_run_id=run.id, frozen_at=AT
+            )
+            context = resolve_cycle_release_context(
+                fresh, policy=_policy(), operational_run_id=run.id
+            )
+            snapshot = _persisted_v5_snapshot(fresh)
+            projection = project_release_score_for_cycle(
+                fresh, policy=_policy(), context=context, snapshot=snapshot
+            )
+            assert projection.production_final_score == snapshot.final_score
+            assert projection.source_score_snapshot_id == snapshot.id
+            assert fresh.query(ScoringConfiguration).count() == 1
+            assert fresh.query(MultibaggerHoldoutEvaluationRun).count() == 0
+            assert fresh.query(MultibaggerChallengerCandidate).count() == 0
+    finally:
+        engine.dispose()
+
+
+def test_challenger_release_bridges_distinct_historical_and_runtime_v5_configs(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bridge = _historical_t_bridge_fixture(session)
+    assert bridge.historical_config.id != bridge.runtime_config.id
+    assert bridge.historical_config.checksum_sha256 == CHAMPION_CHECKSUM
+    assert bridge.runtime_config.checksum_sha256 != CHAMPION_CHECKSUM
+    validation_calls: list[str] = []
+
+    def validate_t_input(_session: Session, **kwargs: object) -> HoldoutInputGraph:
+        run = cast(MultibaggerHoldoutEvaluationRun, kwargs["run"])
+        policy = kwargs["policy"]
+        assert policy is bridge.t_policy
+        _validate_run_graph(run, bridge.graph, policy=bridge.t_policy)
+        validation_calls.append("input_graph")
+        return bridge.graph
+
+    def validate_t_terminal(*_args: object, **kwargs: object) -> MultibaggerHoldoutDecision:
+        assert kwargs["run"] is bridge.run
+        assert kwargs["graph"] is bridge.graph
+        validation_calls.append("terminal_graph")
+        return bridge.decision
+
+    monkeypatch.setattr(
+        "inflector_data.model_release._validated_run_input",
+        validate_t_input,
+    )
+    monkeypatch.setattr(
+        "inflector_data.model_release._validate_completed_holdout_graph",
+        validate_t_terminal,
+    )
+    activation_policy = load_historical_evaluation_activation_policy(
+        ACTIVATION_POLICY_PATH, repository_root=ROOT
+    )
+    split_policy = load_multibagger_temporal_split_policy(SPLIT_POLICY_PATH)
+    champion = bootstrap_active_champion(session, policy=_policy(), activated_at=AT)
+    release = create_challenger_release_candidate(
+        session,
+        policy=_policy(),
+        t_policy=bridge.t_policy,
+        s2_policy=bridge.s2_policy,
+        activation_policy=activation_policy,
+        split_policy=split_policy,
+        holdout_run_id=bridge.run.id,
+    )
+    _revalidate_candidate_t(
+        session,
+        candidate=release,
+        policy=_policy(),
+        t_policy=bridge.t_policy,
+        s2_policy=bridge.s2_policy,
+        activation_policy=activation_policy,
+        split_policy=split_policy,
+    )
+
+    assert validation_calls == [
+        "input_graph",
+        "terminal_graph",
+        "input_graph",
+        "terminal_graph",
+    ]
+    assert release.champion_scoring_configuration_id == bridge.runtime_config.id
+    assert release.champion_scoring_checksum_sha256 == CHAMPION_CHECKSUM
+    assert bridge.run.champion_scoring_configuration_id == bridge.historical_config.id
+    assert bridge.run.champion_scoring_checksum_sha256 == CHAMPION_CHECKSUM
+    assert release.temporal_holdout_run_id == bridge.run.id
+    assert release.temporal_holdout_run_key_sha256 == bridge.run.run_key_sha256
+    assert release.temporal_holdout_decision_id == bridge.decision.id
+    assert (
+        release.temporal_holdout_decision_fingerprint_sha256
+        == bridge.decision.decision_fingerprint_sha256
+    )
+    assert release.s2_experiment_run_id == bridge.experiment.id
+    assert release.s2_experiment_run_key_sha256 == bridge.experiment.run_key_sha256
+    assert release.s2_freeze_id == bridge.freeze.id
+    assert release.s2_freeze_key_sha256 == bridge.freeze.freeze_key_sha256
+    assert release.s2_candidate_id == bridge.candidate.id
+    assert release.s2_candidate_key_sha256 == bridge.candidate.candidate_key_sha256
+    assert release.s2_candidate_checksum_sha256 == bridge.candidate.candidate_checksum_sha256
+    assert (
+        release.s2_development_evidence_checksum_sha256
+        == bridge.candidate.development_evidence_checksum_sha256
+    )
+    assert (
+        release.scoring_definition_json["bound_scoring_configuration_checksum_sha256"]
+        == bridge.runtime_config.checksum_sha256
+    )
+
+    immutable_t_key = bridge.run.run_key_sha256
+    immutable_experiment_key = bridge.experiment.run_key_sha256
+    immutable_candidate_key = bridge.candidate.candidate_key_sha256
+    values = _deployment_values(
+        policy=_policy(),
+        candidate=release,
+        previous=champion,
+        approval_id=None,
+        reason="fixture_distinct_identity_bridge",
+        activated_at=AT + timedelta(hours=1),
+    )
+    deployment = ModelDeployment(**values)
+    session.add(deployment)
+    session.flush()
+    pointer = session.get(ActiveModelRelease, "production")
+    assert pointer is not None
+    pointer.deployment_id = deployment.id
+    pointer.release_candidate_id = release.id
+    pointer.subject_code = "challenger"
+    pointer.scoring_definition_checksum_sha256 = release.scoring_definition_checksum_sha256
+    pointer.pointer_version += 1
+    pointer.updated_at = AT + timedelta(hours=1)
+    session.commit()
+
+    operational_run = _operational_run(session, run_id=UUID(int=9330))
+    freeze_active_release_for_cycle(
+        session,
+        policy=_policy(),
+        operational_run_id=operational_run.id,
+        frozen_at=AT + timedelta(hours=2),
+    )
+    context = resolve_cycle_release_context(
+        session, policy=_policy(), operational_run_id=operational_run.id
+    )
+    snapshot = _persisted_v5_snapshot(session)
+    projection = project_release_score_for_cycle(
+        session, policy=_policy(), context=context, snapshot=snapshot
+    )
+    assert snapshot.scoring_configuration_id == bridge.runtime_config.id
+    assert snapshot.configuration_checksum_sha256 == bridge.runtime_config.checksum_sha256
+    assert {component.component_code for component in snapshot.components} == set(
+        COMPONENT_CODES
+    )
+    assert projection.production_final_score == Decimal("80.000")
+    assert projection.rankability_delta == projection.coverage_delta == 0
+    persisted_t = session.get(MultibaggerHoldoutEvaluationRun, bridge.run.id)
+    persisted_experiment = session.get(
+        MultibaggerChallengerExperimentRun, bridge.experiment.id
+    )
+    persisted_candidate = session.get(MultibaggerChallengerCandidate, bridge.candidate.id)
+    assert persisted_t is not None
+    assert persisted_experiment is not None
+    assert persisted_candidate is not None
+    assert persisted_t.run_key_sha256 == immutable_t_key
+    assert persisted_experiment.run_key_sha256 == immutable_experiment_key
+    assert persisted_candidate.candidate_key_sha256 == immutable_candidate_key
+
+
+def test_challenger_release_rejects_foreign_historical_t_configuration(
+    session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    bridge = _historical_t_bridge_fixture(session)
+    bridge.run.champion_scoring_configuration_id = bridge.runtime_config.id
+
+    def validate_t_input(_session: Session, **kwargs: object) -> HoldoutInputGraph:
+        run = cast(MultibaggerHoldoutEvaluationRun, kwargs["run"])
+        _validate_run_graph(run, bridge.graph, policy=bridge.t_policy)
+        return bridge.graph
+
+    monkeypatch.setattr(
+        "inflector_data.model_release._validated_run_input",
+        validate_t_input,
+    )
+    monkeypatch.setattr(
+        "inflector_data.model_release._validate_completed_holdout_graph",
+        lambda *_args, **_kwargs: pytest.fail(
+            "terminal T validation must not run after upstream identity failure"
+        ),
+    )
+    with pytest.raises(HoldoutIntegrityError, match="holdout upstream graph"):
+        create_challenger_release_candidate(
+            session,
+            policy=_policy(),
+            t_policy=bridge.t_policy,
+            s2_policy=bridge.s2_policy,
+            activation_policy=load_historical_evaluation_activation_policy(
+                ACTIVATION_POLICY_PATH, repository_root=ROOT
+            ),
+            split_policy=load_multibagger_temporal_split_policy(SPLIT_POLICY_PATH),
+            holdout_run_id=bridge.run.id,
+        )
 
 
 def test_release_candidate_projection_is_idempotent_and_tamper_evident(session: Session) -> None:

@@ -1,0 +1,25 @@
+[Unit]
+Description=Inflector production web application
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=inflector
+Group=inflector
+WorkingDirectory=/opt/inflector/current/apps/web
+EnvironmentFile=/etc/inflector/web.env
+ExecStart=/usr/bin/npm run start -- --hostname 127.0.0.1 --port 3000
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+KillSignal=SIGTERM
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectHome=true
+ProtectSystem=strict
+ReadOnlyPaths=/opt/inflector/current
+ReadWritePaths=/opt/inflector/current/apps/web/.next/cache
+
+[Install]
+WantedBy=multi-user.target
