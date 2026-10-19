@@ -1,5 +1,12 @@
 # Production Linux deployment and cold-start activation
 
+The exact repository-owned installation and activation command sequence is in
+[`production-activation-runbook.md`](production-activation-runbook.md). This
+document remains the architecture and cold-start rationale; use the activation
+runbook for execution so credentials never enter process arguments.
+The `run_inflector_operator` helper used below is defined there; systemd loads
+the root-only environment and executes the accepted CLI as the `inflector` user.
+
 This runbook deploys the accepted V5 champion. It does not complete Production T,
 create a challenger, or change scoring semantics. All placeholders are resolved by
 the operator; no production secret belongs in the repository or shell history.
@@ -88,25 +95,21 @@ acquisitions needed by Research V4. The operator selects truthful current PIT
 date bounds; the placeholders below are not inferred or backdated:
 
 ```bash
-.venv/bin/python -m inflector_data.nse_cli ingest-universe \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-universe \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS"
 
-.venv/bin/python -m inflector_data.nse_cli ingest-market-range \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-market-range \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS" \
   --from-date <reviewed-current-lookback-start> --to-date <reviewed-current-date>
 
-.venv/bin/python -m inflector_data.nse_cli ingest-delivery-range \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-delivery-range \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS" \
   --from-date <reviewed-current-lookback-start> --to-date <reviewed-current-date>
 
-.venv/bin/python -m inflector_data.nse_cli ingest-financials \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-financials \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS" \
   --symbols-file "$INFLECTOR_SYMBOLS_FILE" --max-symbols 3 \
@@ -114,21 +117,18 @@ date bounds; the placeholders below are not inferred or backdated:
   --financial-primitive-policy config/financial/production_financial_primitives_v1.json \
   --to-date <reviewed-current-date>
 
-.venv/bin/python -m inflector_data.nse_cli ingest-corporate-actions \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-corporate-actions \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS" \
   --from-date <reviewed-catalyst-window-start> --to-date <reviewed-current-date>
 
-.venv/bin/python -m inflector_data.nse_cli ingest-catalyst-evidence \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator nse ingest-catalyst-evidence \
   --raw-root "$INFLECTOR_PRODUCTION_RAW_ROOT" \
   --license-class "$INFLECTOR_NSE_LICENSE_CLASS" \
   --from-date <reviewed-catalyst-window-start> --to-date <reviewed-current-date> \
   --max-announcements 100 --max-documents 100
 
-.venv/bin/python -m inflector_data.research_cli ingest-gdelt-news \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator research ingest-gdelt-news \
   --research-profile "$INFLECTOR_RESEARCH_PROFILE" \
   --symbols-file "$INFLECTOR_SYMBOLS_FILE" --max-symbols 3 \
   --knowledge-cutoff <reviewed-timezone-aware-cutoff> \
@@ -139,8 +139,7 @@ date bounds; the placeholders below are not inferred or backdated:
 Now create the one legitimate database-bound Research V4 configuration:
 
 ```bash
-.venv/bin/python -m inflector_data.research_cli init-model \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
+run_inflector_operator research init-model \
   --model-family "$INFLECTOR_MODEL_FAMILY" \
   --model-semantic-version "$INFLECTOR_MODEL_SEMANTIC_VERSION" \
   --git-sha "$INFLECTOR_DEPLOYED_GIT_SHA" \
@@ -157,9 +156,7 @@ the production provider-dataset UUIDs. Production U recomputes and verifies both
 Only after successful model initialization, bootstrap the accepted champion:
 
 ```bash
-.venv/bin/python -m inflector_data.model_release_cli bootstrap-active-champion \
-  --database-url "$INFLECTOR_PRODUCTION_DATABASE_URL" \
-  --release-policy config/operations/production_model_release_v1.json \
+run_inflector_operator bootstrap-champion \
   --activated-at <reviewed-timezone-aware-activation-time>
 ```
 

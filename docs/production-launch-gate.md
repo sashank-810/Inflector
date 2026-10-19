@@ -1,5 +1,12 @@
 # Production launch gate
 
+For the exact fail-closed Linux commands, immutable release installer, host
+preflight, and operator-attestation gate, follow
+[`production-activation-runbook.md`](production-activation-runbook.md). The
+gate does not enable the recurring timer or perform the Telegram smoke.
+The `run_inflector_operator` shell helper referenced below is defined by that
+runbook and does not put the database URL in a process argument vector.
+
 This runbook launches only the accepted V5 champion. It does not complete
 historical Production T, activate a challenger, tune a model, or change any
 accepted scoring or evaluation policy.
@@ -128,12 +135,10 @@ independently validated identities. The bootstrap and readiness commands are
 idempotent, but run them against production only through an explicit operator
 session:
 
-```powershell
-.\.venv\Scripts\python.exe -m inflector_data.model_release_cli bootstrap-active-champion `
-  --database-url $env:INFLECTOR_PRODUCTION_DATABASE_URL `
-  --release-policy config/operations/production_model_release_v1.json `
-  --activated-at <timezone-aware-operator-time>
-```
+Use `run_inflector_operator bootstrap-champion --activated-at
+<timezone-aware-operator-time>` from the controlled activation runbook. The
+root-only environment is loaded by systemd and the database URL never enters a
+process argument vector.
 
 Then run `model-release-readiness` with the accepted U/T/S2/S1 policy paths,
 repository root, observation time, raw roots, and model family. The launchable
@@ -180,11 +185,8 @@ The real one-message smoke is a separate, explicit operator action. Supply the
 credentials through the secret store, set
 `INFLECTOR_ALLOW_LIVE_TELEGRAM_SMOKE=1` only for this invocation, and run:
 
-```powershell
-.\.venv\Scripts\python.exe -m inflector_data.telegram_launch_smoke_cli `
-  --database-url $env:INFLECTOR_PRODUCTION_DATABASE_URL `
-  --delivery-id <reviewed-delivery-uuid> `
-  --repository-root .
+```bash
+run_inflector_operator telegram-smoke --delivery-id '<reviewed-delivery-uuid>'
 ```
 
 The command validates that exact existing N/O identity, claims only that row,

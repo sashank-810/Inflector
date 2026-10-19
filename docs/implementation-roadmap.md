@@ -1,5 +1,11 @@
 # Implementation roadmap
 
+Repository-side single-host activation is operationalized by
+`scripts/inflector_linux_deploy.py`, `scripts/inflector_production_operator.py`,
+and `scripts/production_launch_gate.py`; the reviewed execution order is in
+`docs/production-activation-runbook.md`. This is deployment hardening for the
+accepted A–U system, not another model-development phase.
+
 ## Phase 0 — architecture and design (complete)
 
 - Inspected the clean `Inflector` repository and removed its setup-only prompt.

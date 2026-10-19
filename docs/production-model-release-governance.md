@@ -1,5 +1,10 @@
 # Production U model release governance
 
+Operational activation of the accepted champion follows the
+[`controlled production activation runbook`](production-activation-runbook.md).
+That deployment tooling does not alter this governance policy or admit a
+challenger.
+
 Production U is the release boundary between validated model evidence and live
 scoring. It does not tune, train, calibrate, or promote a model automatically.
 The accepted V5 champion remains operational even while real historical

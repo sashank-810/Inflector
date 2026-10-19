@@ -1,5 +1,10 @@
 # Production readiness and operator health
 
+Host/release installation, machine preflight, and final operator attestations are
+executed through the
+[`controlled production activation runbook`](production-activation-runbook.md).
+Its tooling delegates database-aware health to the accepted readiness services.
+
 Production P hardens the accepted production chain without changing its
 business semantics:
 

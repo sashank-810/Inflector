@@ -267,6 +267,8 @@ and rollback history. See [model release governance](docs/production-model-relea
 The final launch procedure, including CI, PostgreSQL migration, backup/restore,
 V5 champion bootstrap, one-cycle smoke testing, and the operator-only Telegram
 send, is documented in [production launch gate](docs/production-launch-gate.md).
+The exact single-host commands are in the
+[controlled production activation runbook](docs/production-activation-runbook.md).
 
 Corporate actions and announcement/catalyst evidence can be ingested for an
 explicit bounded date window:
@@ -303,13 +305,12 @@ null final score, never an inferred or renormalized score. See
 [current production research](docs/production-current-research.md).
 
 Repeated current-research execution is managed by the persistent operations
-ledger and explicit cycle clock:
-
-```powershell
-python -m inflector_data.ops_cli doctor <explicit production arguments>
-python -m inflector_data.ops_cli run-cycle <the same explicit arguments>
-python -m inflector_data.ops_cli status --database-url $env:INFLECTOR_PRODUCTION_DATABASE_URL
-```
+ledger and explicit cycle clock. Production execution uses the systemd cycle
+service and secret-safe operator bridge from the
+[controlled production activation runbook](docs/production-activation-runbook.md);
+database credentials never enter a process argument vector. For example, the
+Linux operator can inspect recent runs with `run_inflector_operator
+operations-status --last 1`.
 
 The cycle lease prevents concurrent ownership, exact completed reruns are
 reused, failed/stale runs require explicit resume, and partial V5 snapshots are
@@ -398,7 +399,8 @@ watchlist/notes persistence. Production scoring is not activated.
 
 Delivery range ingestion is explicit and bounded:
 
-`python -m inflector_data.nse_cli ingest-delivery-range --database-url ... --raw-root ... --license-class ... --from-date YYYY-MM-DD --to-date YYYY-MM-DD`
+Use `run_inflector_operator nse ingest-delivery-range` with the explicit bounded
+arguments in the controlled production activation runbook.
 
 Use `production_research_v2.json` with `production_operations_v2.json` to enable
 delivery evidence operationally. V1 profiles remain immutable. See
