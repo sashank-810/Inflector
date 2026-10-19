@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import runpy
+import subprocess
 from datetime import datetime
 from pathlib import Path
 from types import SimpleNamespace
@@ -12,7 +13,13 @@ from zoneinfo import ZoneInfo
 import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
-BASE_SHA = "6441929b4696689ee58480a18b808594c997a0a7"
+BASE_SHA = subprocess.run(
+    ("git", "rev-parse", "HEAD"),
+    cwd=ROOT,
+    check=True,
+    capture_output=True,
+    text=True,
+).stdout.strip()
 
 
 def _wrapper() -> dict[str, Any]:
